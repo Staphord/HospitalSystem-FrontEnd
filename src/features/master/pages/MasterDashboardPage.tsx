@@ -65,23 +65,7 @@ export function MasterDashboardPage() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <PageHeader
-          title="Dashboard"
-          description="Super Administrator overview of platform operations, billing status, and tenant registry health."
-        />
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <Link to="/master/tenants" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '1.1rem' }}>add_box</span>
-            Onboard Tenant
-          </Link>
-          <Link to="/master/announcements" className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '1.1rem' }}>campaign</span>
-            New Broadcast
-          </Link>
-        </div>
-      </div>
-
+    
       <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 0.9fr', gap: '1.5rem', alignItems: 'start' }}>
         
         {/* Left Main Content */}
