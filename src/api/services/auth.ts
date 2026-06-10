@@ -1,0 +1,42 @@
+import { apiClient } from '@/api/client'
+import type {
+  ImpersonateRequest,
+  ImpersonateResponse,
+  LoginRequest,
+  PasswordResetConfirm,
+  PasswordResetRequest,
+  RefreshRequest,
+  SignupRequest,
+  SignupResponse,
+  TokenResponse,
+} from '@/api/types/auth'
+
+export const authService = {
+  login: (data: LoginRequest) =>
+    apiClient.post<TokenResponse>('/auth/login', data).then((r) => r.data),
+
+  signup: (data: SignupRequest) =>
+    apiClient.post<SignupResponse>('/auth/signup', data).then((r) => r.data),
+
+  refresh: (data: RefreshRequest) =>
+    apiClient.post<TokenResponse>('/auth/refresh', data).then((r) => r.data),
+
+  logout: (refreshToken: string) =>
+    apiClient.post('/auth/logout', { refresh_token: refreshToken }),
+
+  logoutAll: () => apiClient.post('/auth/logout-all'),
+
+  requestPasswordReset: (data: PasswordResetRequest) =>
+    apiClient.post('/auth/password-reset', data),
+
+  confirmPasswordReset: (data: PasswordResetConfirm) =>
+    apiClient.post('/auth/password-reset/confirm', data),
+
+  setupMfa: () => apiClient.post<{ secret: string; qr_uri: string }>('/auth/mfa/setup'),
+
+  verifyMfa: (code: string) =>
+    apiClient.post('/auth/mfa/verify', { code }),
+
+  impersonate: (data: ImpersonateRequest) =>
+    apiClient.post<ImpersonateResponse>('/auth/impersonate', data).then((r) => r.data),
+}

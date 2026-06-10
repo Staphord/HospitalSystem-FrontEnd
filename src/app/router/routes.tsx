@@ -1,0 +1,134 @@
+import { Navigate } from 'react-router-dom'
+import { AuthLayout } from '@/app/layout/AuthLayout'
+import { HospitalLayout } from '@/app/layout/HospitalLayout'
+import { MasterLayout } from '@/app/layout/MasterLayout'
+import { ProtectedRoute } from '@/app/router/ProtectedRoute'
+import { RoleRoute } from '@/app/router/RoleRoute'
+import { ROLES } from '@/lib/roles'
+import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { SignupPage } from '@/features/auth/pages/SignupPage'
+import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
+import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
+import { UserManagementPage } from '@/features/admin/pages/UserManagementPage'
+import { MasterDashboardPage } from '@/features/master/pages/MasterDashboardPage'
+import { TenantManagementPage } from '@/features/master/pages/TenantManagementPage'
+import { TenantDetailPage } from '@/features/master/pages/TenantDetailPage'
+import { SubscriptionManagementPage } from '@/features/master/pages/SubscriptionManagementPage'
+import { InvoiceManagementPage } from '@/features/master/pages/InvoiceManagementPage'
+import { MasterAdminsPage } from '@/features/master/pages/MasterAdminsPage'
+import { SystemHealthPage } from '@/features/master/pages/SystemHealthPage'
+import { AnnouncementsPage } from '@/features/master/pages/AnnouncementsPage'
+import { AuditLogsPage } from '@/features/master/pages/AuditLogsPage'
+import { ReportsDashboardPage } from '@/features/reports/pages/ReportsDashboardPage'
+import { PatientRegistrationPage } from '@/features/reception/pages/PatientRegistrationPage'
+import { VisitQueuePage } from '@/features/reception/pages/VisitQueuePage'
+import { TriageQueuePage } from '@/features/triage/pages/TriageQueuePage'
+import { ConsultationQueuePage } from '@/features/consultation/pages/ConsultationQueuePage'
+import { LabRequestsPage } from '@/features/laboratory/pages/LabRequestsPage'
+import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
+import { DispensingPage } from '@/features/pharmacy/pages/DispensingPage'
+import { BillsPage } from '@/features/billing/pages/BillsPage'
+import { AdmissionsPage } from '@/features/ward/pages/AdmissionsPage'
+import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage'
+import { EmptyState } from '@/components/ui/EmptyState'
+
+function UnauthorizedPage() {
+  return (
+    <EmptyState
+      title="Access denied"
+      description="You do not have permission to view this page."
+    />
+  )
+}
+
+export const routes = [
+  {
+    path: '/',
+    element: <Navigate to="/login" replace />,
+  },
+  {
+    element: <AuthLayout />,
+    children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/signup', element: <SignupPage /> },
+      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
+    ],
+  },
+  {
+    element: <ProtectedRoute />,
+    children: [
+      {
+        element: <RoleRoute allowed={[ROLES.superAdmin]} />,
+        children: [
+          {
+            element: <MasterLayout />,
+            children: [
+              { path: '/master/dashboard', element: <MasterDashboardPage /> },
+              { path: '/master/tenants', element: <TenantManagementPage /> },
+              { path: '/master/tenants/:id', element: <TenantDetailPage /> },
+              { path: '/master/subscriptions', element: <SubscriptionManagementPage /> },
+              { path: '/master/invoices', element: <InvoiceManagementPage /> },
+              { path: '/master/admins', element: <MasterAdminsPage /> },
+              { path: '/master/health', element: <SystemHealthPage /> },
+              { path: '/master/announcements', element: <AnnouncementsPage /> },
+              { path: '/master/audit-logs', element: <AuditLogsPage /> },
+            ],
+          },
+        ],
+      },
+      {
+        element: <HospitalLayout />,
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          {
+            element: <RoleRoute allowed={[ROLES.hospitalAdmin]} />,
+            children: [
+              { path: '/admin/users', element: <UserManagementPage /> },
+              { path: '/reports', element: <ReportsDashboardPage /> },
+            ],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.hospitalAdmin, ROLES.receptionist]} />,
+            children: [
+              { path: '/reception/register', element: <PatientRegistrationPage /> },
+              { path: '/reception/queue', element: <VisitQueuePage /> },
+            ],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.triageNurse, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/triage/queue', element: <TriageQueuePage /> }],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.doctor, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/consultation/queue', element: <ConsultationQueuePage /> }],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/laboratory/requests', element: <LabRequestsPage /> }],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/radiology/schedule', element: <ImagingSchedulePage /> }],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.pharmacist, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/pharmacy/dispense', element: <DispensingPage /> }],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/billing', element: <BillsPage /> }],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/ward/admissions', element: <AdmissionsPage /> }],
+          },
+          { path: '/notifications', element: <NotificationsPage /> },
+          { path: '/unauthorized', element: <UnauthorizedPage /> },
+        ],
+      },
+    ],
+  },
+  { path: '*', element: <Navigate to="/login" replace /> },
+]
