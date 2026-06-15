@@ -6,7 +6,7 @@ import { authService } from '@/api/services/auth'
 import { toast } from 'sonner'
 
 export function Sidebar() {
-  const { hasAnyRole, isSuperAdmin } = usePermissions()
+  const { hasAnyRole, isSuperAdmin, isHospitalAdmin } = usePermissions()
   const { user, clearAuth, refreshToken } = useAuth()
   const navigate = useNavigate()
 
@@ -34,6 +34,7 @@ export function Sidebar() {
       .join(' ')
   }
 
+  // Get navigation items grouped by section
   const getGroupedNav = () => {
     const visibleItems = navItems.filter((item) => hasAnyRole(item.roles))
     
@@ -63,6 +64,49 @@ export function Sidebar() {
               item.path.includes('/master/health') ||
               item.path.includes('/master/announcements') ||
               item.path.includes('/master/audit-logs')
+          ),
+        },
+      ]
+    } else if (isHospitalAdmin()) {
+      return [
+        {
+          title: 'Overview',
+          items: visibleItems.filter((item) => item.path === '/admin/dashboard'),
+        },
+        {
+          title: 'Staff Management',
+          items: visibleItems.filter(
+            (item) =>
+              item.path === '/admin/staff' ||
+              item.path === '/admin/sessions'
+          ),
+        },
+        {
+          title: 'Hospital Configuration',
+          items: visibleItems.filter(
+            (item) =>
+              item.path === '/admin/departments' ||
+              item.path === '/admin/fees' ||
+              item.path === '/admin/insurance' ||
+              item.path === '/admin/settings'
+          ),
+        },
+        {
+          title: 'Reports & Analytics',
+          items: visibleItems.filter(
+            (item) =>
+              item.path === '/admin/reports/patients' ||
+              item.path === '/admin/reports/revenue' ||
+              item.path === '/admin/reports/operations'
+          ),
+        },
+        {
+          title: 'System',
+          items: visibleItems.filter(
+            (item) =>
+              item.path === '/admin/audit-logs' ||
+              item.path === '/admin/backup' ||
+              item.path === '/admin/subscription'
           ),
         },
       ]
@@ -100,7 +144,7 @@ export function Sidebar() {
           title: 'Admin & Billing',
           items: visibleItems.filter(
             (item) =>
-              item.path.includes('/admin/users') ||
+              item.path.includes('/admin/') ||
               item.path === '/billing'
           ),
         },
@@ -109,6 +153,127 @@ export function Sidebar() {
   }
 
   const groupedNav = getGroupedNav()
+
+  if (isHospitalAdmin()) {
+    return (
+      <aside className="sidebar admin-portal-theme bg-surface-white border-r border-border-subtle flex flex-col h-screen overflow-hidden" style={{ padding: 0 }}>
+        {/* Brand logo header */}
+        <div className="px-md py-lg flex items-center space-x-sm" style={{ padding: '24px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0" style={{ width: '40px', height: '40px', borderRadius: '9999px', backgroundColor: '#0052cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '20px' }}>
+              festival
+            </span>
+          </div>
+          <div className="overflow-hidden" style={{ overflow: 'hidden' }}>
+            <h1 className="font-headline-sm text-[14px] leading-tight truncate text-on-surface" style={{ fontFamily: 'Manrope, sans-serif', fontSize: '14px', fontWeight: 600, lineHeight: 1.25, margin: 0, color: '#191c1e', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+              Muhimbili National Hospital
+            </h1>
+            <p className="font-label-sm text-outline text-[11px] leading-tight" style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 500, lineHeight: 1.25, margin: 0, color: '#737685' }}>
+              Admin Portal
+            </p>
+          </div>
+        </div>
+
+        {/* Renders main navigation structure */}
+        <nav className="flex-1 overflow-y-auto px-xs nav-scrollbar space-y-lg mt-sm" style={{ flex: 1, overflowY: 'auto', paddingLeft: '4px', paddingRight: '4px', marginTop: '8px' }}>
+          {groupedNav.map((group) => {
+            if (group.items.length === 0) return null;
+            return (
+              <div key={group.title} className="space-y-xs" style={{ marginBottom: '24px' }}>
+                <h3 className="px-md mb-xs font-label-md text-outline text-[11px] tracking-wider uppercase" style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 600, color: '#737685', paddingLeft: '16px', paddingRight: '16px', margin: '0 0 8px 0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  {group.title}
+                </h3>
+                <ul className="space-y-[2px]" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {group.items.map((item) => (
+                    <li key={item.path}>
+                      <NavLink
+                        to={item.path}
+                        className={({ isActive }) =>
+                          `flex items-center space-x-sm px-md py-sm transition-colors group ${
+                            isActive
+                              ? 'sidebar-active bg-row-hover text-primary font-semibold'
+                              : 'text-secondary hover:bg-surface-container-low'
+                          }`
+                        }
+                        style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span
+                              className="material-symbols-outlined shrink-0"
+                              style={{
+                                fontVariationSettings: isActive || item.label === 'Dashboard' ? "'FILL' 1" : "'FILL' 0",
+                                fontSize: '20px'
+                              }}
+                            >
+                              {item.label === 'Tenants' ? 'domain' :
+                               item.label === 'Subscriptions' ? 'card_membership' :
+                               item.label === 'Invoices' ? 'receipt_long' :
+                               item.label === 'Platform Admins' ? 'admin_panel_settings' :
+                               item.label === 'System Health' ? 'monitor_heart' :
+                               item.label === 'Announcements' ? 'campaign' :
+                               (item.label === 'Audit Logs' || item.label === 'Active Sessions' || item.label === 'Sessions') ? 'history' :
+                               item.label === 'Dashboard' ? 'dashboard' :
+                               item.label === 'Reports' ? 'bar_chart' :
+                               (item.label === 'All Staff' || item.label === 'Users') ? 'group' :
+                               (item.label === 'Departments & Wards' || item.label === 'Departments') ? 'domain' :
+                               (item.label === 'Fee Schedules' || item.label === 'Fees') ? 'receipt_long' :
+                               (item.label === 'Insurance Providers' || item.label === 'Insurance') ? 'health_and_safety' :
+                               item.label === 'Hospital Settings' ? 'settings_heart' :
+                               item.label === 'Settings' ? 'settings' :
+                               item.label === 'Data Backup' ? 'cloud_upload' :
+                               (item.label === 'My Subscription' || item.label === 'Subscription') ? 'card_membership' :
+                               item.label === 'Patient Reports' ? 'assignment' :
+                               item.label === 'Revenue Reports' ? 'monetization_on' :
+                               item.label === 'Operational Reports' ? 'analytics' : 'description'}
+                            </span>
+                            <span className="font-body-md" style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px' }}>
+                              {item.label}
+                            </span>
+                          </>
+                        )}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Renders administrator user profile footer */}
+        <div className="p-md border-t border-border-subtle bg-surface-white" style={{ padding: '16px', borderTop: '1px solid #DFE1E6', backgroundColor: '#FFFFFF' }}>
+          <div className="flex items-center space-x-sm mb-md" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary shrink-0 select-none" style={{ width: '40px', height: '40px', borderRadius: '9999px', backgroundColor: '#0052cc', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, userSelect: 'none' }}>
+              <span className="font-headline-sm text-[14px] font-bold leading-none" style={{ fontFamily: 'Manrope, sans-serif', fontSize: '14px', fontWeight: 700, lineHeight: 1 }}>
+                {(user?.full_name || user?.username || 'U').split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+              </span>
+            </div>
+            <div className="overflow-hidden" style={{ overflow: 'hidden' }}>
+              <p className="font-headline-sm text-[14px] truncate" style={{ fontFamily: 'Manrope, sans-serif', fontSize: '14px', fontWeight: 600, margin: 0, color: '#191c1e', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                {user?.full_name || user?.username || 'Hospital Admin'}
+              </p>
+              <span className="inline-block px-xs py-[1px] bg-row-hover text-primary text-[10px] font-bold rounded uppercase tracking-wide" style={{ display: 'inline-block', padding: '1px 4px', backgroundColor: '#DEEBFF', color: '#0052cc', fontSize: '10px', fontWeight: 700, borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.025em' }}>
+                Hospital Administrator
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-xs py-sm border border-border-subtle rounded hover:bg-surface-container-low transition-colors group cursor-pointer bg-transparent"
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '8px 0', border: '1px solid #DFE1E6', borderRadius: '4px', transition: 'all 0.2s', cursor: 'pointer' }}
+          >
+            <span className="material-symbols-outlined text-secondary group-hover:text-error transition-colors" style={{ fontSize: '20px' }}>
+              logout
+            </span>
+            <span className="font-label-md text-secondary group-hover:text-error transition-colors uppercase" style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase' }}>
+              Logout
+            </span>
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="sidebar">
@@ -140,17 +305,36 @@ export function Sidebar() {
                       isActive ? 'nav-link active' : 'nav-link'
                     }
                   >
-                    <span className="material-symbols-outlined nav-icon" style={{ marginRight: '0.75rem', fontSize: '1.25rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span
+                      className="material-symbols-outlined nav-icon"
+                      style={{
+                        marginRight: '0.75rem',
+                        fontSize: '1.25rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
                       {item.label === 'Tenants' ? 'domain' :
                        item.label === 'Subscriptions' ? 'card_membership' :
                        item.label === 'Invoices' ? 'receipt_long' :
                        item.label === 'Platform Admins' ? 'admin_panel_settings' :
                        item.label === 'System Health' ? 'monitor_heart' :
                        item.label === 'Announcements' ? 'campaign' :
-                       item.label === 'Audit Logs' ? 'history' :
+                       (item.label === 'Audit Logs' || item.label === 'Active Sessions' || item.label === 'Sessions') ? 'history' :
                        item.label === 'Dashboard' ? 'dashboard' :
                        item.label === 'Reports' ? 'bar_chart' :
-                       item.label === 'Users' ? 'group' :
+                       (item.label === 'All Staff' || item.label === 'Users') ? 'group' :
+                       (item.label === 'Departments & Wards' || item.label === 'Departments') ? 'domain' :
+                       (item.label === 'Fee Schedules' || item.label === 'Fees') ? 'receipt_long' :
+                       (item.label === 'Insurance Providers' || item.label === 'Insurance') ? 'health_and_safety' :
+                       item.label === 'Hospital Settings' ? 'settings_heart' :
+                       item.label === 'Settings' ? 'settings' :
+                       item.label === 'Data Backup' ? 'cloud_upload' :
+                       (item.label === 'My Subscription' || item.label === 'Subscription') ? 'card_membership' :
+                       item.label === 'Patient Reports' ? 'assignment' :
+                       item.label === 'Revenue Reports' ? 'monetization_on' :
+                       item.label === 'Operational Reports' ? 'analytics' :
                        item.label === 'Reception' ? 'how_to_reg' :
                        item.label === 'Queue' ? 'hourglass_empty' :
                        item.label === 'Triage' ? 'medical_services' :

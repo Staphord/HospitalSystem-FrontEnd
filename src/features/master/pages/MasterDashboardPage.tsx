@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { masterService } from '@/api/services/master'
 import { monitoringService, type SystemHealthData, type AuditLog } from '@/api/services/monitoring'
 import type { Tenant, Invoice } from '@/api/types/master'

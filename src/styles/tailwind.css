@@ -1,0 +1,94 @@
+@tailwind components;
+@tailwind utilities;
+
+.nav-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nav-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav-scrollbar::-webkit-scrollbar-thumb {
+  background: #dfe1e6;
+  border-radius: 10px;
+}
+
+/* Scoped Preflight resets for elements inside admin pages using low-specificity :where() */
+:where(.admin-portal-theme) *,
+:where(.admin-portal-theme) *::before,
+:where(.admin-portal-theme) *::after {
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 0;
+  border-color: #dfe1e6;
+}
+
+:where(.admin-portal-theme) h1,
+:where(.admin-portal-theme) h2,
+:where(.admin-portal-theme) h3,
+:where(.admin-portal-theme) h4,
+:where(.admin-portal-theme) h5,
+:where(.admin-portal-theme) h6,
+:where(.admin-portal-theme) p,
+:where(.admin-portal-theme) ul,
+:where(.admin-portal-theme) ol,
+:where(.admin-portal-theme) dl,
+:where(.admin-portal-theme) dd,
+:where(.admin-portal-theme) figure {
+  margin: 0;
+  padding: 0;
+}
+
+:where(.admin-portal-theme) button,
+:where(.admin-portal-theme) select,
+:where(.admin-portal-theme) input,
+:where(.admin-portal-theme) textarea {
+  font-family: 'Inter', sans-serif;
+}
+
+:where(.admin-portal-theme) button,
+:where(.admin-portal-theme) [type='button'],
+:where(.admin-portal-theme) [type='reset'],
+:where(.admin-portal-theme) [type='submit'] {
+  background-color: transparent;
+  background-image: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  -webkit-appearance: button;
+}
+
+:where(.admin-portal-theme) select {
+  background-color: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+:where(.admin-portal-theme) table {
+  border-collapse: collapse;
+}
+
+:where(.admin-portal-theme) .material-symbols-outlined {
+  font-size: 20px;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  display: inline-block;
+  user-select: none;
+  vertical-align: middle;
+}
+
+/* Sidebar vertical active highlight indicator strip */
+.sidebar-active {
+  position: relative;
+}
+
+.sidebar-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: #0052cc;
+}
+
