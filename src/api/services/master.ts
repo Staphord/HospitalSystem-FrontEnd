@@ -17,19 +17,30 @@ export interface InvoiceCreate {
   description?: string
 }
 
+function normalizeTenant(data: Tenant): Tenant {
+  return {
+    ...data,
+    hospital_name: data.hospital_name || data.name || data.tenant_id,
+  }
+}
+
+function normalizeTenants(data: Tenant[]): Tenant[] {
+  return Array.isArray(data) ? data.map(normalizeTenant) : []
+}
+
 // All paths proxied via api-gateway → master-service
 export const masterService = {
   listTenants: () =>
-    apiClient.get<Tenant[]>('/tenants').then((r) => r.data),
+    apiClient.get<Tenant[]>('/tenants').then((r) => normalizeTenants(r.data)),
 
   getTenant: (tenantId: string) =>
-    apiClient.get<Tenant>(`/tenants/${tenantId}`).then((r) => r.data),
+    apiClient.get<Tenant>(`/tenants/${tenantId}`).then((r) => normalizeTenant(r.data)),
 
   createTenant: (data: TenantCreate) =>
-    apiClient.post<Tenant>('/tenants', data).then((r) => r.data),
+    apiClient.post<Tenant>('/tenants', data).then((r) => normalizeTenant(r.data)),
 
   updateTenant: (tenantId: string, data: Partial<Tenant>) =>
-    apiClient.patch<Tenant>(`/tenants/${tenantId}`, data).then((r) => r.data),
+    apiClient.patch<Tenant>(`/tenants/${tenantId}`, data).then((r) => normalizeTenant(r.data)),
 
   listSubscriptions: (tenantId?: string) =>
     apiClient

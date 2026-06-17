@@ -15,6 +15,9 @@ export const authService = {
   login: (data: LoginRequest) =>
     apiClient.post<TokenResponse>('/auth/login', data).then((r) => r.data),
 
+  loginSuperAdmin: (data: LoginRequest) =>
+    apiClient.post<TokenResponse>('/auth/superadmin/login', data).then((r) => r.data),
+
   signup: (data: SignupRequest) =>
     apiClient.post<SignupResponse>('/auth/signup', data).then((r) => r.data),
 
@@ -32,10 +35,10 @@ export const authService = {
   confirmPasswordReset: (data: PasswordResetConfirm) =>
     apiClient.post('/auth/password-reset/confirm', data),
 
-  setupMfa: () => apiClient.post<{ secret: string; qr_uri: string }>('/auth/mfa/setup'),
+  setupMfa: () => apiClient.post<{ secret: string; qr_code_url: string }>('/auth/mfa/setup').then((r) => r.data),
 
   verifyMfa: (code: string) =>
-    apiClient.post('/auth/mfa/verify', { code }),
+    apiClient.post('/auth/mfa/verify', { totp_code: code }),
 
   impersonate: (data: ImpersonateRequest) =>
     apiClient.post<ImpersonateResponse>('/auth/impersonate', data).then((r) => r.data),

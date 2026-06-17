@@ -52,7 +52,8 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user }),
 
-      clearAuth: () =>
+      clearAuth: () => {
+        localStorage.removeItem('session_warning_acknowledged')
         set({
           accessToken: null,
           refreshToken: null,
@@ -61,7 +62,8 @@ export const useAuthStore = create<AuthState>()(
           tenantId: null,
           isImpersonating: false,
           isReadOnly: false,
-        }),
+        })
+      },
     }),
     {
       name: 'hospital-flow-auth',

@@ -183,11 +183,13 @@ export function TenantDetailPage() {
             color: 'var(--color-primary)', 
             display: 'inline-flex', 
             alignItems: 'center', 
-            gap: '0.25rem',
+            gap: '0.35rem',
             marginBottom: '1rem' 
           }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            arrow_back
+          </span>
           Back to Tenants
         </Link>
 
@@ -207,7 +209,9 @@ export function TenantDetailPage() {
                   border: '1px solid var(--color-border)' 
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '2rem' }}>local_hospital</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
+                  local_hospital
+                </span>
               </div>
               <div>
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
@@ -236,6 +240,9 @@ export function TenantDetailPage() {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>login</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    visibility
+                  </span>
                   Impersonate
                 </button>
               )}
@@ -251,7 +258,9 @@ export function TenantDetailPage() {
                   }}
                   onClick={() => setIsSuspendOpen(true)}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>pause</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    pause_circle
+                  </span>
                   Suspend
                 </button>
               ) : tenant.status === 'suspended' ? (
@@ -266,7 +275,9 @@ export function TenantDetailPage() {
                   }}
                   onClick={handleUnsuspend}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>play_arrow</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    play_circle
+                  </span>
                   Unsuspend
                 </button>
               ) : null}
@@ -290,7 +301,9 @@ export function TenantDetailPage() {
                     setIsTerminateOpen(true)
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    delete
+                  </span>
                   Terminate
                 </button>
               )}

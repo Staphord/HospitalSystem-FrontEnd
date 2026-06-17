@@ -465,14 +465,32 @@ function encodeMockToken(payload: Record<string, unknown>) {
   const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   return `mockHeader.${base64url}.mockSignature`
 }
-const defaultAdapter = apiClient.defaults.adapter as AxiosAdapter
+const defaultAdapter = axios.getAdapter(axios.defaults.adapter) as any
 
 apiClient.defaults.adapter = async (config) => {
-  if (!MOCK_ENABLED) {
+  let url = config.url || ''
+  const useRealBackend =
+    url.includes('/auth/login') ||
+    url.includes('/auth/superadmin/login') ||
+    url.includes('/auth/logout') ||
+    url.includes('/auth/logout-all') ||
+    url.includes('/auth/password-reset') ||
+    url.includes('/auth/mfa/') ||
+    url.includes('/me') ||
+    url.includes('/superadmin/') ||
+    url.includes('/tenants') ||
+    url.includes('/master-admins')
+
+  if (!MOCK_ENABLED || useRealBackend) {
+    if (url.startsWith('/tenants')) {
+      config.url = `/superadmin${url}`
+    } else if (url.startsWith('/master-admins')) {
+      config.url = `/superadmin/users`
+    }
     if (defaultAdapter) return defaultAdapter(config)
   }
 
-  const url = config.url || ''
+  url = config.url || ''
   const method = config.method ? config.method.toLowerCase() : 'get'
   const data = config.data ? JSON.parse(config.data) : null
   const headers = (config.headers || {}) as Record<string, string | number | boolean>
@@ -580,6 +598,20 @@ apiClient.defaults.adapter = async (config) => {
     } catch {
       return respond(401, { detail: 'Invalid token' })
     }
+  }
+
+  // User: Update Me
+  if (url.endsWith('/me') && method === 'put') {
+    return respond(200, { detail: 'Profile updated successfully' })
+  }
+
+  // User: Change Password
+  if (url.endsWith('/me/password') && method === 'post') {
+    const data = JSON.parse(config.data || '{}')
+    if (data.current_password === 'wrong') {
+      return respond(400, { detail: 'Invalid current password' })
+    }
+    return respond(200, { detail: 'Password changed successfully' })
   }
 
   // Master: Platform Admins
