@@ -24,7 +24,9 @@ import { SubscriptionPage } from '@/features/admin/pages/SubscriptionPage'
 import { MasterDashboardPage } from '@/features/master/pages/MasterDashboardPage'
 import { TenantManagementPage } from '@/features/master/pages/TenantManagementPage'
 import { TenantDetailPage } from '@/features/master/pages/TenantDetailPage'
+import { CreateTenantPage } from '@/features/master/pages/CreateTenantPage'
 import { SubscriptionManagementPage } from '@/features/master/pages/SubscriptionManagementPage'
+import { SubscriptionDetailPage } from '@/features/master/pages/SubscriptionDetailPage'
 import { InvoiceManagementPage } from '@/features/master/pages/InvoiceManagementPage'
 import { MasterAdminsPage } from '@/features/master/pages/MasterAdminsPage'
 import { SystemHealthPage } from '@/features/master/pages/SystemHealthPage'
@@ -80,8 +82,11 @@ export const routes = [
             children: [
               { path: '/master/dashboard', element: <MasterDashboardPage /> },
               { path: '/master/tenants', element: <TenantManagementPage /> },
+              { path: '/master/tenants/new', element: <CreateTenantPage /> },
               { path: '/master/tenants/:id', element: <TenantDetailPage /> },
               { path: '/master/subscriptions', element: <SubscriptionManagementPage /> },
+              { path: '/master/subscriptions/:id', element: <SubscriptionDetailPage /> },
+
               { path: '/master/invoices', element: <InvoiceManagementPage /> },
               { path: '/master/admins', element: <MasterAdminsPage /> },
               { path: '/master/health', element: <SystemHealthPage /> },
