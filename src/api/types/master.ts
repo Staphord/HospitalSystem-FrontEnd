@@ -1,10 +1,15 @@
 // master-service — tenants, subscriptions, invoices, announcements
 
 export interface Tenant {
+  id?: number
   tenant_id: string
   hospital_name: string
+  name?: string
   status: string
+  subscription_plan?: string
+  is_active?: boolean
   created_at?: string
+  updated_at?: string
   subscription_end?: string | null
   country?: string
   city?: string

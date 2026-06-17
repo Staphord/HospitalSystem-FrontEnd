@@ -116,11 +116,14 @@ export function TenantDetailPage() {
             color: 'var(--color-primary)', 
             display: 'inline-flex', 
             alignItems: 'center', 
-            gap: '0.25rem',
+            gap: '0.35rem',
             marginBottom: '1rem' 
           }}
         >
-          ← Back to Tenants
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            arrow_back
+          </span>
+          Back to Tenants
         </Link>
 
         <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
@@ -141,7 +144,9 @@ export function TenantDetailPage() {
                   border: '1px solid var(--color-border)' 
                 }}
               >
-                🏥
+                <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
+                  local_hospital
+                </span>
               </div>
               <div>
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
@@ -169,7 +174,10 @@ export function TenantDetailPage() {
                   }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
-                  👁️ Impersonate
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    visibility
+                  </span>
+                  Impersonate
                 </button>
               )}
               {tenant.status === 'active' ? (
@@ -185,7 +193,10 @@ export function TenantDetailPage() {
                   }}
                   onClick={() => handleUpdateStatus('suspended')}
                 >
-                  ⏸️ Suspend
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    pause_circle
+                  </span>
+                  Suspend
                 </button>
               ) : tenant.status === 'suspended' ? (
                 <button 
@@ -200,7 +211,10 @@ export function TenantDetailPage() {
                   }}
                   onClick={() => handleUpdateStatus('active')}
                 >
-                  ▶️ Unsuspend
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    play_circle
+                  </span>
+                  Unsuspend
                 </button>
               ) : null}
               {tenant.status !== 'terminated' && (
@@ -220,7 +234,10 @@ export function TenantDetailPage() {
                     }
                   }}
                 >
-                  🗑️ Terminate
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    delete
+                  </span>
+                  Terminate
                 </button>
               )}
             </div>

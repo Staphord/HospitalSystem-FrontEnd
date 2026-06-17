@@ -9,6 +9,11 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { SignupPage } from '@/features/auth/pages/SignupPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
+import { AccountLockedPage } from '@/features/auth/pages/AccountLockedPage'
+import { MfaSelectionPage } from '@/features/auth/pages/MfaSelectionPage'
+import { MfaVerificationPage } from '@/features/auth/pages/MfaVerificationPage'
+import { FirstLoginChangePasswordPage } from '@/features/auth/pages/FirstLoginChangePasswordPage'
+import { DeactivatedAccountPage } from '@/features/auth/pages/DeactivatedAccountPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { UserManagementPage } from '@/features/admin/pages/UserManagementPage'
 import { MasterDashboardPage } from '@/features/master/pages/MasterDashboardPage'
@@ -31,6 +36,7 @@ import { DispensingPage } from '@/features/pharmacy/pages/DispensingPage'
 import { BillsPage } from '@/features/billing/pages/BillsPage'
 import { AdmissionsPage } from '@/features/ward/pages/AdmissionsPage'
 import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage'
+import { ProfilePage } from '@/features/profile/pages/ProfilePage'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 function UnauthorizedPage() {
@@ -51,9 +57,15 @@ export const routes = [
     element: <AuthLayout />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/master/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/account-locked', element: <AccountLockedPage /> },
+      { path: '/mfa-select', element: <MfaSelectionPage /> },
+      { path: '/mfa-verify', element: <MfaVerificationPage /> },
+      { path: '/first-login-change-password', element: <FirstLoginChangePasswordPage /> },
+      { path: '/deactivated-account', element: <DeactivatedAccountPage /> },
     ],
   },
   {
@@ -74,6 +86,7 @@ export const routes = [
               { path: '/master/health', element: <SystemHealthPage /> },
               { path: '/master/announcements', element: <AnnouncementsPage /> },
               { path: '/master/audit-logs', element: <AuditLogsPage /> },
+              { path: '/master/profile', element: <ProfilePage /> },
             ],
           },
         ],
@@ -125,6 +138,7 @@ export const routes = [
             children: [{ path: '/ward/admissions', element: <AdmissionsPage /> }],
           },
           { path: '/notifications', element: <NotificationsPage /> },
+          { path: '/profile', element: <ProfilePage /> },
           { path: '/unauthorized', element: <UnauthorizedPage /> },
         ],
       },

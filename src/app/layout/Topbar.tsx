@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom'
+import { useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Topbar() {
@@ -53,9 +53,14 @@ export function Topbar() {
         <button className="topbar-action-btn" title="Settings">
           <span className="material-symbols-outlined" style={{ fontSize: '1.35rem' }}>settings</span>
         </button>
-        <div className="topbar-profile-avatar" title={user?.full_name || user?.username || 'User'}>
+        <Link
+          to={location.pathname.startsWith('/master') ? '/master/profile' : '/profile'}
+          className="topbar-profile-avatar"
+          title={user?.full_name || user?.username || 'User Profile'}
+          style={{ textDecoration: 'none' }}
+        >
           {(user?.full_name || user?.username || 'U')[0].toUpperCase()}
-        </div>
+        </Link>
       </div>
     </header>
   )

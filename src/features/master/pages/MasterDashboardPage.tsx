@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { masterService } from '@/api/services/master'
 import { monitoringService, type SystemHealthData, type AuditLog } from '@/api/services/monitoring'
 import type { Tenant, Invoice } from '@/api/types/master'
@@ -52,6 +51,8 @@ export function MasterDashboardPage() {
   const overdueCount = overdueInvoicesList.length
 
   const activeIncidents = health?.incidents.filter((inc) => inc.status === 'active') || []
+
+  const getTenantName = (tenant: Tenant) => tenant.hospital_name || tenant.name || tenant.tenant_id
 
   // Dynamic bar data
   const barData = [
@@ -219,14 +220,15 @@ export function MasterDashboardPage() {
                 </thead>
                 <tbody>
                   {tenants.map((t) => {
-                    const users = t.status === 'suspended' ? 0 : (t.hospital_name.length * 7) % 150 + 10
-                    const storage = t.status === 'suspended' ? 88 : (t.hospital_name.length * 4) % 80 + 10
-                    const lastActive = t.status === 'suspended' ? '4 days ago' : `${(t.hospital_name.length * 3) % 55 + 2} mins ago`
+                    const tenantName = getTenantName(t)
+                    const users = t.status === 'suspended' ? 0 : (tenantName.length * 7) % 150 + 10
+                    const storage = t.status === 'suspended' ? 88 : (tenantName.length * 4) % 80 + 10
+                    const lastActive = t.status === 'suspended' ? '4 days ago' : `${(tenantName.length * 3) % 55 + 2} mins ago`
                     const hasAlert = t.status === 'suspended' || t.tenant_id === 'nairobi-hosp'
 
                     return (
                       <tr key={t.tenant_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--color-primary)' }}>{t.hospital_name}</td>
+                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--color-primary)' }}>{tenantName}</td>
                         <td style={{ padding: '0.75rem 1rem' }}>
                           <span
                             className={`badge ${
