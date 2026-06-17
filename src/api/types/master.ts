@@ -16,7 +16,16 @@ export interface Tenant {
   contact_name?: string
   contact_email?: string
   contact_phone?: string
+  billing_email?: string
+  tax_id?: string
   grace_days?: number
+  nas_backup_path?: string
+  secondary_contact_name?: string
+  secondary_contact_phone?: string
+  maintenance_mode?: boolean
+  mfa_enforced?: boolean
+  rate_limit?: number
+  storage_gb?: number
 }
 
 export interface TenantCreate {
@@ -25,6 +34,38 @@ export interface TenantCreate {
   admin_password: string
   admin_email: string
   admin_full_name?: string
+  country?: string
+  city?: string
+  address?: string
+  timezone?: string
+  currency?: string
+  logo?: string
+  data_region?: string
+  billing_email?: string
+  tax_id?: string
+  grace_days?: number
+  nas_backup_path?: string
+  secondary_contact_name?: string
+  secondary_contact_phone?: string
+  plan_id?: string
+  billing_cycle?: string
+  subscription_end?: string
+}
+
+export interface SubscriptionPlan {
+  plan_id: string
+  plan_name: string
+  description?: string
+  max_users: number | null
+  max_patients: number | null
+  storage_gb: number
+  modules_included: string[]
+  monthly_price: number
+  annual_price: number
+  uptime_sla_pct: number
+  backup_frequency_hours: number
+  is_active: boolean
+  created_at?: string
 }
 
 export interface Subscription {
@@ -34,6 +75,8 @@ export interface Subscription {
   status: string
   start_date?: string
   end_date?: string | null
+  grace_period_days?: number
+  auto_renew?: boolean
 }
 
 export interface Invoice {
