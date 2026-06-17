@@ -1,23 +1,30 @@
-import { useState } from 'react';
-
-interface FeeItem {
-  id: string;
-  name: string;
-  category: string;
-  amount: string;
-  currency: string;
-  insuranceCovered: boolean;
-  active: boolean;
-}
+import { useState, useEffect } from 'react';
+import { adminService } from '@/api/services/admin';
+import type { FeeItem } from '@/api/types/admin';
 
 // Renders the fee schedule list layout, category filtering, and metrics dashboard
 export function FeesPage() {
-  const [feeItems, setFeeItems] = useState<FeeItem[]>([
-    { id: '1', name: 'General Consultation', category: 'CONSULTATION', amount: '15,000', currency: 'TZS', insuranceCovered: true, active: true },
-    { id: '2', name: 'Full Blood Count', category: 'LAB', amount: '25,000', currency: 'TZS', insuranceCovered: true, active: true },
-    { id: '3', name: 'Chest X-Ray', category: 'RADIOLOGY', amount: '45,000', currency: 'TZS', insuranceCovered: true, active: true },
-    { id: '4', name: 'Paracetamol 500mg', category: 'PHARMACY', amount: '2,000', currency: 'TZS', insuranceCovered: false, active: true },
-  ]);
+  const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchFees = () => {
+    setLoading(true);
+    adminService.listFeeSchedules()
+      .then((data) => {
+        setFeeItems(data);
+      })
+      .catch((err) => {
+        console.error('Failed to load fees:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchFees();
+  }, []);
 
   const [categoryFilter, setCategoryFilter] = useState<string>('All Categories');
   const [currencyFilter, setCurrencyFilter] = useState<string>('TZS');
@@ -25,16 +32,22 @@ export function FeesPage() {
 
   // Toggle insurance covered state value
   const toggleInsuranceCovered = (id: string) => {
-    setFeeItems(prev =>
-      prev.map(item => (item.id === id ? { ...item, insuranceCovered: !item.insuranceCovered } : item))
-    );
+    const item = feeItems.find(f => f.id === id);
+    if (!item) return;
+    adminService.updateFeeSchedule(id, { insuranceCovered: !item.insuranceCovered })
+      .then(() => {
+        fetchFees();
+      });
   };
 
   // Toggle fee item active state value
   const toggleActive = (id: string) => {
-    setFeeItems(prev =>
-      prev.map(item => (item.id === id ? { ...item, active: !item.active } : item))
-    );
+    const item = feeItems.find(f => f.id === id);
+    if (!item) return;
+    adminService.updateFeeSchedule(id, { active: !item.active })
+      .then(() => {
+        fetchFees();
+      });
   };
 
   // Filter list records based on search and selector criteria
@@ -217,13 +230,19 @@ export function FeesPage() {
                   </td>
                 </tr>
               ))}
-              {filteredItems.length === 0 && (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-xl py-lg text-center text-secondary text-body-md">
+                    Loading fee schedules...
+                  </td>
+                </tr>
+              ) : filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-xl py-lg text-center text-secondary text-body-md">
                     No items found matching the selected filters.
                   </td>
                 </tr>
-              )}
+              ) : null}
             </tbody>
           </table>
         </div>

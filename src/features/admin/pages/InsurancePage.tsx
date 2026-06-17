@@ -1,55 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { adminService } from '@/api/services/admin';
+import type { Provider } from '@/api/types/admin';
 
-interface Provider {
-  id: string;
-  name: string;
-  policies: string[];
-  contactPerson: string;
-  email: string;
-  phone: string;
-  active: boolean;
-  notes?: string;
-}
-
-// Renders the accepted insurance providers directory, claims analytics, and modal forms
 export function InsurancePage() {
-  const [providers, setProviders] = useState<Provider[]>([
-    {
-      id: '1',
-      name: 'NHIF Tanzania',
-      policies: ['Inpatient', 'Outpatient'],
-      contactPerson: 'James Kimaro',
-      email: 'james@nhif.go.tz',
-      phone: '+255 22 xxx',
-      active: true,
-      notes: 'Standard public medical insurance coverage'
-    },
-    {
-      id: '2',
-      name: 'Jubilee Insurance',
-      policies: ['Inpatient', 'Outpatient', 'Maternity'],
-      contactPerson: '—',
-      email: 'claims@jubilee.co.tz',
-      phone: '—',
-      active: true,
-      notes: 'Private corporate group insurance package'
-    },
-    {
-      id: '3',
-      name: 'AAR Insurance',
-      policies: ['Outpatient', 'Dental'],
-      contactPerson: '—',
-      email: 'aar@aar.co.tz',
-      phone: '—',
-      active: true,
-      notes: 'Covers auxiliary clinical procedures'
-    }
-  ]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
 
-  // Form states for creating or updating records
   const [formName, setFormName] = useState('');
   const [formPolicies, setFormPolicies] = useState<string[]>([]);
   const [formContact, setFormContact] = useState('');
@@ -58,7 +17,25 @@ export function InsurancePage() {
   const [formNotes, setFormNotes] = useState('');
   const [formActive, setFormActive] = useState(true);
 
-  // Open modal in creation state
+  const fetchProviders = () => {
+    setLoading(true);
+    adminService.listInsuranceProviders()
+      .then((data) => {
+        setProviders(data);
+      })
+      .catch((err) => {
+        console.error('Failed to load insurance providers:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchProviders();
+  }, []);
+
   const handleAddClick = () => {
     setEditingProvider(null);
     setFormName('');
@@ -71,84 +48,85 @@ export function InsurancePage() {
     setIsModalOpen(true);
   };
 
-  // Open modal in edit state
   const handleEditClick = (provider: Provider) => {
     setEditingProvider(provider);
     setFormName(provider.name);
-    setFormPolicies(provider.policies);
-    setFormContact(provider.contactPerson);
-    setFormEmail(provider.email);
-    setFormPhone(provider.phone);
+    setFormPolicies(provider.policies || []);
+    setFormContact(provider.contactPerson || '');
+    setFormEmail(provider.email || '');
+    setFormPhone(provider.phone || '');
     setFormNotes(provider.notes || '');
     setFormActive(provider.active);
     setIsModalOpen(true);
   };
 
-  // Delete provider records
   const handleDeleteClick = (id: string) => {
     if (window.confirm('Are you sure you want to delete this provider?')) {
-      setProviders(prev => prev.filter(p => p.id !== id));
+      adminService.deleteInsuranceProvider(id)
+        .then(() => {
+          fetchProviders();
+        })
+        .catch((err) => {
+          console.error('Failed to delete provider:', err);
+        });
     }
   };
 
-  // Toggle active status directly from row switch
   const toggleProviderActive = (id: string) => {
-    setProviders(prev =>
-      prev.map(p => (p.id === id ? { ...p, active: !p.active } : p))
-    );
+    const prov = providers.find(p => p.id === id);
+    if (!prov) return;
+    adminService.updateInsuranceProvider(id, { active: !prov.active })
+      .then(() => {
+        fetchProviders();
+      })
+      .catch((err) => {
+        console.error('Failed to update provider status:', err);
+      });
   };
 
-  // Toggle selected policy type checkbox values
   const handlePolicyCheckboxChange = (policy: string) => {
     setFormPolicies(prev =>
       prev.includes(policy) ? prev.filter(p => p !== policy) : [...prev, policy]
     );
   };
 
-  // Save new or update existing provider record
   const handleSaveProvider = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) return;
 
-    if (editingProvider) {
-      // Update record logic
-      setProviders(prev =>
-        prev.map(p =>
-          p.id === editingProvider.id
-            ? {
-                ...p,
-                name: formName,
-                policies: formPolicies,
-                contactPerson: formContact || '—',
-                email: formEmail || '—',
-                phone: formPhone || '—',
-                active: formActive,
-                notes: formNotes
-              }
-            : p
-        )
-      );
-    } else {
-      // Insert record logic
-      const newProvider: Provider = {
-        id: Math.random().toString(),
-        name: formName,
-        policies: formPolicies,
-        contactPerson: formContact || '—',
-        email: formEmail || '—',
-        phone: formPhone || '—',
-        active: formActive,
-        notes: formNotes
-      };
-      setProviders(prev => [...prev, newProvider]);
-    }
+    const payload = {
+      name: formName,
+      policies: formPolicies,
+      contactPerson: formContact || '—',
+      email: formEmail || '—',
+      phone: formPhone || '—',
+      active: formActive,
+      notes: formNotes
+    };
 
-    setIsModalOpen(false);
+    if (editingProvider) {
+      adminService.updateInsuranceProvider(editingProvider.id, payload)
+        .then(() => {
+          fetchProviders();
+          setIsModalOpen(false);
+        })
+        .catch((err) => {
+          console.error('Failed to save provider:', err);
+        });
+    } else {
+      adminService.createInsuranceProvider(payload)
+        .then(() => {
+          fetchProviders();
+          setIsModalOpen(false);
+        })
+        .catch((err) => {
+          console.error('Failed to create provider:', err);
+        });
+    }
   };
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-lg pb-12">
-      {/* Page Header and breadcrumb links */}
       <div className="flex items-center justify-between mb-lg">
         <div>
           <nav className="flex items-center gap-xs mt-xs text-secondary">
@@ -166,7 +144,6 @@ export function InsurancePage() {
         </button>
       </div>
 
-      {/* KPI Stats Row layout */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-md mb-lg">
         <div className="bg-surface-white border border-border-subtle rounded-xl p-md">
           <div className="flex items-center justify-between mb-sm">
@@ -209,7 +186,6 @@ export function InsurancePage() {
         </div>
       </div>
 
-      {/* Main Roster Listings Card */}
       <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
         <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
           <h3 className="font-headline-sm text-headline-sm text-on-surface">Insurance Providers</h3>
@@ -237,66 +213,80 @@ export function InsurancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {providers.map(prov => (
-                <tr key={prov.id} className={`hover:bg-row-hover transition-colors group ${!prov.active ? 'opacity-60' : ''}`}>
-                  <td className="px-lg py-md">
-                    <div className="flex items-center gap-sm">
-                      <div className="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center">
-                        <span className="material-symbols-outlined text-secondary">domain</span>
-                      </div>
-                      <span className="font-headline-sm text-headline-sm text-on-surface">{prov.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-lg py-md">
-                    <div className="flex flex-wrap gap-xs">
-                      {prov.policies.map(policy => (
-                        <span key={policy} className="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full text-[10px] font-bold">
-                          {policy}
-                        </span>
-                      ))}
-                      {prov.policies.length === 0 && (
-                        <span className="text-[10px] text-outline italic">No policies</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-lg py-md text-body-sm text-secondary">{prov.contactPerson}</td>
-                  <td className="px-lg py-md text-body-sm text-secondary">{prov.email}</td>
-                  <td className="px-lg py-md text-body-sm text-secondary">{prov.phone}</td>
-                  <td className="px-lg py-md text-center">
-                    <button
-                      onClick={() => toggleProviderActive(prov.id)}
-                      className={`w-9 h-5 rounded-full relative transition-all shadow-inner border-0 cursor-pointer ${
-                        prov.active ? 'bg-success' : 'bg-border-subtle'
-                      }`}
-                      aria-label={`Toggle active state for ${prov.name}`}
-                    >
-                      <div
-                        className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
-                          prov.active ? 'right-[2px]' : 'left-[2px]'
-                        }`}
-                      />
-                    </button>
-                  </td>
-                  <td className="px-lg py-md text-right">
-                    <div className="flex items-center justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleEditClick(prov)}
-                        className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-border-subtle text-secondary hover:text-primary hover:border-primary transition-all bg-transparent cursor-pointer"
-                        aria-label={`Edit ${prov.name}`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(prov.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-border-subtle text-secondary hover:text-error hover:border-error transition-all bg-transparent cursor-pointer"
-                        aria-label={`Delete ${prov.name}`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-lg py-lg text-center text-secondary text-body-md">
+                    Loading insurance providers...
                   </td>
                 </tr>
-              ))}
+              ) : providers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-lg py-lg text-center text-secondary text-body-md">
+                    No insurance providers found.
+                  </td>
+                </tr>
+              ) : (
+                providers.map(prov => (
+                  <tr key={prov.id} className={`hover:bg-row-hover transition-colors group ${!prov.active ? 'opacity-60' : ''}`}>
+                    <td className="px-lg py-md">
+                      <div className="flex items-center gap-sm">
+                        <div className="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center">
+                          <span className="material-symbols-outlined text-secondary">domain</span>
+                        </div>
+                        <span className="font-headline-sm text-headline-sm text-on-surface">{prov.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-lg py-md">
+                      <div className="flex flex-wrap gap-xs">
+                        {prov.policies && prov.policies.map(policy => (
+                          <span key={policy} className="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            {policy}
+                          </span>
+                        ))}
+                        {(!prov.policies || prov.policies.length === 0) && (
+                          <span className="text-[10px] text-outline italic">No policies</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-lg py-md text-body-sm text-secondary">{prov.contactPerson}</td>
+                    <td className="px-lg py-md text-body-sm text-secondary">{prov.email}</td>
+                    <td className="px-lg py-md text-body-sm text-secondary">{prov.phone}</td>
+                    <td className="px-lg py-md text-center">
+                      <button
+                        onClick={() => toggleProviderActive(prov.id)}
+                        className={`w-9 h-5 rounded-full relative transition-all shadow-inner border-0 cursor-pointer ${
+                          prov.active ? 'bg-success' : 'bg-border-subtle'
+                        }`}
+                        aria-label={`Toggle active state for ${prov.name}`}
+                      >
+                        <div
+                          className={`absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                            prov.active ? 'right-[2px]' : 'left-[2px]'
+                          }`}
+                        />
+                      </button>
+                    </td>
+                    <td className="px-lg py-md text-right">
+                      <div className="flex items-center justify-end gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEditClick(prov)}
+                          className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-border-subtle text-secondary hover:text-primary hover:border-primary transition-all bg-transparent cursor-pointer"
+                          aria-label={`Edit ${prov.name}`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(prov.id)}
+                          className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-border-subtle text-secondary hover:text-error hover:border-error transition-all bg-transparent cursor-pointer"
+                          aria-label={`Delete ${prov.name}`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -498,3 +488,4 @@ export function InsurancePage() {
     </div>
   );
 }
+

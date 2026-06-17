@@ -1,45 +1,47 @@
-import { useState } from 'react';
-
-interface DepartmentItem {
-  id: string;
-  name: string;
-  type: string;
-  staffCount: number;
-  active: boolean;
-}
-
-interface WardItem {
-  id: string;
-  name: string;
-  occupiedBeds: number;
-  totalBeds: number;
-  isUrgent?: boolean;
-}
+import { useState, useEffect } from 'react';
+import { adminService } from '@/api/services/admin';
+import type { Department, WardItem } from '@/api/types/admin';
 
 // Renders the departments roster directory and ward occupancy panel
 export function DepartmentsPage() {
-  const [departments, setDepartments] = useState<DepartmentItem[]>([
-    { id: '1', name: 'Reception', type: 'Administrative', staffCount: 12, active: true },
-    { id: '2', name: 'Triage', type: 'Clinical', staffCount: 8, active: true },
-    { id: '3', name: 'Consultation', type: 'Clinical', staffCount: 24, active: true },
-    { id: '4', name: 'Laboratory', type: 'Diagnostic', staffCount: 18, active: true },
-    { id: '5', name: 'Radiology', type: 'Diagnostic', staffCount: 15, active: true },
-    { id: '6', name: 'Pharmacy', type: 'Auxiliary', staffCount: 10, active: true },
-    { id: '7', name: 'Billing', type: 'Administrative', staffCount: 6, active: true },
-    { id: '8', name: 'Ward/ICU', type: 'Inpatient', staffCount: 45, active: true },
-  ]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [wards, setWards] = useState<WardItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [wards] = useState<WardItem[]>([
-    { id: 'w1', name: 'General Ward', occupiedBeds: 34, totalBeds: 50 },
-    { id: 'w2', name: 'Intensive Care Unit (ICU)', occupiedBeds: 6, totalBeds: 8, isUrgent: true },
-    { id: 'w3', name: 'Maternity Ward', occupiedBeds: 12, totalBeds: 20 }
-  ]);
+  const fetchData = () => {
+    setLoading(true);
+    Promise.all([
+      adminService.listDepartments(),
+      adminService.listWards()
+    ])
+      .then(([deptData, wardData]) => {
+        setDepartments(deptData);
+        setWards(wardData);
+      })
+      .catch((err) => {
+        console.error('Failed to load departments data:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
 
-  // Toggle department state values
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, []);
+
+  // Toggle active status
   const toggleDepartmentActive = (id: string) => {
-    setDepartments(prev =>
-      prev.map(dept => (dept.id === id ? { ...dept, active: !dept.active } : dept))
-    );
+    const dept = departments.find(d => d.id === id);
+    if (!dept) return;
+    adminService.updateDepartment(id, { active: !dept.active })
+      .then(() => {
+        fetchData();
+      })
+      .catch((err) => {
+        console.error('Failed to update department status:', err);
+      });
   };
 
   return (
@@ -86,33 +88,47 @@ export function DepartmentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle bg-surface-white">
-                {departments.map((dept) => (
-                  <tr key={dept.id} className="hover:bg-row-hover transition-colors group">
-                    <td className="px-md py-md font-body-md text-on-surface font-medium">{dept.name}</td>
-                    <td className="px-md py-md font-body-sm text-secondary">{dept.type}</td>
-                    <td className="px-md py-md font-body-sm text-on-surface">{dept.staffCount}</td>
-                    <td className="px-md py-md">
-                      <button
-                        onClick={() => toggleDepartmentActive(dept.id)}
-                        className={`w-10 h-5 rounded-full relative transition-all shadow-inner border-0 cursor-pointer ${
-                          dept.active ? 'bg-success' : 'bg-outline-variant'
-                        }`}
-                        aria-label={`Toggle active state for ${dept.name}`}
-                      >
-                        <div
-                          className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${
-                            dept.active ? 'right-1' : 'left-1'
-                          }`}
-                        />
-                      </button>
-                    </td>
-                    <td className="px-md py-md text-right">
-                      <button className="h-[32px] px-sm border border-border-subtle rounded-md font-label-md text-secondary hover:border-primary hover:text-primary transition-all bg-surface-white cursor-pointer">
-                        Edit
-                      </button>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-md py-lg text-center text-secondary text-body-sm">
+                      Loading departments...
                     </td>
                   </tr>
-                ))}
+                ) : departments.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-md py-lg text-center text-secondary text-body-sm">
+                      No departments found.
+                    </td>
+                  </tr>
+                ) : (
+                  departments.map((dept) => (
+                    <tr key={dept.id} className="hover:bg-row-hover transition-colors group">
+                      <td className="px-md py-md font-body-md text-on-surface font-medium">{dept.name}</td>
+                      <td className="px-md py-md font-body-sm text-secondary">{dept.type || '—'}</td>
+                      <td className="px-md py-md font-body-sm text-on-surface">{dept.staffCount}</td>
+                      <td className="px-md py-md">
+                        <button
+                          onClick={() => toggleDepartmentActive(dept.id)}
+                          className={`w-10 h-5 rounded-full relative transition-all shadow-inner border-0 cursor-pointer ${
+                            dept.active ? 'bg-success' : 'bg-outline-variant'
+                          }`}
+                          aria-label={`Toggle active state for ${dept.name}`}
+                        >
+                          <div
+                            className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${
+                              dept.active ? 'right-1' : 'left-1'
+                            }`}
+                          />
+                        </button>
+                      </td>
+                      <td className="px-md py-md text-right">
+                        <button className="h-[32px] px-sm border border-border-subtle rounded-md font-label-md text-secondary hover:border-primary hover:text-primary transition-all bg-surface-white cursor-pointer">
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -129,53 +145,59 @@ export function DepartmentsPage() {
           </div>
           
           <div className="p-md space-y-md bg-surface-white">
-            {wards.map((ward) => {
-              const occupancyPercentage = Math.round((ward.occupiedBeds / ward.totalBeds) * 100);
-              const barColorClass = ward.isUrgent ? 'bg-warning' : 'bg-success';
-              const badgeColorClass = ward.isUrgent 
-                ? 'text-warning bg-warning/10' 
-                : 'text-success bg-success/10';
+            {loading ? (
+              <div className="text-center text-secondary text-body-sm py-md">Loading wards...</div>
+            ) : wards.length === 0 ? (
+              <div className="text-center text-secondary text-body-sm py-md">No wards found.</div>
+            ) : (
+              wards.map((ward) => {
+                const occupancyPercentage = Math.round((ward.occupiedBeds / ward.totalBeds) * 100) || 0;
+                const barColorClass = ward.isUrgent ? 'bg-warning' : 'bg-success';
+                const badgeColorClass = ward.isUrgent 
+                  ? 'text-warning bg-warning/10' 
+                  : 'text-success bg-success/10';
 
-              return (
-                <div key={ward.id} className="flex items-center gap-lg group border-b border-border-subtle pb-md last:border-0 last:pb-0">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-sm">
-                      <div className="flex items-center gap-sm">
-                        <span className={`material-symbols-outlined ${ward.isUrgent ? 'text-error' : 'text-secondary'}`}>
-                          {ward.isUrgent ? 'emergency' : 'bed'}
-                        </span>
-                        <span className="font-body-md font-medium text-on-surface">{ward.name}</span>
-                        {ward.isUrgent && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-error text-white rounded-md uppercase tracking-wide">
-                            High Alert
+                return (
+                  <div key={ward.id} className="flex items-center gap-lg group border-b border-border-subtle pb-md last:border-0 last:pb-0">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-sm">
+                        <div className="flex items-center gap-sm">
+                          <span className={`material-symbols-outlined ${ward.isUrgent ? 'text-error' : 'text-secondary'}`}>
+                            {ward.isUrgent ? 'emergency' : 'bed'}
                           </span>
-                        )}
+                          <span className="font-body-md font-medium text-on-surface">{ward.name}</span>
+                          {ward.isUrgent && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-error text-white rounded-md uppercase tracking-wide">
+                              High Alert
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-sm">
+                          <span className="font-body-sm text-on-surface font-medium">
+                            {ward.occupiedBeds} / {ward.totalBeds} <span className="text-secondary font-normal">Beds</span>
+                          </span>
+                          <button className="text-outline hover:text-primary transition-colors p-1 rounded hover:bg-row-hover bg-transparent border-0 cursor-pointer" aria-label={`Edit ${ward.name}`}>
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-sm">
-                        <span className="font-body-sm text-on-surface font-medium">
-                          {ward.occupiedBeds} / {ward.totalBeds} <span className="text-secondary font-normal">Beds</span>
-                        </span>
-                        <button className="text-outline hover:text-primary transition-colors p-1 rounded hover:bg-row-hover bg-transparent border-0 cursor-pointer" aria-label={`Edit ${ward.name}`}>
-                          <span className="material-symbols-outlined text-[16px]">edit</span>
-                        </button>
+                      
+                      <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-500 ${barColorClass}`}
+                          style={{ width: `${occupancyPercentage}%` }}
+                        />
                       </div>
                     </div>
-                    
-                    <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-500 ${barColorClass}`}
-                        style={{ width: `${occupancyPercentage}%` }}
-                      />
+                    <div className="w-32 text-right">
+                      <span className={`text-label-sm font-semibold px-sm py-1 rounded-full ${badgeColorClass}`}>
+                        {occupancyPercentage}% Occ.
+                      </span>
                     </div>
                   </div>
-                  <div className="w-32 text-right">
-                    <span className={`text-label-sm font-semibold px-sm py-1 rounded-full ${badgeColorClass}`}>
-                      {occupancyPercentage}% Occ.
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </section>
       </div>
@@ -191,3 +213,4 @@ export function DepartmentsPage() {
     </div>
   );
 }
+

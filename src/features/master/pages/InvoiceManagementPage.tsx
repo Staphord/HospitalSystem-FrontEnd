@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
-import type { Invoice, Tenant } from '@/api/types/master'
+import type { Invoice, Tenant, Subscription, SubscriptionPlan } from '@/api/types/master'
 
 export function InvoiceManagementPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tenantIdParam = searchParams.get('tenant_id')
+
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [isGenerateOpen, setIsGenerateOpen] = useState(false)
@@ -23,28 +29,58 @@ export function InvoiceManagementPage() {
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer')
   const [recordingPayment, setRecordingPayment] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      setLoading(true)
-      const [invoicesData, tenantsData] = await Promise.all([
+      const [invoicesData, tenantsData, subsData, plansData] = await Promise.all([
         masterService.listInvoices(),
         masterService.listTenants(),
+        masterService.listSubscriptions(),
+        masterService.listPlans(),
       ])
       setInvoices(invoicesData)
       setTenants(tenantsData)
-    } catch (err) {
-      toast.error('Failed to load invoices and tenants.')
-    } finally {
+      setSubscriptions(subsData)
+      setPlans(plansData)
+      setLoading(false)
+    } catch {
+      toast.error('Failed to load billing configurations.')
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    fetchData()
   }, [])
 
-  const getHospitalName = (tenantId: string) => {
-    return tenants.find((t) => t.tenant_id === tenantId)?.hospital_name || tenantId
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+  }, [fetchData])
+
+  // Auto-populate invoice parameters when selecting a tenant
+  const handleTenantSelection = (selectedId: string) => {
+    setTenantId(selectedId)
+    if (!selectedId) {
+      setAmount('')
+      setDescription('')
+      setDueDate('')
+      return
+    }
+
+    const sub = subscriptions.find((s) => s.tenant_id === selectedId)
+    const plan = sub ? plans.find((p) => p.plan_name.toLowerCase() === sub.plan_name.toLowerCase()) : null
+
+    if (plan) {
+      setAmount(plan.monthly_price.toString())
+      const monthLabel = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+      setDescription(`${plan.plan_name} Plan Monthly Subscription - ${monthLabel}`)
+    } else {
+      setAmount('299') // default fallback
+      setDescription('Monthly Plan Subscription Renewal')
+    }
+
+    const defaultDue = new Date(Date.now() + 3600000 * 24 * 14).toISOString().split('T')[0]
+    setDueDate(defaultDue)
+  }
+
+  const getHospitalName = (id: string) => {
+    return tenants.find((t) => t.tenant_id === id)?.hospital_name || id
   }
 
   const handleGenerateInvoice = async (e: React.FormEvent) => {
@@ -71,8 +107,9 @@ export function InvoiceManagementPage() {
       setDueDate('')
       setDescription('')
       fetchData()
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to generate invoice.')
+    } catch (err) {
+      const error = err as { response?: { data?: { detail?: string } } }
+      toast.error(error.response?.data?.detail || 'Failed to generate invoice.')
     } finally {
       setGenerating(false)
     }
@@ -91,20 +128,26 @@ export function InvoiceManagementPage() {
       toast.success(`Payment recorded for invoice ${selectedInvoiceForPayment.id}!`)
       setSelectedInvoiceForPayment(null)
       fetchData()
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to record payment.')
+    } catch (err) {
+      const error = err as { response?: { data?: { detail?: string } } }
+      toast.error(error.response?.data?.detail || 'Failed to record payment.')
     } finally {
       setRecordingPayment(false)
     }
   }
 
+  // Filter invoices list by search and URL tenant ID query param
   const filteredInvoices = invoices.filter((i) => {
+    const matchesTenantParam = !tenantIdParam || i.tenant_id === tenantIdParam
+    
     const hospital = getHospitalName(i.tenant_id).toLowerCase()
     const id = i.id.toLowerCase()
     const status = i.status.toLowerCase()
     const query = search.toLowerCase()
 
-    return hospital.includes(query) || id.includes(query) || status.includes(query)
+    const matchesSearch = hospital.includes(query) || id.includes(query) || status.includes(query)
+
+    return matchesTenantParam && matchesSearch
   })
 
   const getStatusBadgeClass = (status: string) => {
@@ -120,6 +163,11 @@ export function InvoiceManagementPage() {
     }
   }
 
+  const clearTenantFilter = () => {
+    searchParams.delete('tenant_id')
+    setSearchParams(searchParams)
+  }
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -131,6 +179,32 @@ export function InvoiceManagementPage() {
           + Generate Invoice
         </button>
       </div>
+
+      {tenantIdParam && (
+        <div
+          style={{
+            marginBottom: '1.5rem',
+            padding: '1rem 1.5rem',
+            backgroundColor: 'rgba(0, 82, 204, 0.08)',
+            border: '1px solid var(--color-primary)',
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}
+        >
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-primary)' }}>
+            📍 Filtering invoices for tenant: <strong>{getHospitalName(tenantIdParam)}</strong>
+          </span>
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}
+            onClick={clearTenantFilter}
+          >
+            Clear Filter
+          </button>
+        </div>
+      )}
 
       <div className="card" style={{ padding: '1.5rem' }}>
         <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
@@ -220,7 +294,7 @@ export function InvoiceManagementPage() {
                     <select
                       className="form-control"
                       value={tenantId}
-                      onChange={(e) => setTenantId(e.target.value)}
+                      onChange={(e) => handleTenantSelection(e.target.value)}
                       required
                     >
                       <option value="">-- Choose Tenant Hospital --</option>
@@ -251,6 +325,7 @@ export function InvoiceManagementPage() {
                     <input
                       type="date"
                       className="form-control"
+                      required
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
                     />

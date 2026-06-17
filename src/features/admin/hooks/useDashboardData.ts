@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { adminService } from '@/api/services/admin';
 
 export interface Alert {
   id: string;
@@ -26,60 +27,60 @@ export interface DashboardStats {
   totalBeds: number;
 }
 
-// Custom hook to fetch static mockup telemetry for the hospital dashboard
+// Custom hook to fetch dynamic telemetry for the hospital dashboard
 export const useDashboardData = () => {
-  const [stats] = useState<DashboardStats>({
-    totalStaff: 47,
-    onlineNow: 23,
-    departmentsActive: 8,
-    bedsOccupied: 34,
-    totalBeds: 50
+  const [stats, setStats] = useState<DashboardStats>({
+    totalStaff: 0,
+    onlineNow: 0,
+    departmentsActive: 0,
+    bedsOccupied: 0,
+    totalBeds: 0
   });
 
-  const [alerts] = useState<Alert[]>([
-    {
-      id: 'AL-001',
-      severity: 'critical',
-      department: 'Laboratory',
-      message: 'Critical lab value for patient #PT-4421',
-      timestamp: '5 min ago'
-    },
-    {
-      id: 'AL-002',
-      severity: 'warning',
-      department: 'Pharmacy',
-      message: 'Paracetamol stock below minimum level',
-      timestamp: '12 min ago'
-    },
-    {
-      id: 'AL-003',
-      severity: 'info',
-      department: 'System',
-      message: 'Scheduled maintenance starting in 2 hours',
-      timestamp: '1 hr ago'
-    }
-  ]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [departments] = useState<Department[]>([
-    { id: 'DP-001', name: 'Reception', staffCount: 4, queueCount: 12, status: 'success', alerts: 0 },
-    { id: 'DP-002', name: 'Triage', staffCount: 3, queueCount: 5, status: 'success', alerts: 0 },
-    { id: 'DP-003', name: 'Consultation', staffCount: 8, queueCount: 18, status: 'success', alerts: 0 },
-    { id: 'DP-004', name: 'Laboratory', staffCount: 6, queueCount: 22, status: 'error', alerts: 1 },
-    { id: 'DP-005', name: 'Radiology', staffCount: 4, queueCount: 3, status: 'success', alerts: 0 },
-    { id: 'DP-006', name: 'Pharmacy', staffCount: 5, queueCount: 15, status: 'warning', alerts: 1 },
-    { id: 'DP-007', name: 'Billing', staffCount: 3, queueCount: 2, status: 'success', alerts: 0 },
-    { id: 'DP-008', name: 'Ward', staffCount: 14, queueCount: 0, occupancy: 68, status: 'success', alerts: 0 }
-  ]);
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [statsRes, departmentsRes, alertsRes] = await Promise.all([
+        adminService.getDashboardStats(),
+        adminService.listDepartments(),
+        adminService.getDashboardAlerts()
+      ]);
+
+      if (statsRes) {
+        setStats(statsRes);
+      }
+      if (departmentsRes) {
+        setDepartments(departmentsRes as Department[]);
+      }
+      if (alertsRes) {
+        setAlerts(alertsRes as Alert[]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDashboardData();
+  }, []);
 
   // Refresh operational stats
   const refreshTelemetry = () => {
-    console.log('Telemetry refreshed.');
+    fetchDashboardData();
   };
 
   return {
     stats,
     alerts,
     departments,
+    loading,
     refreshTelemetry
   };
 };
