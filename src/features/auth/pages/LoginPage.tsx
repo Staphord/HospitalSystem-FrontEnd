@@ -107,26 +107,31 @@ export function LoginPage() {
         return
       }
 
-      // Handle rate limiter 429 too
+      // Handle rate limiter 429 and backend-reported attempts remaining
       const isRateLimited = err?.response?.status === 429
-      const nextAttempts = isRateLimited ? 5 : failedAttempts + 1
+      const detail = err?.response?.data?.detail
+      const attemptsRemaining = typeof detail === 'object' && detail !== null ? detail.attempts_remaining : undefined
+      
+      let nextAttempts = failedAttempts + 1
+      if (isRateLimited || attemptsRemaining === 0) {
+        nextAttempts = 5
+      } else if (attemptsRemaining !== undefined) {
+        nextAttempts = 5 - attemptsRemaining
+      }
       
       localStorage.setItem('login_failed_attempts', nextAttempts.toString())
       setFailedAttempts(nextAttempts)
       setError(true)
       
-      if (isRateLimited) {
+      if (nextAttempts >= 5) {
         setErrorMessage('Too many login attempts. Account locked.')
         toast.error('Too many login attempts. Account locked.')
         navigate('/account-locked')
       } else {
-        const apiMessage = getApiErrorMessage(err)
+        const apiMessage = typeof detail === 'object' && detail !== null ? detail.message : getApiErrorMessage(err)
         const message = apiMessage || 'Invalid username or password. Please try again.'
         setErrorMessage(message)
         toast.error(message)
-        if (nextAttempts >= 5) {
-          navigate('/account-locked')
-        }
       }
     } finally {
       setLoading(false)

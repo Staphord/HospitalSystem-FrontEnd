@@ -18,8 +18,14 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
     const runCheck = async () => {
       // 1. Check simulation mode
       const isCollision = localStorage.getItem('simulate_simultaneous_session') === 'true'
+      const isAcknowledged = localStorage.getItem('session_warning_acknowledged') === 'true'
+
       if (isCollision) {
-        setShowModal(true)
+        if (!isAcknowledged) {
+          setShowModal(true)
+        } else {
+          setShowModal(false)
+        }
         return
       }
 
@@ -33,8 +39,13 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
           return
         }
         if (resp.data?.has_other_active) {
-          setShowModal(true)
+          if (!isAcknowledged) {
+            setShowModal(true)
+          } else {
+            setShowModal(false)
+          }
         } else {
+          localStorage.removeItem('session_warning_acknowledged')
           setShowModal(false)
         }
       } catch (err) {
@@ -55,6 +66,7 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
     localStorage.removeItem('simulate_simultaneous_session')
     try {
       await apiClient.post('/auth/session-keep-only')
+      localStorage.setItem('session_warning_acknowledged', 'true')
       toast.success('Other active sessions have been terminated. This session remains active.')
     } catch (err) {
       toast.error('Failed to terminate other sessions.')
@@ -65,6 +77,7 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
 
   const handleSignOut = () => {
     localStorage.removeItem('simulate_simultaneous_session')
+    localStorage.removeItem('session_warning_acknowledged')
     setShowModal(false)
     clearAuth()
     navigate('/login')

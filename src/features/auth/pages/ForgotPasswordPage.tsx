@@ -3,6 +3,26 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { authService } from '@/api/services/auth'
 
+function getApiErrorMessage(err: any): string {
+  let detail = err?.response?.data?.detail
+  if (typeof detail === 'string') {
+    if (detail.includes('Keycloak error') && detail.includes('{')) {
+      try {
+        const jsonStr = detail.substring(detail.indexOf('{'))
+        const parsed = JSON.parse(jsonStr)
+        if (parsed.error_description) return parsed.error_description
+        if (parsed.error) return parsed.error
+      } catch (e) {
+        // Fallback to the full detail string
+      }
+    }
+    return detail
+  }
+  if (detail?.message) return detail.message
+  if (err?.response?.data?.message) return err.response.data.message
+  return ''
+}
+
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +53,7 @@ export function ForgotPasswordPage() {
       setCooldown(60)
       toast.success('Reset link dispatched successfully!')
     } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || 'Failed to submit request. Please try again.'
+      const errorMsg = getApiErrorMessage(err) || 'Failed to submit request. Please try again.'
       setError(true)
       setErrorMessage(errorMsg)
       toast.error(errorMsg)
@@ -52,7 +72,7 @@ export function ForgotPasswordPage() {
       setCooldown(60)
       toast.success('A new password reset link has been sent!')
     } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || 'Failed to resend. Please try again.'
+      const errorMsg = getApiErrorMessage(err) || 'Failed to resend. Please try again.'
       setError(true)
       setErrorMessage(errorMsg)
       toast.error(errorMsg)
@@ -60,6 +80,7 @@ export function ForgotPasswordPage() {
       setLoading(false)
     }
   }
+
 
   if (submitted) {
     return (
