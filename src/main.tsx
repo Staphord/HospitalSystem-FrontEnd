@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
 import App from '@/App'
 import '@/styles/globals.css'
+import '@/styles/tailwind.css'
+
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -7,6 +7,12 @@ export interface SystemHealthData {
     cpu_usage: number
     ram_usage: number
     disk_usage: number
+    history?: {
+      cpu: number[]
+      ram: number[]
+      disk: number[]
+      db: number[]
+    }
   }
   incidents: Incident[]
 }
@@ -18,6 +24,9 @@ export interface Incident {
   status: 'active' | 'resolved'
   message: string
   created_at: string
+  resolved_at?: string
+  resolved_notes?: string
+  resolved_by?: string
 }
 
 export interface IncidentCreate {
@@ -75,4 +84,15 @@ export const monitoringService = {
 
   getAuditLogs: () =>
     apiClient.get<AuditLog[]>('/audit-logs').then((r) => r.data),
+
+  getTenantAnalytics: (tenantId: string) =>
+    apiClient.get<TenantAnalytics>(`/monitoring/tenants/${tenantId}/analytics`).then((r) => r.data),
+}
+
+export interface TenantAnalytics {
+  uptime_trend: number[]
+  active_users_peak: number[]
+  storage_growth: number[]
+  module_usage: { module: string; percentage: number }[]
+  activity_logs: { timestamp: string; event: string; details: string }[]
 }

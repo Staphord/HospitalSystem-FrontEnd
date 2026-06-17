@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Navigate } from 'react-router-dom'
 import { AuthLayout } from '@/app/layout/AuthLayout'
 import { HospitalLayout } from '@/app/layout/HospitalLayout'
@@ -16,16 +17,34 @@ import { FirstLoginChangePasswordPage } from '@/features/auth/pages/FirstLoginCh
 import { DeactivatedAccountPage } from '@/features/auth/pages/DeactivatedAccountPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { UserManagementPage } from '@/features/admin/pages/UserManagementPage'
+import { AddStaffPage } from '@/features/admin/pages/AddStaffPage'
+import { StaffDetailPage } from '@/features/admin/pages/StaffDetailPage'
+import { ActiveSessionsPage } from '@/features/admin/pages/ActiveSessionsPage'
+import { DepartmentsPage } from '@/features/admin/pages/DepartmentsPage'
+import { FeesPage } from '@/features/admin/pages/FeesPage'
+import { InsurancePage } from '@/features/admin/pages/InsurancePage'
+import { SettingsPage } from '@/features/admin/pages/SettingsPage'
+import { AuditLogsPage as AdminAuditLogsPage } from '@/features/admin/pages/AuditLogsPage'
+import { DataBackupPage } from '@/features/admin/pages/DataBackupPage'
+import { SubscriptionPage } from '@/features/admin/pages/SubscriptionPage'
 import { MasterDashboardPage } from '@/features/master/pages/MasterDashboardPage'
 import { TenantManagementPage } from '@/features/master/pages/TenantManagementPage'
 import { TenantDetailPage } from '@/features/master/pages/TenantDetailPage'
+import { CreateTenantPage } from '@/features/master/pages/CreateTenantPage'
 import { SubscriptionManagementPage } from '@/features/master/pages/SubscriptionManagementPage'
+import { SubscriptionDetailPage } from '@/features/master/pages/SubscriptionDetailPage'
 import { InvoiceManagementPage } from '@/features/master/pages/InvoiceManagementPage'
+import { PaymentsPage } from '@/features/master/pages/PaymentsPage'
+import { OverdueAccountsPage } from '@/features/master/pages/OverdueAccountsPage'
 import { MasterAdminsPage } from '@/features/master/pages/MasterAdminsPage'
 import { SystemHealthPage } from '@/features/master/pages/SystemHealthPage'
+import { IncidentsPage } from '@/features/master/pages/IncidentsPage'
 import { AnnouncementsPage } from '@/features/master/pages/AnnouncementsPage'
 import { AuditLogsPage } from '@/features/master/pages/AuditLogsPage'
 import { ReportsDashboardPage } from '@/features/reports/pages/ReportsDashboardPage'
+import { PatientReportsPage } from '@/features/reports/pages/PatientReportsPage'
+import { RevenueReportsPage } from '@/features/reports/pages/RevenueReportsPage'
+import { OperationalReportsPage } from '@/features/reports/pages/OperationalReportsPage'
 import { PatientRegistrationPage } from '@/features/reception/pages/PatientRegistrationPage'
 import { VisitQueuePage } from '@/features/reception/pages/VisitQueuePage'
 import { TriageQueuePage } from '@/features/triage/pages/TriageQueuePage'
@@ -79,9 +98,15 @@ export const routes = [
             children: [
               { path: '/master/dashboard', element: <MasterDashboardPage /> },
               { path: '/master/tenants', element: <TenantManagementPage /> },
+              { path: '/master/tenants/new', element: <CreateTenantPage /> },
               { path: '/master/tenants/:id', element: <TenantDetailPage /> },
               { path: '/master/subscriptions', element: <SubscriptionManagementPage /> },
+              { path: '/master/subscriptions/:id', element: <SubscriptionDetailPage /> },
+
               { path: '/master/invoices', element: <InvoiceManagementPage /> },
+              { path: '/master/invoices/overdue', element: <OverdueAccountsPage /> },
+              { path: '/master/payments', element: <PaymentsPage /> },
+              { path: '/master/incidents', element: <IncidentsPage /> },
               { path: '/master/admins', element: <MasterAdminsPage /> },
               { path: '/master/health', element: <SystemHealthPage /> },
               { path: '/master/announcements', element: <AnnouncementsPage /> },
@@ -98,8 +123,23 @@ export const routes = [
           {
             element: <RoleRoute allowed={[ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/admin/users', element: <UserManagementPage /> },
-              { path: '/reports', element: <ReportsDashboardPage /> },
+              { path: '/admin/dashboard', element: <DashboardPage /> },
+              { path: '/admin/staff', element: <UserManagementPage /> },
+              { path: '/admin/staff/new', element: <AddStaffPage /> },
+              { path: '/admin/staff/:id/edit', element: <AddStaffPage /> },
+              { path: '/admin/staff/:id', element: <StaffDetailPage /> },
+              { path: '/admin/sessions', element: <ActiveSessionsPage /> },
+              { path: '/admin/departments', element: <DepartmentsPage /> },
+              { path: '/admin/fees', element: <FeesPage /> },
+              { path: '/admin/insurance', element: <InsurancePage /> },
+              { path: '/admin/settings', element: <SettingsPage /> },
+              { path: '/admin/audit-logs', element: <AdminAuditLogsPage /> },
+              { path: '/admin/backup', element: <DataBackupPage /> },
+              { path: '/admin/subscription', element: <SubscriptionPage /> },
+              { path: '/admin/reports', element: <ReportsDashboardPage /> },
+              { path: '/admin/reports/patients', element: <PatientReportsPage /> },
+              { path: '/admin/reports/revenue', element: <RevenueReportsPage /> },
+              { path: '/admin/reports/operations', element: <OperationalReportsPage /> },
             ],
           },
           {

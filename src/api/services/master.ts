@@ -6,6 +6,7 @@ import type {
   Subscription,
   Tenant,
   TenantCreate,
+  SubscriptionPlan,
 } from '@/api/types/master'
 
 export interface InvoiceCreate {
@@ -70,4 +71,20 @@ export const masterService = {
 
   deleteMasterAdmin: (username: string) =>
     apiClient.delete('/master-admins', { data: { username } }),
+
+  listPlans: () =>
+    apiClient.get<SubscriptionPlan[]>('/plans').then((r) => r.data),
+
+  getPlan: (planId: string) =>
+    apiClient.get<SubscriptionPlan>(`/plans/${planId}`).then((r) => r.data),
+
+  createPlan: (data: Partial<SubscriptionPlan>) =>
+    apiClient.post<SubscriptionPlan>('/plans', data).then((r) => r.data),
+
+  updatePlan: (planId: string, data: Partial<SubscriptionPlan>) =>
+    apiClient.patch<SubscriptionPlan>(`/plans/${planId}`, data).then((r) => r.data),
+
+  getRevenueHistory: () =>
+    apiClient.get<{ months: string[]; revenue: number[] }>('/finance/revenue-history').then((r) => r.data),
 }
+

@@ -3,27 +3,32 @@ import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
-import type { Tenant, TenantCreate } from '@/api/types/master'
+import type { Tenant } from '@/api/types/master'
 
 export function TenantManagementPage() {
   const navigate = useNavigate()
+  
+  // Data states
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Filter states
   const [search, setSearch] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [regionFilter, setRegionFilter] = useState('all')
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  
+  // Action dropdown state
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
-
-  // Form state
-  const [hospitalName, setHospitalName] = useState('')
-  const [adminUsername, setAdminUsername] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
-  const [adminEmail, setAdminEmail] = useState('')
-  const [adminFullName, setAdminFullName] = useState('')
-  const [submitting, setSubmitting] = useState(false)
 
   const fetchTenants = async () => {
     try {
       setLoading(true)
+      // Simulating a minor load latency to demonstrate the skeleton state
+      await new Promise((r) => setTimeout(r, 600))
       const data = await masterService.listTenants()
       setTenants(data)
     } catch (err) {
@@ -36,36 +41,6 @@ export function TenantManagementPage() {
   useEffect(() => {
     fetchTenants()
   }, [])
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-
-    const payload: TenantCreate = {
-      hospital_name: hospitalName,
-      admin_username: adminUsername,
-      admin_password: adminPassword,
-      admin_email: adminEmail,
-      admin_full_name: adminFullName || undefined,
-    }
-
-    try {
-      await masterService.createTenant(payload)
-      toast.success(`Tenant "${hospitalName}" onboarded successfully!`)
-      setIsModalOpen(false)
-      // Reset form
-      setHospitalName('')
-      setAdminUsername('')
-      setAdminPassword('')
-      setAdminEmail('')
-      setAdminFullName('')
-      fetchTenants()
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to onboard tenant.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   const handleUpdateStatus = async (tenantId: string, newStatus: string) => {
     try {
@@ -86,10 +61,32 @@ export function TenantManagementPage() {
     }, 1200)
   }
 
-  const filteredTenants = tenants.filter((t) =>
-    t.hospital_name.toLowerCase().includes(search.toLowerCase()) ||
-    t.tenant_id.toLowerCase().includes(search.toLowerCase())
-  )
+  // Filtering logic
+  const filteredTenants = tenants.filter((t) => {
+    const matchesSearch =
+      t.hospital_name.toLowerCase().includes(search.toLowerCase()) ||
+      t.tenant_id.toLowerCase().includes(search.toLowerCase())
+    
+    const matchesStatus =
+      statusFilter === 'all' || t.status.toLowerCase() === statusFilter.toLowerCase()
+      
+    const matchesRegion =
+      regionFilter === 'all' || (t.data_region && t.data_region.toLowerCase() === regionFilter.toLowerCase())
+
+    return matchesSearch && matchesStatus && matchesRegion
+  })
+
+  // Pagination calculations
+  const totalItems = filteredTenants.length
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalItems)
+  const paginatedTenants = filteredTenants.slice(startIndex, endIndex)
+
+  // Reset page on filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, regionFilter, pageSize])
 
   const getStatusBadgeClass = (status: string) => {
     switch (status.toLowerCase()) {
@@ -113,272 +110,325 @@ export function TenantManagementPage() {
           title="Tenants"
           description="Manage registered hospitals on the platform."
         />
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+        <button className="btn btn-primary" onClick={() => navigate('/master/tenants/new')}>
           + Onboard Tenant
         </button>
       </div>
 
       <div className="card" style={{ padding: '1.5rem' }}>
-        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
-          <div className="search-input-wrapper" style={{ maxWidth: '400px', flex: 1 }}>
-            <span className="search-input-icon">🔍</span>
+        
+        {/* Filters Panel */}
+        <div style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+          <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
+            <span className="material-symbols-outlined search-input-icon" style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>search</span>
             <input
               type="text"
               className="form-control"
-              placeholder="Search hospitals by name or tenant ID..."
+              placeholder="Search hospitals..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Status:</label>
+            <select
+              className="form-control"
+              style={{ width: '130px', padding: '0.35rem 0.5rem' }}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="trial">Trial</option>
+              <option value="suspended">Suspended</option>
+              <option value="terminated">Terminated</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Region:</label>
+            <select
+              className="form-control"
+              style={{ width: '130px', padding: '0.35rem 0.5rem' }}
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value)}
+            >
+              <option value="all">All regions</option>
+              <option value="af-east">AF-East</option>
+              <option value="af-south">AF-South</option>
+              <option value="eu-west">EU-West</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Show:</label>
+            <select
+              className="form-control"
+              style={{ width: '70px', padding: '0.35rem 0.5rem' }}
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+            </select>
+          </div>
         </div>
 
+        {/* 1. SKELETON LOADING STATE */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-secondary)' }}>
-            Loading tenants...
-          </div>
-        ) : filteredTenants.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-secondary)' }}>
-            No tenants found matching your query.
-          </div>
-        ) : (
           <div className="table-responsive">
-            <table className="table">
+            <table className="table" style={{ width: '100%' }}>
               <thead>
                 <tr>
                   <th>Hospital Name</th>
                   <th>Tenant ID</th>
                   <th>Status</th>
                   <th>Created At</th>
-                  <th>Subscription End</th>
+                  <th>Region</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTenants.map((t) => (
-                  <tr 
-                    key={t.tenant_id} 
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/master/tenants/${t.tenant_id}`)}
-                  >
+                {[1, 2, 3, 4, 5].map((idx) => (
+                  <tr key={idx}>
                     <td>
-                      <strong>{t.hospital_name}</strong>
+                      <div style={{ height: '14px', width: '150px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
                     </td>
-                    <td><code>{t.tenant_id}</code></td>
                     <td>
-                      <span className={getStatusBadgeClass(t.status)}>{t.status}</span>
+                      <div style={{ height: '14px', width: '80px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
                     </td>
-                    <td>{t.created_at ? new Date(t.created_at).toLocaleDateString() : 'N/A'}</td>
                     <td>
-                      {t.subscription_end
-                        ? new Date(t.subscription_end).toLocaleDateString()
-                        : 'No Active Subscription'}
+                      <div style={{ height: '18px', width: '60px', backgroundColor: '#e9ecef', borderRadius: '12px', animation: 'pulse 1.2s infinite' }} />
                     </td>
-                    <td 
-                      style={{ textAlign: 'right', position: 'relative' }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        className="btn btn-secondary"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '1rem',
-                          fontWeight: 'bold',
-                          lineHeight: 1,
-                          border: '1px solid var(--color-border)',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setActiveDropdown(activeDropdown === t.tenant_id ? null : t.tenant_id)
-                        }}
-                      >
-                        ⋮
-                      </button>
-
-                      {activeDropdown === t.tenant_id && (
-                        <>
-                          <div
-                            style={{
-                              position: 'fixed',
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              zIndex: 99,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setActiveDropdown(null)
-                            }}
-                          />
-                          <div className="dropdown-menu-wrapper" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              className="dropdown-item-btn"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                navigate(`/master/tenants/${t.tenant_id}`)
-                                setActiveDropdown(null)
-                              }}
-                            >
-                              <span>ℹ️</span> View details
-                            </button>
-                            
-                            <div className="dropdown-menu-divider" />
-
-                            {t.status === 'active' && (
-                              <button
-                                className="dropdown-item-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleImpersonate(t)
-                                  setActiveDropdown(null)
-                                }}
-                              >
-                                <span>👁️</span> Impersonate
-                              </button>
-                            )}
-                            {t.status === 'active' && (
-                              <button
-                                className="dropdown-item-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleUpdateStatus(t.tenant_id, 'suspended')
-                                  setActiveDropdown(null)
-                                }}
-                              >
-                                <span>⏸️</span> Suspend
-                              </button>
-                            )}
-                            {t.status === 'suspended' && (
-                              <button
-                                className="dropdown-item-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleUpdateStatus(t.tenant_id, 'active')
-                                  setActiveDropdown(null)
-                                }}
-                              >
-                                <span>▶️</span> Unsuspend
-                              </button>
-                            )}
-                            {t.status !== 'terminated' && (
-                              <>
-                                <div className="dropdown-menu-divider" />
-                                <button
-                                  className="dropdown-item-btn dropdown-item-danger"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setActiveDropdown(null)
-                                    if (confirm(`Are you absolutely sure you want to terminate ${t.hospital_name}?`)) {
-                                      handleUpdateStatus(t.tenant_id, 'terminated')
-                                    }
-                                  }}
-                                >
-                                  <span>🗑️</span> Terminate
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </>
-                      )}
+                    <td>
+                      <div style={{ height: '14px', width: '85px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
+                    </td>
+                    <td>
+                      <div style={{ height: '14px', width: '60px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ height: '20px', width: '24px', backgroundColor: '#e9ecef', borderRadius: '4px', marginLeft: 'auto', animation: 'pulse 1.2s infinite' }} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <style>{`
+              @keyframes pulse {
+                0% { opacity: 0.6; }
+                50% { opacity: 0.3; }
+                100% { opacity: 0.6; }
+              }
+            `}</style>
           </div>
+        ) : paginatedTenants.length === 0 ? (
+          /* 2. EMPTY STATE */
+          <div style={{ textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '3rem', marginBottom: '1rem', color: 'var(--color-primary)' }}>local_hospital</span>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-text)' }}>No Hospitals Found</h4>
+            <p style={{ color: 'var(--color-text-light)', fontSize: '0.875rem', maxWidth: '350px', margin: 0 }}>
+              We couldn't find any onboarded hospital tenants matching your current filters or search query.
+            </p>
+            {(search || statusFilter !== 'all' || regionFilter !== 'all') && (
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ marginTop: '1rem' }}
+                onClick={() => {
+                  setSearch('')
+                  setStatusFilter('all')
+                  setRegionFilter('all')
+                }}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          /* 3. POPULATED STATE */
+          <>
+            <div className="table-responsive">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Hospital Name</th>
+                    <th>Tenant ID</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Region</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedTenants.map((t) => (
+                    <tr 
+                      key={t.tenant_id} 
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/master/tenants/${t.tenant_id}`)}
+                    >
+                      <td>
+                        <strong>{t.hospital_name}</strong>
+                      </td>
+                      <td><code>{t.tenant_id}</code></td>
+                      <td>
+                        <span className={getStatusBadgeClass(t.status)}>{t.status}</span>
+                      </td>
+                      <td>{t.created_at ? new Date(t.created_at).toLocaleDateString() : 'N/A'}</td>
+                      <td>
+                        <span className="badge badge-neutral" style={{ borderRadius: '9999px' }}>
+                          {t.data_region || 'AF-East'}
+                        </span>
+                      </td>
+                      <td 
+                        style={{ textAlign: 'right', position: 'relative' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '1rem',
+                            fontWeight: 'bold',
+                            lineHeight: 1,
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActiveDropdown(activeDropdown === t.tenant_id ? null : t.tenant_id)
+                          }}
+                        >
+                          ⋮
+                        </button>
+
+                        {activeDropdown === t.tenant_id && (
+                          <>
+                            <div
+                              style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                zIndex: 99,
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setActiveDropdown(null)
+                              }}
+                            />
+                            <div className="dropdown-menu-wrapper" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                className="dropdown-item-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  navigate(`/master/tenants/${t.tenant_id}`)
+                                  setActiveDropdown(null)
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                              >
+                                <span className="material-symbols-outlined text-[16px]">info</span> View details
+                              </button>
+                              
+                              <div className="dropdown-menu-divider" />
+
+                              {t.status === 'active' && (
+                                <button
+                                  className="dropdown-item-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleImpersonate(t)
+                                    setActiveDropdown(null)
+                                  }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">login</span> Impersonate
+                                </button>
+                              )}
+                              {t.status === 'active' && (
+                                <button
+                                  className="dropdown-item-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleUpdateStatus(t.tenant_id, 'suspended')
+                                    setActiveDropdown(null)
+                                  }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">pause</span> Suspend
+                                </button>
+                              )}
+                              {t.status === 'suspended' && (
+                                <button
+                                  className="dropdown-item-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleUpdateStatus(t.tenant_id, 'active')
+                                    setActiveDropdown(null)
+                                  }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">play_arrow</span> Unsuspend
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '1.5rem',
+                borderTop: '1px solid var(--color-border)',
+                paddingTop: '1rem',
+                fontSize: '0.8125rem',
+                color: 'var(--color-text-light)'
+              }}
+            >
+              <div>
+                Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of{' '}
+                <strong>{totalItems}</strong> hospitals
+              </div>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                >
+                  Previous
+                </button>
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i}
+                    className={`btn btn-sm ${currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setCurrentPage(i + 1)}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
-
-      {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '600px', width: '100%' }}>
-            <div className="modal-header">
-              <h2>Onboard New Hospital</h2>
-              <button className="modal-close" onClick={() => setIsModalOpen(false)}>
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleCreate}>
-              <div className="modal-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Hospital Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      required
-                      placeholder="e.g. Gilgal General Hospital"
-                      value={hospitalName}
-                      onChange={(e) => setHospitalName(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Admin Username</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      required
-                      placeholder="e.g. admin_gilgal"
-                      value={adminUsername}
-                      onChange={(e) => setAdminUsername(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Admin Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      required
-                      placeholder="••••••••"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Admin Email Address</label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      required
-                      placeholder="e.g. contact@gilgal.org"
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Admin Full Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. Dr. John Doe"
-                      value={adminFullName}
-                      onChange={(e) => setAdminFullName(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setIsModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Onboarding...' : 'Onboard Hospital'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   )
 }
