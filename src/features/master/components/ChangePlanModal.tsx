@@ -140,10 +140,22 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
                         </div>
 
                         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem 0', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--color-text-light)' }}>
-                          <li>✔️ {plan.max_users ? `${plan.max_users} Users` : 'Unlimited Users'}</li>
-                          <li>✔️ {plan.max_patients ? `${plan.max_patients.toLocaleString()} Patients` : 'Unlimited Patients'}</li>
-                          <li>✔️ {plan.storage_gb} GB Storage</li>
-                          <li>✔️ {plan.uptime_sla_pct}% SLA</li>
+                          <li style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span className="material-symbols-outlined text-success" style={{ fontSize: '14px' }}>check</span>
+                            {plan.max_users ? `${plan.max_users} Users` : 'Unlimited Users'}
+                          </li>
+                          <li style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span className="material-symbols-outlined text-success" style={{ fontSize: '14px' }}>check</span>
+                            {plan.max_patients ? `${plan.max_patients.toLocaleString()} Patients` : 'Unlimited Patients'}
+                          </li>
+                          <li style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span className="material-symbols-outlined text-success" style={{ fontSize: '14px' }}>check</span>
+                            {plan.storage_gb} GB Storage
+                          </li>
+                          <li style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span className="material-symbols-outlined text-success" style={{ fontSize: '14px' }}>check</span>
+                            {plan.uptime_sla_pct}% SLA
+                          </li>
                         </ul>
                       </div>
 

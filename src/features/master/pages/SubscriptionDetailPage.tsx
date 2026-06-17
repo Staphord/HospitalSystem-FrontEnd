@@ -141,8 +141,9 @@ export function SubscriptionDetailPage() {
   return (
     <>
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link to="/master/subscriptions" style={{ fontSize: '0.875rem', textDecoration: 'none', color: 'var(--color-primary)' }}>
-          ← Back to Subscriptions
+        <Link to="/master/subscriptions" style={{ fontSize: '0.875rem', textDecoration: 'none', color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+          Back to Subscriptions
         </Link>
       </div>
 
@@ -270,7 +271,7 @@ export function SubscriptionDetailPage() {
               backgroundColor: countdownBg,
             }}
           >
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⏳</div>
+            <span className="material-symbols-outlined" style={{ fontSize: '2rem', marginBottom: '0.5rem', color: countdownColor }}>hourglass_empty</span>
             <h4 style={{ margin: '0 0 0.25rem 0', color: countdownColor, fontWeight: 700 }}>{countdownLabel}</h4>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0.25rem 0', color: 'var(--color-text)' }}>
               {daysRemaining !== null ? (
@@ -297,23 +298,26 @@ export function SubscriptionDetailPage() {
               <Link
                 to={`/master/tenants/${tenant.tenant_id}`}
                 className="btn btn-secondary"
-                style={{ textAlign: 'center', display: 'block', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
               >
-                🏥 View Hospital Profile
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>local_hospital</span>
+                View Hospital Profile
               </Link>
               <Link
                 to={`/master/invoices?tenant_id=${tenant.tenant_id}`}
                 className="btn btn-secondary"
-                style={{ textAlign: 'center', display: 'block', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
               >
-                📄 View Invoices Ledger
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>description</span>
+                View Invoices Ledger
               </Link>
               <Link
                 to="/master/health"
                 className="btn btn-secondary"
-                style={{ textAlign: 'center', display: 'block', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
               >
-                📈 View System Health
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>trending_up</span>
+                View System Health
               </Link>
             </div>
           </div>

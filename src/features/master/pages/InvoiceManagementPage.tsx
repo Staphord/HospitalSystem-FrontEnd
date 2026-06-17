@@ -1,5 +1,6 @@
+
 import { useEffect, useState, useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
@@ -24,9 +25,12 @@ export function InvoiceManagementPage() {
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [billingPeriodStart, setBillingPeriodStart] = useState('')
+  const [billingPeriodEnd, setBillingPeriodEnd] = useState('')
 
   // Record Payment Form State
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer')
+  const [paymentAmount, setPaymentAmount] = useState('')
   const [recordingPayment, setRecordingPayment] = useState(false)
 
   const fetchData = useCallback(async () => {
@@ -49,9 +53,18 @@ export function InvoiceManagementPage() {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData()
   }, [fetchData])
+
+  // Synchronize payment amount with invoice balance
+  useEffect(() => {
+    if (selectedInvoiceForPayment) {
+      const remaining = selectedInvoiceForPayment.amount - (selectedInvoiceForPayment.amount_paid || 0)
+      setPaymentAmount(remaining.toString())
+    } else {
+      setPaymentAmount('')
+    }
+  }, [selectedInvoiceForPayment])
 
   // Auto-populate invoice parameters when selecting a tenant
   const handleTenantSelection = (selectedId: string) => {
@@ -60,6 +73,8 @@ export function InvoiceManagementPage() {
       setAmount('')
       setDescription('')
       setDueDate('')
+      setBillingPeriodStart('')
+      setBillingPeriodEnd('')
       return
     }
 
@@ -74,6 +89,12 @@ export function InvoiceManagementPage() {
       setAmount('299') // default fallback
       setDescription('Monthly Plan Subscription Renewal')
     }
+
+    const defaultStart = new Date().toISOString().split('T')[0]
+    const defaultEnd = new Date()
+    defaultEnd.setDate(defaultEnd.getDate() + 30)
+    setBillingPeriodStart(defaultStart)
+    setBillingPeriodEnd(defaultEnd.toISOString().split('T')[0])
 
     const defaultDue = new Date(Date.now() + 3600000 * 24 * 14).toISOString().split('T')[0]
     setDueDate(defaultDue)
@@ -91,12 +112,16 @@ export function InvoiceManagementPage() {
     }
     setGenerating(true)
 
+    const finalDescription = description
+      ? `${description} (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
+      : `Subscription renewal (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
+
     try {
       await masterService.createInvoice({
         tenant_id: tenantId,
         amount: Number(amount),
         due_date: dueDate || undefined,
-        description: description || undefined,
+        description: finalDescription,
         status: 'unpaid',
       })
       toast.success('Invoice generated successfully!')
@@ -106,6 +131,8 @@ export function InvoiceManagementPage() {
       setAmount('')
       setDueDate('')
       setDescription('')
+      setBillingPeriodStart('')
+      setBillingPeriodEnd('')
       fetchData()
     } catch (err) {
       const error = err as { response?: { data?: { detail?: string } } }
@@ -118,14 +145,28 @@ export function InvoiceManagementPage() {
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedInvoiceForPayment) return
+    const enteredAmount = Number(paymentAmount)
+    if (isNaN(enteredAmount) || enteredAmount <= 0) {
+      toast.error('Please enter a valid payment amount.')
+      return
+    }
+    const remainingBefore = selectedInvoiceForPayment.amount - (selectedInvoiceForPayment.amount_paid || 0)
+    if (enteredAmount > remainingBefore) {
+      toast.error('Payment amount cannot exceed the remaining balance.')
+      return
+    }
+
     setRecordingPayment(true)
+    const newPaidAmount = (selectedInvoiceForPayment.amount_paid || 0) + enteredAmount
+    const status = newPaidAmount >= selectedInvoiceForPayment.amount ? 'paid' : 'partially_paid'
 
     try {
       await masterService.updateInvoice(selectedInvoiceForPayment.id, {
-        status: 'paid',
+        status,
+        amount_paid: newPaidAmount,
         payment_method: paymentMethod,
       })
-      toast.success(`Payment recorded for invoice ${selectedInvoiceForPayment.id}!`)
+      toast.success(`Payment of $${enteredAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} recorded for invoice ${selectedInvoiceForPayment.id}!`)
       setSelectedInvoiceForPayment(null)
       fetchData()
     } catch (err) {
@@ -154,6 +195,8 @@ export function InvoiceManagementPage() {
     switch (status.toLowerCase()) {
       case 'paid':
         return 'status-badge status-active'
+      case 'partially_paid':
+        return 'status-badge status-suspended'
       case 'unpaid':
         return 'status-badge status-suspended'
       case 'overdue':
@@ -180,6 +223,33 @@ export function InvoiceManagementPage() {
         </button>
       </div>
 
+      {invoices.filter((i) => i.status.toLowerCase() === 'overdue').length > 0 && (
+        <div
+          style={{
+            marginBottom: '1.5rem',
+            padding: '1rem 1.5rem',
+            backgroundColor: 'rgba(220, 53, 69, 0.08)',
+            border: '1px solid rgba(220, 53, 69, 0.2)',
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}
+        >
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#dc3545', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span className="material-symbols-outlined text-[18px]">warning</span>
+            There are {invoices.filter((i) => i.status.toLowerCase() === 'overdue').length} overdue invoices that require immediate attention.
+          </span>
+          <Link
+            to="/master/invoices/overdue"
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}
+          >
+            View Overdue Accounts
+          </Link>
+        </div>
+      )}
+
       {tenantIdParam && (
         <div
           style={{
@@ -193,8 +263,9 @@ export function InvoiceManagementPage() {
             alignItems: 'center'
           }}
         >
-          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-primary)' }}>
-            📍 Filtering invoices for tenant: <strong>{getHospitalName(tenantIdParam)}</strong>
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span className="material-symbols-outlined text-[18px]">location_on</span>
+            Filtering invoices for tenant: <strong>{getHospitalName(tenantIdParam)}</strong>
           </span>
           <button
             className="btn btn-secondary btn-sm"
@@ -255,7 +326,9 @@ export function InvoiceManagementPage() {
                       <strong>${i.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                     </td>
                     <td>
-                      <span className={getStatusBadgeClass(i.status)}>{i.status}</span>
+                      <span className={getStatusBadgeClass(i.status)}>
+                        {i.status === 'partially_paid' ? 'partially paid' : i.status}
+                      </span>
                     </td>
                     <td>{i.due_date ? new Date(i.due_date).toLocaleDateString() : 'N/A'}</td>
                     <td style={{ textAlign: 'right' }}>
@@ -304,6 +377,29 @@ export function InvoiceManagementPage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label>Billing Period Start</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        required
+                        value={billingPeriodStart}
+                        onChange={(e) => setBillingPeriodStart(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Billing Period End</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        required
+                        value={billingPeriodEnd}
+                        onChange={(e) => setBillingPeriodEnd(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <div className="form-group">
@@ -364,69 +460,128 @@ export function InvoiceManagementPage() {
         </div>
       )}
 
-      {selectedInvoiceForPayment && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '450px', width: '100%' }}>
-            <div className="modal-header">
-              <h2>Record Invoice Payment</h2>
-              <button className="modal-close" onClick={() => setSelectedInvoiceForPayment(null)}>
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleRecordPayment}>
-              <div className="modal-body">
-                <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Hospital</div>
-                  <strong style={{ fontSize: '1rem' }}>{getHospitalName(selectedInvoiceForPayment.tenant_id)}</strong>
+      {selectedInvoiceForPayment && (() => {
+        const remaining = selectedInvoiceForPayment.amount - (selectedInvoiceForPayment.amount_paid || 0)
+        const entered = Number(paymentAmount) || 0
+        const balanceAfter = Math.max(0, remaining - entered)
+        const isFull = balanceAfter <= 0
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
-                    <div>
-                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Invoice ID</div>
-                      <strong>#{selectedInvoiceForPayment.id}</strong>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Amount Due</div>
-                      <strong style={{ color: 'var(--primary-color)' }}>
-                        ${selectedInvoiceForPayment.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </strong>
+        return (
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ maxWidth: '450px', width: '100%' }}>
+              <div className="modal-header">
+                <h2>Record Invoice Payment</h2>
+                <button className="modal-close" onClick={() => setSelectedInvoiceForPayment(null)} type="button">
+                  &times;
+                </button>
+              </div>
+              <form onSubmit={handleRecordPayment}>
+                <div className="modal-body">
+                  <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Hospital</div>
+                    <strong style={{ fontSize: '1rem' }}>{getHospitalName(selectedInvoiceForPayment.tenant_id)}</strong>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1rem' }}>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Invoice ID</div>
+                        <strong>#{selectedInvoiceForPayment.id}</strong>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Total Amount</div>
+                        <strong>${selectedInvoiceForPayment.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Previously Paid</div>
+                        <strong>${(selectedInvoiceForPayment.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Remaining Balance</div>
+                        <strong style={{ color: remaining > 0 ? '#b58900' : '#28a745' }}>
+                          ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </strong>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="form-group">
-                  <label>Payment Channel / Method</label>
-                  <select
-                    className="form-control"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                  >
-                    <option value="Bank Transfer">Bank Wire Transfer</option>
-                    <option value="Credit Card">Credit/Debit Card Online</option>
-                    <option value="Cheque">Corporate Cheque</option>
-                    <option value="Mobile Money">Mobile Money (M-Pesa, etc.)</option>
-                  </select>
+                  <div className="form-group">
+                    <label>Payment Amount ($ USD)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      required
+                      min="0.01"
+                      max={remaining}
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                    />
+                    <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Remaining after payment:</span>
+                      {isFull ? (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                          color: '#28a745',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(40, 167, 69, 0.2)'
+                        }}>
+                          Paid in Full
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          backgroundColor: 'rgba(255, 193, 7, 0.15)',
+                          color: '#b58900',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(255, 193, 7, 0.3)'
+                        }}>
+                          Partial Payment: ${balanceAfter.toLocaleString(undefined, { minimumFractionDigits: 2 })} remaining
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Payment Channel / Method</label>
+                    <select
+                      className="form-control"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    >
+                      <option value="Bank Transfer">Bank Wire Transfer</option>
+                      <option value="Credit Card">Credit/Debit Card Online</option>
+                      <option value="Cheque">Corporate Cheque</option>
+                      <option value="Mobile Money">Mobile Money (M-Pesa, etc.)</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setSelectedInvoiceForPayment(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={recordingPayment}
-                >
-                  {recordingPayment ? 'Recording...' : 'Confirm Paid'}
-                </button>
-              </div>
-            </form>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setSelectedInvoiceForPayment(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={recordingPayment}
+                  >
+                    {recordingPayment ? 'Recording...' : 'Record Payment'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </>
   )
 }

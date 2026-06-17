@@ -187,7 +187,8 @@ export function TenantDetailPage() {
             marginBottom: '1rem' 
           }}
         >
-          ← Back to Tenants
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+          Back to Tenants
         </Link>
 
         <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
@@ -203,12 +204,10 @@ export function TenantDetailPage() {
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center', 
-                  fontSize: '2rem', 
-                  fontWeight: 'bold',
                   border: '1px solid var(--color-border)' 
                 }}
               >
-                🏥
+                <span className="material-symbols-outlined" style={{ fontSize: '2rem' }}>local_hospital</span>
               </div>
               <div>
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
@@ -236,7 +235,8 @@ export function TenantDetailPage() {
                   }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
-                  👁️ Impersonate
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>login</span>
+                  Impersonate
                 </button>
               )}
               {tenant.status === 'active' ? (
@@ -248,11 +248,11 @@ export function TenantDetailPage() {
                     border: '1px solid #ffeeba',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.35rem'
                   }}
                   onClick={() => setIsSuspendOpen(true)}
                 >
-                  ⏸️ Suspend
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>pause</span>
+                  Suspend
                 </button>
               ) : tenant.status === 'suspended' ? (
                 <button 
@@ -263,11 +263,11 @@ export function TenantDetailPage() {
                     border: '1px solid #c3e6cb',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.35rem'
                   }}
                   onClick={handleUnsuspend}
                 >
-                  ▶️ Unsuspend
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>play_arrow</span>
+                  Unsuspend
                 </button>
               ) : null}
               {tenant.status !== 'terminated' && (
@@ -279,7 +279,6 @@ export function TenantDetailPage() {
                     border: '1px solid #f5c6cb',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.35rem'
                   }}
                   onClick={() => {
                     setTerminateStep(1)
@@ -291,7 +290,8 @@ export function TenantDetailPage() {
                     setIsTerminateOpen(true)
                   }}
                 >
-                  🗑️ Terminate
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                  Terminate
                 </button>
               )}
             </div>
@@ -476,8 +476,10 @@ export function TenantDetailPage() {
             <Link
               to={`/master/subscriptions?tenant_id=${tenant.tenant_id}`}
               className="btn btn-secondary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
             >
-              🔗 View Subscription Logs
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>link</span>
+              View Subscription Logs
             </Link>
           </div>
           {subscriptions.length === 0 ? (
@@ -520,8 +522,10 @@ export function TenantDetailPage() {
             <Link
               to={`/master/invoices?search=${tenant.tenant_id}`}
               className="btn btn-secondary btn-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
             >
-              🔗 View Invoices Ledger
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>link</span>
+              View Invoices Ledger
             </Link>
           </div>
           {invoices.length === 0 ? (
@@ -605,8 +609,11 @@ export function TenantDetailPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <strong style={{ display: 'block', fontSize: '0.9375rem' }}>Maintenance Mode</strong>
-                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)' }}>
-                  {tenant.maintenance_mode ? '🔒 ACTIVE - Site is locked for maintenance.' : '🔓 INACTIVE - Standard portal access.'}
+                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <span className="material-symbols-outlined text-[16px]" style={{ verticalAlign: 'middle' }}>
+                    {tenant.maintenance_mode ? 'lock' : 'lock_open'}
+                  </span>
+                  {tenant.maintenance_mode ? 'ACTIVE - Site is locked for maintenance.' : 'INACTIVE - Standard portal access.'}
                 </span>
               </div>
               <input 
@@ -620,8 +627,11 @@ export function TenantDetailPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
               <div>
                 <strong style={{ display: 'block', fontSize: '0.9375rem' }}>MFA Enforcement</strong>
-                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)' }}>
-                  {tenant.mfa_enforced ?? true ? '🔒 ENFORCED - Mandatory two-factor auth.' : '🔓 OPTIONAL - MFA is not required.'}
+                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <span className="material-symbols-outlined text-[16px]" style={{ verticalAlign: 'middle' }}>
+                    {tenant.mfa_enforced ?? true ? 'lock' : 'lock_open'}
+                  </span>
+                  {tenant.mfa_enforced ?? true ? 'ENFORCED - Mandatory two-factor auth.' : 'OPTIONAL - MFA is not required.'}
                 </span>
               </div>
               <input 
@@ -638,8 +648,9 @@ export function TenantDetailPage() {
                 <span style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>
                   Throttling cap threshold applied globally to hospital traffic.
                 </span>
-                <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.9rem', fontWeight: 500 }}>
-                  🔑 {tenant.rate_limit ?? 1000} requests / minute (Read-Only)
+                <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.9rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span className="material-symbols-outlined text-[18px]">vpn_key</span>
+                  <span>{tenant.rate_limit ?? 1000} requests / minute (Read-Only)</span>
                 </div>
               </div>
             </div>
@@ -650,8 +661,9 @@ export function TenantDetailPage() {
                 <span style={{ display: 'block', fontSize: '0.8125rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>
                   Upper storage limit for attachments, patient medical files, and scans.
                 </span>
-                <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.9rem', fontWeight: 500 }}>
-                  📁 {tenant.storage_gb ?? 50} GB (Read-Only)
+                <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid var(--color-border)', fontSize: '0.9rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span className="material-symbols-outlined text-[18px]">folder</span>
+                  <span>{tenant.storage_gb ?? 50} GB (Read-Only)</span>
                 </div>
               </div>
             </div>
@@ -725,8 +737,11 @@ export function TenantDetailPage() {
             {/* Step 1: Warning with statistics & lock */}
             {terminateStep === 1 && (
               <div className="modal-body">
-                <div style={{ backgroundColor: '#ffebe6', color: '#ff5630', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.8125rem', border: '1px solid #f5c6cb' }}>
-                  ⚠️ <strong>CRITICAL WARNING:</strong> This action is permanent and completely irreversible. Proceeding will permanently delete all records associated with this hospital.
+                <div style={{ backgroundColor: '#ffebe6', color: '#ff5630', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.8125rem', border: '1px solid #f5c6cb', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>warning</span>
+                  <div>
+                    <strong>CRITICAL WARNING:</strong> This action is permanent and completely irreversible. Proceeding will permanently delete all records associated with this hospital.
+                  </div>
                 </div>
                 
                 <h4 style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Data Loss Statistics Summary:</h4>
@@ -778,9 +793,10 @@ export function TenantDetailPage() {
                     type="button" 
                     className="btn btn-primary" 
                     onClick={handleDownloadBackup}
-                    style={{ padding: '0.75rem 1.5rem' }}
+                    style={{ padding: '0.75rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                   >
-                    📥 Generate & Download Backup Export (JSON)
+                    <span className="material-symbols-outlined">download</span>
+                    Generate & Download Backup Export (JSON)
                   </button>
                 </div>
 
@@ -829,8 +845,11 @@ export function TenantDetailPage() {
             {/* Step 3: Final confirmation */}
             {terminateStep === 3 && (
               <div className="modal-body">
-                <div style={{ backgroundColor: '#ffebe6', color: '#ff5630', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.8125rem', border: '1px solid #f5c6cb' }}>
-                  🔴 <strong>FINAL WARNING:</strong> Pressing "Terminate Organization" will execute a hard delete of the tenant database. This operation cannot be canceled or recovered.
+                <div style={{ backgroundColor: '#ffebe6', color: '#ff5630', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.8125rem', border: '1px solid #f5c6cb', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
+                  <div>
+                    <strong>FINAL WARNING:</strong> Pressing "Terminate Organization" will execute a hard delete of the tenant database. This operation cannot be canceled or recovered.
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>

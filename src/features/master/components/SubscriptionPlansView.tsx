@@ -93,31 +93,31 @@ export function SubscriptionPlansView() {
                 <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem', marginBottom: '1.5rem' }}>
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem' }}>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>✔️</span>
+                      <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
                         <strong>{plan.max_users === null ? 'Unlimited' : plan.max_users}</strong> staff user accounts
                       </span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>✔️</span>
+                      <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
                         <strong>{plan.max_patients === null ? 'Unlimited' : plan.max_patients.toLocaleString()}</strong> patient records
                       </span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>✔️</span>
+                      <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
                         <strong>{plan.storage_gb} GB</strong> secure document storage
                       </span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>✔️</span>
+                      <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
                         <strong>{plan.uptime_sla_pct}%</strong> guaranteed server uptime SLA
                       </span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>✔️</span>
+                      <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
                         Backups every <strong>{plan.backup_frequency_hours} hours</strong>
                       </span>
@@ -151,10 +151,11 @@ export function SubscriptionPlansView() {
 
               <button
                 className="btn btn-secondary"
-                style={{ width: '100%', marginTop: '1rem' }}
+                style={{ width: '100%', marginTop: '1rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
                 onClick={() => setEditingPlan(plan)}
               >
-                ✏️ Edit Plan Tiers
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit</span>
+                Edit Plan Tiers
               </button>
             </div>
           )

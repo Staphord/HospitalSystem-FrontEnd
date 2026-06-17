@@ -120,7 +120,7 @@ export function TenantManagementPage() {
         {/* Filters Panel */}
         <div style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
           <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
-            <span className="search-input-icon">🔍</span>
+            <span className="material-symbols-outlined search-input-icon" style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>search</span>
             <input
               type="text"
               className="form-control"
@@ -226,7 +226,7 @@ export function TenantManagementPage() {
         ) : paginatedTenants.length === 0 ? (
           /* 2. EMPTY STATE */
           <div style={{ textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏥</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '3rem', marginBottom: '1rem', color: 'var(--color-primary)' }}>local_hospital</span>
             <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-text)' }}>No Hospitals Found</h4>
             <p style={{ color: 'var(--color-text-light)', fontSize: '0.875rem', maxWidth: '350px', margin: 0 }}>
               We couldn't find any onboarded hospital tenants matching your current filters or search query.
@@ -327,8 +327,9 @@ export function TenantManagementPage() {
                                   navigate(`/master/tenants/${t.tenant_id}`)
                                   setActiveDropdown(null)
                                 }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                               >
-                                <span>ℹ️</span> View details
+                                <span className="material-symbols-outlined text-[16px]">info</span> View details
                               </button>
                               
                               <div className="dropdown-menu-divider" />
@@ -341,8 +342,9 @@ export function TenantManagementPage() {
                                     handleImpersonate(t)
                                     setActiveDropdown(null)
                                   }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                 >
-                                  <span>👁️</span> Impersonate
+                                  <span className="material-symbols-outlined text-[16px]">login</span> Impersonate
                                 </button>
                               )}
                               {t.status === 'active' && (
@@ -353,8 +355,9 @@ export function TenantManagementPage() {
                                     handleUpdateStatus(t.tenant_id, 'suspended')
                                     setActiveDropdown(null)
                                   }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                 >
-                                  <span>⏸️</span> Suspend
+                                  <span className="material-symbols-outlined text-[16px]">pause</span> Suspend
                                 </button>
                               )}
                               {t.status === 'suspended' && (
@@ -365,8 +368,9 @@ export function TenantManagementPage() {
                                     handleUpdateStatus(t.tenant_id, 'active')
                                     setActiveDropdown(null)
                                   }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                 >
-                                  <span>▶️</span> Unsuspend
+                                  <span className="material-symbols-outlined text-[16px]">play_arrow</span> Unsuspend
                                 </button>
                               )}
                             </div>

@@ -107,7 +107,7 @@ export function SubscriptionManagementPage() {
         <div className="card" style={{ padding: '1.5rem' }}>
           <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
             <div className="search-input-wrapper" style={{ maxWidth: '400px', flex: 1 }}>
-              <span className="search-input-icon">🔍</span>
+              <span className="material-symbols-outlined search-input-icon" style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>search</span>
               <input
                 type="text"
                 className="form-control"
@@ -168,8 +168,10 @@ export function SubscriptionManagementPage() {
                         <button
                           className="btn btn-secondary btn-sm"
                           onClick={() => navigate(`/master/subscriptions/${s.id}`)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                          ⚙️ Manage Plan
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>settings</span>
+                          Manage Plan
                         </button>
                       </td>
                     </tr>
