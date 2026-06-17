@@ -86,21 +86,27 @@ export function PaymentsPage() {
 
   // Get Payment Method icons
   const getMethodIconName = (method: string) => {
-    switch (method.toLowerCase()) {
-      case 'bank transfer':
-      case 'wire':
-        return 'account_balance'
-      case 'credit card':
-      case 'card':
-        return 'credit_card'
-      case 'mobile money':
-      case 'mpesa':
-        return 'smartphone'
-      case 'cheque':
-        return 'description'
-      default:
-        return 'attach_money'
+    const value = method.trim().toLowerCase()
+
+    if (value.includes('bank') || value.includes('wire') || value.includes('transfer') || value.includes('ach')) {
+      return 'account_balance'
     }
+
+    if (
+      value.includes('m-pesa') ||
+      value.includes('mpesa') ||
+      value.includes('mobile money') ||
+      value.includes('phone') ||
+      value.includes('mobile')
+    ) {
+      return 'phone_iphone'
+    }
+
+    if (value.includes('card') || value.includes('visa') || value.includes('mastercard')) {
+      return 'credit_card'
+    }
+
+    return 'payments'
   }
 
   // Render monthly revenue trends chart using responsive SVG coordinates
@@ -350,7 +356,7 @@ export function PaymentsPage() {
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <strong style={{ color: '#36b37e' }}>
-                              +${(p.amount_paid || p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              {currency} {(p.amount_paid || p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </strong>
                             <div style={{ fontSize: '0.7rem' }}>
                               {isPartial ? (

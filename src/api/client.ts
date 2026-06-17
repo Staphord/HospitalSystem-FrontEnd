@@ -61,11 +61,188 @@ const initLocalStorage = () => {
 
   if (!localStorage.getItem('hf_mock_invoices')) {
     localStorage.setItem('hf_mock_invoices', JSON.stringify([
-      { id: 'inv-101', tenant_id: 'aga-khan', amount: 2500, status: 'paid', due_date: '2026-05-31', description: 'Enterprise Monthly Subscription - May 2026', payment_method: 'Bank Transfer', reference_number: 'TXN-AK-88273', payment_date: '2026-05-28' },
-      { id: 'inv-102', tenant_id: 'aga-khan', amount: 2500, status: 'unpaid', due_date: '2026-06-30', description: 'Enterprise Monthly Subscription - June 2026' },
-      { id: 'inv-103', tenant_id: 'nairobi-hosp', amount: 1200, status: 'overdue', due_date: '2026-06-01', description: 'Premium Monthly Subscription - June 2026' },
-      { id: 'inv-104', tenant_id: 'gilgal', amount: 0, status: 'paid', due_date: '2026-06-15', description: 'Standard Plan Trial Period', payment_method: 'Promo Code', reference_number: 'TRIAL-FREE', payment_date: '2026-05-15' }
+      {
+        id: 'inv-101',
+        tenant_id: 'aga-khan',
+        amount: 2500,
+        status: 'paid',
+        due_date: '2026-05-31',
+        description: 'Enterprise Monthly Subscription - May 2026',
+        payment_method: 'Bank Transfer',
+        reference_number: 'TXN-AK-88273',
+        payment_date: '2026-05-28'
+      },
+      {
+        id: 'inv-102',
+        tenant_id: 'aga-khan',
+        amount: 2500,
+        amount_paid: 1500,
+        status: 'partially_paid',
+        due_date: '2026-06-30',
+        description: 'Enterprise Monthly Subscription - June 2026',
+        payment_method: 'Bank Transfer',
+        reference_number: 'TXN-AK-88410',
+        payment_date: '2026-06-12'
+      },
+      {
+        id: 'inv-103',
+        tenant_id: 'nairobi-hosp',
+        amount: 1200,
+        status: 'overdue',
+        due_date: '2026-06-01',
+        description: 'Premium Monthly Subscription - June 2026'
+      },
+      {
+        id: 'inv-104',
+        tenant_id: 'gilgal',
+        amount: 599,
+        status: 'paid',
+        due_date: '2026-06-15',
+        description: 'Standard Plan Monthly Subscription - June 2026',
+        payment_method: 'M-pesa',
+        reference_number: 'MP-GIL-55021',
+        payment_date: '2026-06-14'
+      },
+      {
+        id: 'inv-105',
+        tenant_id: 'gilgal',
+        amount: 599,
+        amount_paid: 300,
+        status: 'partially_paid',
+        due_date: '2026-07-15',
+        description: 'Standard Plan Monthly Subscription - July 2026',
+        payment_method: 'M-pesa',
+        reference_number: 'MP-GIL-55106',
+        payment_date: '2026-06-16'
+      },
+      {
+        id: 'inv-106',
+        tenant_id: 'apex-clinic',
+        amount: 450,
+        status: 'paid',
+        due_date: '2026-06-10',
+        description: 'Dental Practice Basic Subscription - June 2026',
+        payment_method: 'Credit Card',
+        reference_number: 'CC-APX-10244',
+        payment_date: '2026-06-09'
+      },
+      {
+        id: 'inv-107',
+        tenant_id: 'nairobi-hosp',
+        amount: 1200,
+        status: 'paid',
+        due_date: '2026-05-01',
+        description: 'Premium Monthly Subscription - May 2026',
+        payment_method: 'M-pesa',
+        reference_number: 'MP-NRB-77420',
+        payment_date: '2026-05-30'
+      },
+      {
+        id: 'inv-108',
+        tenant_id: 'nairobi-hosp',
+        amount: 1200,
+        status: 'unpaid',
+        due_date: '2026-06-30',
+        description: 'Premium Monthly Subscription - July 2026'
+      }
     ]))
+  }
+
+  const invoiceSeed = JSON.parse(localStorage.getItem('hf_mock_invoices') || '[]')
+  const isLegacyInvoiceSeed =
+    Array.isArray(invoiceSeed) &&
+    invoiceSeed.length <= 4 &&
+    invoiceSeed.every((invoice: Invoice) => ['inv-101', 'inv-102', 'inv-103', 'inv-104'].includes(invoice.id))
+  if (isLegacyInvoiceSeed) {
+    localStorage.setItem(
+      'hf_mock_invoices',
+      JSON.stringify([
+        {
+          id: 'inv-101',
+          tenant_id: 'aga-khan',
+          amount: 2500,
+          status: 'paid',
+          due_date: '2026-05-31',
+          description: 'Enterprise Monthly Subscription - May 2026',
+          payment_method: 'Bank Transfer',
+          reference_number: 'TXN-AK-88273',
+          payment_date: '2026-05-28'
+        },
+        {
+          id: 'inv-102',
+          tenant_id: 'aga-khan',
+          amount: 2500,
+          amount_paid: 1500,
+          status: 'partially_paid',
+          due_date: '2026-06-30',
+          description: 'Enterprise Monthly Subscription - June 2026',
+          payment_method: 'Bank Transfer',
+          reference_number: 'TXN-AK-88410',
+          payment_date: '2026-06-12'
+        },
+        {
+          id: 'inv-103',
+          tenant_id: 'nairobi-hosp',
+          amount: 1200,
+          status: 'overdue',
+          due_date: '2026-06-01',
+          description: 'Premium Monthly Subscription - June 2026'
+        },
+        {
+          id: 'inv-104',
+          tenant_id: 'gilgal',
+          amount: 599,
+          status: 'paid',
+          due_date: '2026-06-15',
+          description: 'Standard Plan Monthly Subscription - June 2026',
+          payment_method: 'M-pesa',
+          reference_number: 'MP-GIL-55021',
+          payment_date: '2026-06-14'
+        },
+        {
+          id: 'inv-105',
+          tenant_id: 'gilgal',
+          amount: 599,
+          amount_paid: 300,
+          status: 'partially_paid',
+          due_date: '2026-07-15',
+          description: 'Standard Plan Monthly Subscription - July 2026',
+          payment_method: 'M-pesa',
+          reference_number: 'MP-GIL-55106',
+          payment_date: '2026-06-16'
+        },
+        {
+          id: 'inv-106',
+          tenant_id: 'apex-clinic',
+          amount: 450,
+          status: 'paid',
+          due_date: '2026-06-10',
+          description: 'Dental Practice Basic Subscription - June 2026',
+          payment_method: 'Credit Card',
+          reference_number: 'CC-APX-10244',
+          payment_date: '2026-06-09'
+        },
+        {
+          id: 'inv-107',
+          tenant_id: 'nairobi-hosp',
+          amount: 1200,
+          status: 'paid',
+          due_date: '2026-05-01',
+          description: 'Premium Monthly Subscription - May 2026',
+          payment_method: 'M-pesa',
+          reference_number: 'MP-NRB-77420',
+          payment_date: '2026-05-30'
+        },
+        {
+          id: 'inv-108',
+          tenant_id: 'nairobi-hosp',
+          amount: 1200,
+          status: 'unpaid',
+          due_date: '2026-06-30',
+          description: 'Premium Monthly Subscription - July 2026'
+        }
+      ])
+    )
   }
 
   if (!localStorage.getItem('hf_mock_admins')) {
