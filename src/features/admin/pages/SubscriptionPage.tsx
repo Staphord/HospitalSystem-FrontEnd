@@ -4,6 +4,7 @@ import { masterService } from '@/api/services/master';
 import type { Subscription, Tenant, SubscriptionPlan, Invoice } from '@/api/types/master';
 import { useApp } from '../context/AppContext';
 import { toast } from 'sonner';
+import { getSubscriptionBanners } from '../utils/subscriptionHelper';
 
 export const SubscriptionPage: React.FC = () => {
   const { staffList } = useApp();
@@ -20,6 +21,35 @@ export const SubscriptionPage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [now] = useState(() => Date.now());
+
+  // Real-world critique flow states
+  const [selectedPlanForChange, setSelectedPlanForChange] = useState<SubscriptionPlan | null>(null);
+  const [isConfirmChangeModalOpen, setIsConfirmChangeModalOpen] = useState(false);
+  const [proratedAmount, setProratedAmount] = useState(0);
+  const [daysRemaining, setDaysRemaining] = useState(30);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  // Write audit log entry to hospital tenant's local log
+  const logHospitalAudit = (action: string, details: string) => {
+    try {
+      const logs = JSON.parse(localStorage.getItem('hf_mock_hospital_audit_logs') || '[]');
+      logs.unshift({
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        staffName: 'Admin Portal',
+        staffRole: 'Hospital Admin',
+        action: action,
+        department: 'Billing',
+        recordId: 'Subscription',
+        ipAddress: '192.168.1.1',
+        details: details,
+        signature: `SHA-256: ${Math.random().toString(16).substring(2, 10)}`
+      });
+      localStorage.setItem('hf_mock_hospital_audit_logs', JSON.stringify(logs));
+    } catch {
+      // ignore silently
+    }
+  };
 
   // Load tenant subscription, plans, and invoices from mock service
   const fetchSubscriptionData = React.useCallback(async () => {
@@ -51,16 +81,118 @@ export const SubscriptionPage: React.FC = () => {
     fetchSubscriptionData();
   }, [fetchSubscriptionData]);
 
-  const handleRequestPlanChange = async (planName: string) => {
+
+
+  const handleSelectPlan = (plan: SubscriptionPlan) => {
     if (!subscription) return;
-    setSubmitting(true);
+
+    const currentPlanObj = plans.find(
+      (p) => p.plan_name.toLowerCase() === subscription.plan_name.toLowerCase()
+    );
+    const currentPrice = currentPlanObj?.monthly_price ?? 0;
+    const newPrice = plan.monthly_price;
+
+    setSelectedPlanForChange(plan);
+
+    if (newPrice > currentPrice) {
+      // Upgrade: calculate proration
+      const remaining = subscription.end_date
+        ? Math.max(0, Math.ceil((new Date(subscription.end_date).getTime() - now) / (1000 * 3600 * 24)))
+        : 30;
+      const amount = Math.max(0, Math.round(((newPrice - currentPrice) * remaining) / 30));
+      setProratedAmount(amount);
+      setDaysRemaining(remaining);
+    } else {
+      // Downgrade
+      setProratedAmount(0);
+      setDaysRemaining(
+        subscription.end_date
+          ? Math.max(0, Math.ceil((new Date(subscription.end_date).getTime() - now) / (1000 * 3600 * 24)))
+          : 30
+      );
+    }
+    setIsConfirmChangeModalOpen(true);
+  };
+
+  const confirmPlanUpgrade = async () => {
+    if (!subscription || !selectedPlanForChange) return;
+    setIsProcessingPayment(true);
     try {
-      await masterService.updateSubscription(subscription.id, { plan_name: planName });
-      toast.success(`Subscription plan change to ${planName} requested and applied!`);
+      // 1. Update subscription plan and clear pending plans
+      await masterService.updateSubscription(subscription.id, {
+        plan_name: selectedPlanForChange.plan_name,
+        pending_plan_name: null
+      });
+
+      // 2. Generate paid invoice for proration
+      await masterService.createInvoice({
+        tenant_id: tenantId,
+        amount: proratedAmount,
+        status: 'paid',
+        description: `Plan Upgrade to ${selectedPlanForChange.plan_name} (Prorated for remaining ${daysRemaining} days)`,
+        due_date: new Date().toISOString().split('T')[0]
+      });
+
+      // 3. Log to audit trail
+      logHospitalAudit(
+        'SUBSCRIPTION_UPGRADE',
+        `Upgraded plan to ${selectedPlanForChange.plan_name}. Paid prorated invoice of ${tenant?.currency || 'USD'} ${proratedAmount}.`
+      );
+
+      toast.success(`Successfully upgraded to ${selectedPlanForChange.plan_name}!`);
+      setIsConfirmChangeModalOpen(false);
       setIsUpgradeModalOpen(false);
       fetchSubscriptionData();
     } catch {
-      toast.error('Failed to request plan change.');
+      toast.error('Failed to process upgrade payment.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const confirmPlanDowngrade = async () => {
+    if (!subscription || !selectedPlanForChange) return;
+    setSubmitting(true);
+    try {
+      // 1. Update subscription pending plan
+      await masterService.updateSubscription(subscription.id, {
+        pending_plan_name: selectedPlanForChange.plan_name
+      });
+
+      // 2. Log to audit trail
+      logHospitalAudit(
+        'SUBSCRIPTION_DOWNGRADE_SCHEDULED',
+        `Scheduled subscription downgrade to ${selectedPlanForChange.plan_name} at next renewal.`
+      );
+
+      toast.success(`Subscription downgrade to ${selectedPlanForChange.plan_name} scheduled.`);
+      setIsConfirmChangeModalOpen(false);
+      setIsUpgradeModalOpen(false);
+      fetchSubscriptionData();
+    } catch {
+      toast.error('Failed to schedule plan downgrade.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelPendingDowngrade = async () => {
+    if (!subscription) return;
+    setSubmitting(true);
+    try {
+      await masterService.updateSubscription(subscription.id, {
+        pending_plan_name: null
+      });
+
+      logHospitalAudit(
+        'SUBSCRIPTION_DOWNGRADE_CANCELLED',
+        `Cancelled pending plan downgrade to ${subscription.pending_plan_name}.`
+      );
+
+      toast.success('Scheduled downgrade request cancelled.');
+      fetchSubscriptionData();
+    } catch {
+      toast.error('Failed to cancel downgrade request.');
     } finally {
       setSubmitting(false);
     }
@@ -70,14 +202,118 @@ export const SubscriptionPage: React.FC = () => {
     if (!subscription) return;
     setSubmitting(true);
     try {
-      await masterService.updateSubscription(subscription.id, { auto_renew: false });
-      toast.success('Auto-renew disabled. Subscription will cancel at the end of the current term.');
+      await masterService.updateSubscription(subscription.id, {
+        status: 'cancelled',
+        auto_renew: false
+      });
+
+      logHospitalAudit(
+        'SUBSCRIPTION_CANCEL',
+        `Cancelled subscription. Plan access will expire at the end of the term.`
+      );
+
+      toast.success('Subscription cancelled. Your access remains active until the end of the current term.');
       setIsCancelModalOpen(false);
       fetchSubscriptionData();
     } catch {
-      toast.error('Failed to update subscription auto-renew.');
+      toast.error('Failed to cancel subscription.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleReactivateAutoRenew = async () => {
+    if (!subscription) return;
+    setSubmitting(true);
+    try {
+      await masterService.updateSubscription(subscription.id, { auto_renew: true });
+
+      logHospitalAudit(
+        'AUTO_RENEW_ENABLED',
+        `Enabled subscription auto-renewal.`
+      );
+
+      toast.success('Subscription auto-renew reactivated.');
+      fetchSubscriptionData();
+    } catch {
+      toast.error('Failed to reactivate auto-renewal.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleToggleAutoRenew = async (checked: boolean) => {
+    if (!subscription) return;
+    setSubmitting(true);
+    try {
+      await masterService.updateSubscription(subscription.id, { auto_renew: checked });
+
+      logHospitalAudit(
+        checked ? 'AUTO_RENEW_ENABLED' : 'AUTO_RENEW_DISABLED',
+        `${checked ? 'Enabled' : 'Disabled'} subscription auto-renewal.`
+      );
+
+      toast.success(checked ? 'Auto-renewal enabled.' : 'Auto-renewal disabled.');
+      fetchSubscriptionData();
+    } catch {
+      toast.error('Failed to update auto-renewal.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    if (!subscription) return;
+    setSubmitting(true);
+    try {
+      await masterService.updateSubscription(subscription.id, {
+        status: 'active',
+        auto_renew: true
+      });
+
+      logHospitalAudit(
+        'SUBSCRIPTION_REACTIVATE',
+        `Reactivated subscription.`
+      );
+
+      toast.success('Subscription reactivated successfully.');
+      fetchSubscriptionData();
+    } catch {
+      toast.error('Failed to reactivate subscription.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleBannerAction = (actionType: 'reactivate' | 'cancel_downgrade' | 'support' | 'pay_invoice' | 'open_plans') => {
+    switch (actionType) {
+      case 'reactivate':
+        if (subscription?.status === 'cancelled') {
+          handleReactivateSubscription();
+        } else {
+          handleReactivateAutoRenew();
+        }
+        break;
+      case 'cancel_downgrade':
+        handleCancelPendingDowngrade();
+        break;
+      case 'pay_invoice': {
+        const el = document.getElementById('invoice-history-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          toast.info('Please scroll down to the Invoice History section.');
+        }
+        break;
+      }
+      case 'support':
+        toast.info('Please contact support or master administrators at support@hospitalflow.com');
+        break;
+      case 'open_plans':
+        setIsUpgradeModalOpen(true);
+        break;
+      default:
+        break;
     }
   };
 
@@ -102,13 +338,9 @@ export const SubscriptionPage: React.FC = () => {
     (p) => p.plan_name.toLowerCase() === subscription.plan_name.toLowerCase()
   );
 
-  const getDaysUntilRenewal = () => {
-    if (!subscription.end_date) return null;
-    const diff = new Date(subscription.end_date).getTime() - now;
-    return Math.max(0, Math.ceil(diff / (1000 * 3600 * 24)));
-  };
-
-  const daysUntilRenewal = getDaysUntilRenewal();
+  const daysUntilRenewal = subscription.end_date
+    ? Math.max(0, Math.ceil((new Date(subscription.end_date).getTime() - now) / (1000 * 3600 * 24)))
+    : null;
   const currencySymbol = tenant.currency || 'USD';
   const priceDisplay = planDetails
     ? `${currencySymbol} ${planDetails.monthly_price.toLocaleString()}`
@@ -120,11 +352,11 @@ export const SubscriptionPage: React.FC = () => {
   const staffPercent = maxUsers > 0 ? Math.min(100, Math.round((staffCount / maxUsers) * 100)) : 0;
 
   const maxStorage = planDetails?.storage_gb || 10;
-  const storageUsed = Math.round(maxStorage * 0.46); // simulated usage metric
+  const storageUsed = Math.round(maxStorage * 0.46);
   const storagePercent = Math.min(100, Math.round((storageUsed / maxStorage) * 100));
 
   const maxPatients = planDetails?.max_patients || 0;
-  const patientsCount = 8450; // simulated count metric
+  const patientsCount = 8450;
   const patientsPercent = maxPatients > 0 ? Math.min(100, Math.round((patientsCount / maxPatients) * 100)) : 0;
 
   return (
@@ -138,6 +370,62 @@ export const SubscriptionPage: React.FC = () => {
           </nav>
         </div>
       </div>
+
+      {/* Dynamic Banners depending on subscription status */}
+      {getSubscriptionBanners(subscription, tenant, plans).map((banner) => (
+        <div
+          key={banner.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            padding: '12px 24px',
+            borderRadius: '12px',
+            border: banner.styles.border,
+            background: banner.styles.background,
+            color: banner.styles.color,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: '18px', color: banner.styles.iconColor }}
+            >
+              {banner.icon}
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>
+              <strong>{banner.title}:</strong> {banner.message}
+            </span>
+          </div>
+          {banner.action && (
+            <button
+              onClick={() => handleBannerAction(banner.action!.actionType)}
+              disabled={submitting}
+              style={{
+                background: ['reactivate', 'open_plans', 'pay_invoice'].includes(banner.action.actionType)
+                  ? '#0052CC'
+                  : 'transparent',
+                border: ['reactivate', 'open_plans', 'pay_invoice'].includes(banner.action.actionType)
+                  ? 'none'
+                  : `1px solid ${banner.styles.color}`,
+                color: ['reactivate', 'open_plans', 'pay_invoice'].includes(banner.action.actionType)
+                  ? '#ffffff'
+                  : banner.styles.color,
+                borderRadius: '6px',
+                padding: '6px 14px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '11px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {banner.action.label}
+            </button>
+          )}
+        </div>
+      ))}
+
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-lg">
         {/* Current Plan Overview Card */}
@@ -174,21 +462,43 @@ export const SubscriptionPage: React.FC = () => {
               </div>
               <div className="flex flex-col gap-xs">
                 <span className="font-label-md text-label-md text-secondary uppercase font-bold">Amount</span>
-                <span className="font-body-md text-body-md text-on-surface font-medium">
-                  {priceDisplay}
-                </span>
+                <span className="font-body-md text-body-md text-on-surface font-medium">{priceDisplay}</span>
               </div>
               <div className="flex flex-col gap-xs">
                 <span className="font-label-md text-label-md text-secondary uppercase font-bold">Grace Period</span>
-                <span className="font-body-md text-body-md text-on-surface font-medium">
-                  {tenant.grace_days ?? 14} days
-                </span>
+                <span className="font-body-md text-body-md text-on-surface font-medium">{tenant.grace_days ?? 14} days</span>
               </div>
               <div className="flex flex-col gap-xs">
                 <span className="font-label-md text-label-md text-secondary uppercase font-bold">Auto-Renew</span>
-                <div className="flex items-center gap-sm font-body-md text-body-md text-on-surface font-medium">
-                  {subscription.auto_renew ? 'ON' : 'OFF'}
-                  <span className="material-symbols-outlined text-[16px] text-secondary">lock</span>
+                <div className="flex items-center gap-sm mt-xs">
+                  <button
+                    onClick={() => {
+                      handleToggleAutoRenew(!subscription.auto_renew);
+                    }}
+                    disabled={submitting || ['cancelled', 'suspended', 'terminated'].includes(subscription.status)}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    style={{
+                      backgroundColor: subscription.auto_renew ? '#36B37E' : '#FF5630',
+                      cursor: submitting || ['cancelled', 'suspended', 'terminated'].includes(subscription.status) ? 'not-allowed' : 'pointer',
+                      border: 'none',
+                      padding: 0,
+                      opacity: ['cancelled', 'suspended', 'terminated'].includes(subscription.status) ? 0.6 : 1,
+                    }}
+                    aria-label="Toggle Auto-Renewal"
+                  >
+                    <span
+                      className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300"
+                      style={{
+                        transform: subscription.auto_renew ? 'translateX(24px)' : 'translateX(4px)',
+                      }}
+                    />
+                  </button>
+                  <span
+                    className="font-body-md text-body-md font-semibold select-none"
+                    style={{ color: subscription.auto_renew ? '#36B37E' : '#FF5630' }}
+                  >
+                    {subscription.auto_renew ? 'ON' : 'OFF'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -209,36 +519,27 @@ export const SubscriptionPage: React.FC = () => {
                     {staffCount} / {maxUsers > 0 ? maxUsers : 'Unlimited'}
                   </span>
                   {maxUsers > 0 && maxUsers - staffCount > 0 && (
-                    <span className="font-label-sm text-label-sm text-warning block font-bold">
-                      {maxUsers - staffCount} remaining
-                    </span>
+                    <span className="font-label-sm text-label-sm text-warning block font-bold">{maxUsers - staffCount} remaining</span>
                   )}
                 </div>
               </div>
               {maxUsers > 0 ? (
                 <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${staffPercent > 90 ? 'bg-error' : 'bg-success'}`}
-                    style={{ width: `${staffPercent}%` }}
-                  ></div>
+                  <div className={`h-full ${staffPercent > 90 ? 'bg-error' : 'bg-success'}`} style={{ width: `${staffPercent}%` }}></div>
                 </div>
               ) : (
                 <div className="h-2 w-full bg-success rounded-full"></div>
               )}
             </div>
-            
             <div className="flex flex-col gap-sm">
               <div className="flex justify-between items-end">
                 <span className="font-body-sm text-body-sm text-on-surface font-medium">Storage</span>
-                <span className="font-body-sm text-body-sm text-on-surface font-semibold">
-                  {storageUsed}GB / {maxStorage}GB
-                </span>
+                <span className="font-body-sm text-body-sm text-on-surface font-semibold">{storageUsed}GB / {maxStorage}GB</span>
               </div>
               <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
                 <div className="h-full bg-success" style={{ width: `${storagePercent}%` }}></div>
               </div>
             </div>
-
             <div className="flex flex-col gap-sm">
               <div className="flex justify-between items-end">
                 <span className="font-body-sm text-body-sm text-on-surface font-medium">Patient Records</span>
@@ -258,7 +559,7 @@ export const SubscriptionPage: React.FC = () => {
         </div>
 
         {/* Invoice History Card */}
-        <div className="col-span-1 md:col-span-12 bg-surface-white rounded-xl border border-border-subtle overflow-hidden shadow-sm flex flex-col">
+        <div id="invoice-history-section" className="col-span-1 md:col-span-12 bg-surface-white rounded-xl border border-border-subtle overflow-hidden shadow-sm flex flex-col">
           <div className="px-lg py-md border-b border-border-subtle bg-surface-white">
             <h3 className="font-headline-sm text-headline-sm text-on-surface">Invoice History</h3>
           </div>
@@ -266,32 +567,18 @@ export const SubscriptionPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-bright border-b border-border-subtle">
-                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">
-                    Invoice #
-                  </th>
-                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">
-                    Description
-                  </th>
-                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">
-                    Amount
-                  </th>
-                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">
-                    Status
-                  </th>
-                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">
-                    Due Date
-                  </th>
-                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider text-right">
-                    Actions
-                  </th>
+                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Invoice #</th>
+                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Description</th>
+                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Amount</th>
+                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Status</th>
+                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Due Date</th>
+                  <th className="py-sm px-lg font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="font-body-sm text-body-sm text-on-surface bg-surface-white divide-y divide-border-subtle">
                 {invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-secondary">
-                      No billing history found.
-                    </td>
+                    <td colSpan={6} className="py-8 text-center text-secondary">No billing history found.</td>
                   </tr>
                 ) : (
                   invoices.map((inv) => (
@@ -299,26 +586,20 @@ export const SubscriptionPage: React.FC = () => {
                       <td className="py-md px-lg font-semibold text-on-surface">#{inv.id}</td>
                       <td className="py-md px-lg text-secondary">{inv.description || 'Monthly Plan Subscription Renewal'}</td>
                       <td className="py-md px-lg text-on-surface">
-                        <strong>
-                          {currencySymbol} {inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </strong>
+                        <strong>{currencySymbol} {inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                       </td>
                       <td className="py-md px-lg">
-                        <span className={`status-badge status-${inv.status.toLowerCase()}`}>
-                          {inv.status}
-                        </span>
+                        <span className={`status-badge status-${inv.status.toLowerCase()}`}>{inv.status}</span>
                       </td>
                       <td className="py-md px-lg text-secondary">
                         {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="py-md px-lg text-right">
                         <button
-                          className="text-primary hover:text-primary-container p-xs bg-transparent border-0 cursor-pointer"
-                          onClick={() => {
-                            toast.info(`Downloading invoice PDF for #${inv.id}...`);
-                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#0052CC', cursor: 'pointer', padding: '4px' }}
+                          onClick={() => toast.info(`Downloading invoice PDF for #${inv.id}...`)}
                         >
-                          <span className="material-symbols-outlined text-[20px]">download</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>download</span>
                         </button>
                       </td>
                     </tr>
@@ -329,73 +610,206 @@ export const SubscriptionPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Self-Service Plan Management Toggles */}
-        <div className="col-span-1 md:col-span-12 flex flex-wrap gap-md mt-md justify-end">
+        {/* Action Buttons Row */}
+        <div className="col-span-1 md:col-span-12 flex flex-wrap gap-md justify-end items-center">
           <button
             onClick={() => setIsUpgradeModalOpen(true)}
-            className="h-10 px-lg rounded bg-transparent border border-border-subtle text-secondary font-label-md text-label-md uppercase hover:bg-surface-container-low transition-colors duration-200 cursor-pointer"
+            style={{ height: '40px', padding: '0 24px', borderRadius: '6px', background: 'transparent', border: '1px solid #DFE1E6', color: '#42526E', cursor: 'pointer', fontWeight: 600, fontSize: '12px', transition: 'background 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             Request Plan Change
           </button>
-          {subscription.auto_renew && (
+          {subscription.status !== 'cancelled' ? (
             <button
               onClick={() => setIsCancelModalOpen(true)}
-              className="h-10 px-lg rounded bg-transparent border border-error text-error font-label-md text-label-md uppercase hover:bg-error-container hover:text-on-error-container transition-colors duration-200 ml-auto md:ml-0 cursor-pointer"
+              style={{ height: '40px', padding: '0 24px', borderRadius: '6px', background: 'transparent', border: '1px solid #FF5630', color: '#FF5630', cursor: 'pointer', fontWeight: 600, fontSize: '12px', transition: 'background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#ffebe6'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
             >
-              Request Cancellation
+              Cancel Subscription
+            </button>
+          ) : (
+            <button
+              onClick={handleReactivateSubscription}
+              disabled={submitting}
+              style={{ height: '40px', padding: '0 24px', borderRadius: '6px', background: '#0052CC', border: 'none', color: '#ffffff', cursor: 'pointer', fontWeight: 700, fontSize: '12px', transition: 'background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#0040a2'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#0052CC'; }}
+            >
+              {submitting ? 'Processing...' : 'Reactivate Subscription'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Dynamic Upgrade / Downgrade Selection Modal */}
+      {/* Plan Selection Modal */}
       {isUpgradeModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '650px', width: '100%' }}>
+          <div className="modal-content" style={{ maxWidth: '960px', width: '100%' }}>
             <div className="modal-header">
               <h2>Select Subscription Plan</h2>
-              <button className="modal-close" onClick={() => setIsUpgradeModalOpen(false)}>
-                &times;
-              </button>
+              <button className="modal-close" onClick={() => setIsUpgradeModalOpen(false)}>&times;</button>
             </div>
             <div className="modal-body">
               <p className="font-body-sm text-secondary mb-4">
-                Choose a plan tier to request an upgrade or downgrade of your active system capacity. Changes take effect immediately.
+                Upgrades apply immediately with a prorated charge. Downgrades are scheduled for your next billing cycle.
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem' }}>
                 {plans.map((p) => {
                   const isCurrent = p.plan_name.toLowerCase() === subscription.plan_name.toLowerCase();
+                  const isPending = p.plan_name.toLowerCase() === (subscription.pending_plan_name ?? '').toLowerCase() && !isCurrent;
+                  const currentPlanObj = plans.find(pl => pl.plan_name.toLowerCase() === subscription.plan_name.toLowerCase());
+                  const currentPrice = currentPlanObj ? currentPlanObj.monthly_price : 0;
+                  const isUpgrade = p.monthly_price > currentPrice;
+                  const priceDiff = p.monthly_price - currentPrice;
+                  
                   return (
                     <div
                       key={p.plan_id}
                       style={{
-                        border: isCurrent ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                        borderRadius: '12px',
-                        padding: '1rem',
+                        border: isCurrent ? '2px solid #0052CC' : isPending ? '2px solid #FFAB00' : '1px solid #DFE1E6',
+                        borderRadius: '16px',
+                        padding: '1.5rem',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
-                        backgroundColor: isCurrent ? '#f0f5ff' : '#ffffff',
+                        background: isCurrent ? '#f0f5ff' : isPending ? '#FFFAE6' : '#ffffff',
+                        position: 'relative',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                       }}
                     >
-                      <div>
-                        <h4 className="font-semibold capitalize text-on-surface">{p.plan_name}</h4>
-                        <div className="text-xl font-bold my-2">
-                          ${p.monthly_price}/mo
+                      {isCurrent && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '-10px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            backgroundColor: '#0052CC',
+                            color: '#ffffff',
+                            padding: '0.15rem 0.5rem',
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            borderRadius: '9999px',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          Active Plan
+                        </span>
+                      )}
+                      
+                      {isPending && (
+                        <div style={{ position: 'absolute', top: '8px', right: '8px', background: '#FFAB00', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                          Pending
                         </div>
-                        <ul className="text-[11px] text-secondary space-y-1">
-                          <li>✔️ {p.max_users ? `${p.max_users} Users` : 'Unlimited'}</li>
-                          <li>✔️ {p.storage_gb} GB Storage</li>
-                          <li>✔️ {p.uptime_sla_pct}% SLA</li>
-                        </ul>
+                      )}
+                      <div>
+                        <h4 style={{ fontWeight: 700, fontSize: '1.25rem', textTransform: 'capitalize', marginBottom: '4px', color: '#191c1e' }}>{p.plan_name}</h4>
+                        <p style={{ color: '#4f5f7b', fontSize: '0.8rem', marginBottom: '1rem', minHeight: '32px' }}>
+                          {p.description || 'Custom corporate tier plan features.'}
+                        </p>
+                        <div style={{ fontSize: '24px', fontWeight: 800, margin: '8px 0', color: '#191c1e' }}>
+                          {currencySymbol} {p.monthly_price}<span style={{ fontSize: '13px', fontWeight: 400, color: '#4f5f7b' }}>/mo</span>
+                        </div>
+                        
+                        <div style={{ borderTop: '1px solid #DFE1E6', paddingTop: '1rem', marginBottom: '1rem' }}>
+                          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <li style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#4f5f7b' }}>
+                              <span className="material-symbols-outlined text-[#36B37E]" style={{ fontSize: '16px' }}>check</span>
+                              <span>
+                                <strong>{p.max_users === null ? 'Unlimited' : p.max_users}</strong> staff user accounts
+                              </span>
+                            </li>
+                            <li style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#4f5f7b' }}>
+                              <span className="material-symbols-outlined text-[#36B37E]" style={{ fontSize: '16px' }}>check</span>
+                              <span>
+                                <strong>{p.max_patients === null ? 'Unlimited' : p.max_patients.toLocaleString()}</strong> patient records
+                              </span>
+                            </li>
+                            <li style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#4f5f7b' }}>
+                              <span className="material-symbols-outlined text-[#36B37E]" style={{ fontSize: '16px' }}>check</span>
+                              <span>
+                                <strong>{p.storage_gb} GB</strong> secure document storage
+                              </span>
+                            </li>
+                            <li style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#4f5f7b' }}>
+                              <span className="material-symbols-outlined text-[#36B37E]" style={{ fontSize: '16px' }}>check</span>
+                              <span>
+                                <strong>{p.uptime_sla_pct}%</strong> guaranteed server uptime SLA
+                              </span>
+                            </li>
+                            <li style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#4f5f7b' }}>
+                              <span className="material-symbols-outlined text-[#36B37E]" style={{ fontSize: '16px' }}>check</span>
+                              <span>
+                                Backups every <strong>{p.backup_frequency_hours} hours</strong>
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div style={{ marginBottom: '1rem' }}>
+                          <h5 style={{ fontSize: '10px', textTransform: 'uppercase', color: '#4f5f7b', marginBottom: '4px', letterSpacing: '0.05em', fontWeight: 700 }}>
+                            Included Modules
+                          </h5>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {p.modules_included.map((mod) => (
+                              <span
+                                key={mod}
+                                style={{
+                                  backgroundColor: '#EDEEF0',
+                                  color: '#4f5f7b',
+                                  fontSize: '9px',
+                                  padding: '2px 8px',
+                                  textTransform: 'capitalize',
+                                  borderRadius: '9999px',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {mod}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {!isCurrent && (
+                          <div style={{ 
+                            fontSize: '11px', 
+                            fontWeight: 700, 
+                            color: isUpgrade ? '#36B37E' : '#FFAB00', 
+                            marginTop: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <span>{isUpgrade ? '⬆ Upgrade' : '⬇ Downgrade'}</span>
+                            <span style={{ fontWeight: 500, color: '#4f5f7b' }}>
+                              ({isUpgrade ? `+${currencySymbol} ${priceDiff}` : `-${currencySymbol} ${Math.abs(priceDiff)}`}/mo)
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <button
                         type="button"
-                        className={`btn ${isCurrent ? 'btn-secondary' : 'btn-primary'} btn-sm w-full mt-3`}
-                        disabled={isCurrent || submitting}
-                        onClick={() => handleRequestPlanChange(p.plan_name)}
+                        disabled={isCurrent}
+                        onClick={() => handleSelectPlan(p)}
+                        style={{
+                          marginTop: '16px',
+                          width: '100%',
+                          height: '38px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: isCurrent ? '#EDEEF0' : '#0052CC',
+                          color: isCurrent ? '#4f5f7b' : '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '12px',
+                          cursor: isCurrent ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
                       >
-                        {isCurrent ? 'Current Plan' : 'Select Plan'}
+                        {isCurrent ? 'Current Plan' : isUpgrade ? 'Upgrade Now' : 'Schedule Downgrade'}
                       </button>
                     </div>
                   );
@@ -405,8 +819,8 @@ export const SubscriptionPage: React.FC = () => {
             <div className="modal-footer">
               <button
                 type="button"
-                className="btn btn-secondary"
                 onClick={() => setIsUpgradeModalOpen(false)}
+                style={{ height: '38px', padding: '0 20px', borderRadius: '6px', background: 'transparent', border: '1px solid #DFE1E6', color: '#42526E', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
               >
                 Close
               </button>
@@ -415,44 +829,130 @@ export const SubscriptionPage: React.FC = () => {
         </div>
       )}
 
-      {/* Cancellation Warning Dialog */}
+      {/* Upgrade/Downgrade Confirmation Modal */}
+      {isConfirmChangeModalOpen && selectedPlanForChange && (() => {
+        const currentPlanObj = plans.find(pl => pl.plan_name.toLowerCase() === subscription.plan_name.toLowerCase());
+        const isUpgrade = selectedPlanForChange.monthly_price > (currentPlanObj?.monthly_price ?? 0);
+        return (
+          <div className="modal-overlay" style={{ zIndex: 1100 }}>
+            <div className="modal-content" style={{ maxWidth: '460px', width: '100%' }}>
+              <div className="modal-header">
+                <h2>{isUpgrade ? `Upgrade to ${selectedPlanForChange.plan_name}` : `Downgrade to ${selectedPlanForChange.plan_name}`}</h2>
+                <button className="modal-close" onClick={() => { setIsConfirmChangeModalOpen(false); setSelectedPlanForChange(null); }}>&times;</button>
+              </div>
+              <div className="modal-body">
+                {isUpgrade ? (
+                  <div>
+                    <p style={{ fontSize: '14px', color: '#191c1e', marginBottom: '16px' }}>
+                      You are upgrading from <strong style={{ textTransform: 'capitalize' }}>{subscription.plan_name}</strong> to{' '}
+                      <strong style={{ textTransform: 'capitalize' }}>{selectedPlanForChange.plan_name}</strong>. This activates immediately.
+                    </p>
+                    <div style={{ background: '#f0f5ff', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#4f5f7b' }}>Days remaining this cycle</span>
+                        <strong style={{ fontSize: '13px', color: '#191c1e' }}>{daysRemaining} days</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#4f5f7b' }}>Price difference</span>
+                        <strong style={{ fontSize: '13px', color: '#191c1e' }}>
+                          {currencySymbol} {selectedPlanForChange.monthly_price - (currentPlanObj?.monthly_price ?? 0)}/mo
+                        </strong>
+                      </div>
+                      <div style={{ borderTop: '1px solid #DFE1E6', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#191c1e' }}>Prorated Amount Due Today</span>
+                        <strong style={{ color: '#0052CC', fontSize: '18px' }}>{currencySymbol} {proratedAmount}</strong>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#4f5f7b' }}>
+                      A paid invoice for this amount will appear in your billing history.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: '14px', color: '#191c1e', marginBottom: '16px' }}>
+                      You are scheduling a downgrade from <strong style={{ textTransform: 'capitalize' }}>{subscription.plan_name}</strong> to{' '}
+                      <strong style={{ textTransform: 'capitalize' }}>{selectedPlanForChange.plan_name}</strong>.
+                    </p>
+                    <div style={{ background: '#FFFAE6', border: '1px solid #FFAB00', borderRadius: '10px', padding: '14px', marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#FFAB00', fontSize: '20px', flexShrink: 0 }}>schedule</span>
+                      <div>
+                        <p style={{ fontSize: '13px', fontWeight: 700, color: '#191c1e', marginBottom: '4px' }}>Effective at cycle end</p>
+                        <p style={{ fontSize: '13px', color: '#4f5f7b' }}>
+                          Your current <strong>{subscription.plan_name}</strong> plan continues until{' '}
+                          <strong>{subscription.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'renewal'}</strong>.
+                          No charge today — the new rate applies from your next billing date.
+                        </p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#4f5f7b' }}>You can cancel this request before the billing date.</p>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => { setIsConfirmChangeModalOpen(false); setSelectedPlanForChange(null); }}
+                  style={{ height: '38px', padding: '0 20px', borderRadius: '6px', background: 'transparent', border: '1px solid #DFE1E6', color: '#42526E', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isProcessingPayment || submitting}
+                  onClick={isUpgrade ? confirmPlanUpgrade : confirmPlanDowngrade}
+                  style={{ height: '38px', padding: '0 20px', borderRadius: '6px', background: isUpgrade ? '#0052CC' : '#FFAB00', border: 'none', color: isUpgrade ? '#ffffff' : '#191c1e', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
+                >
+                  {(isProcessingPayment || submitting)
+                    ? 'Processing...'
+                    : isUpgrade
+                    ? `Pay ${currencySymbol} ${proratedAmount} & Upgrade`
+                    : 'Confirm Downgrade'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Cancel Subscription Modal */}
       {isCancelModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '450px', width: '100%' }}>
+          <div className="modal-content" style={{ maxWidth: '460px', width: '100%' }}>
             <div className="modal-header">
-              <h2 className="text-error">Cancel Subscription Auto-Renew</h2>
-              <button className="modal-close" onClick={() => setIsCancelModalOpen(false)}>
-                &times;
-              </button>
+              <h2 style={{ color: '#FF5630' }}>Cancel Subscription</h2>
+              <button className="modal-close" onClick={() => setIsCancelModalOpen(false)}>&times;</button>
             </div>
             <div className="modal-body">
-              <p className="font-body-sm text-on-surface mb-2">
-                Are you sure you want to disable automatic renewal?
-              </p>
-              <p className="font-body-sm text-secondary">
-                Your hospital data will remain accessible until the end of the current billing cycle on{' '}
-                <strong>
-                  {subscription.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'N/A'}
-                </strong>
-                . After that, access will be suspended.
+              <div style={{ background: '#ffebe6', border: '1px solid #FF5630', borderRadius: '10px', padding: '14px', marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <span className="material-symbols-outlined" style={{ color: '#FF5630', fontSize: '20px', flexShrink: 0 }}>warning</span>
+                <div>
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#191c1e', marginBottom: '4px' }}>This disables auto-renewal</p>
+                  <p style={{ fontSize: '13px', color: '#4f5f7b' }}>
+                    Your hospital data and access stays active until{' '}
+                    <strong>{subscription.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'end of cycle'}</strong>.
+                    After that, your account will be suspended and may be terminated.
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: '13px', color: '#4f5f7b' }}>
+                You can reactivate your subscription any time before the expiry date to restore full access.
               </p>
             </div>
             <div className="modal-footer">
               <button
                 type="button"
-                className="btn btn-secondary"
                 onClick={() => setIsCancelModalOpen(false)}
+                style={{ height: '38px', padding: '0 20px', borderRadius: '6px', background: 'transparent', border: '1px solid #DFE1E6', color: '#42526E', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
               >
-                Keep Plan Active
+                Keep Active
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
-                style={{ backgroundColor: '#ff5630', borderColor: '#ff5630' }}
                 disabled={submitting}
                 onClick={handleRequestCancel}
+                style={{ height: '38px', padding: '0 20px', borderRadius: '6px', background: '#FF5630', border: 'none', color: '#ffffff', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
               >
-                {submitting ? 'Disabling...' : 'Confirm Cancellation'}
+                {submitting ? 'Processing...' : 'Yes, Cancel Subscription'}
               </button>
             </div>
           </div>

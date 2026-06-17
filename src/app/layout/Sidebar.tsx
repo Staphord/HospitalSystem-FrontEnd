@@ -53,7 +53,8 @@ export function Sidebar() {
             (item) =>
               item.path.includes('/master/tenants') ||
               item.path.includes('/master/subscriptions') ||
-              item.path.includes('/master/invoices')
+              item.path.includes('/master/invoices') ||
+              item.path.includes('/master/payments')
           ),
         },
         {
@@ -209,6 +210,7 @@ export function Sidebar() {
                               {item.label === 'Tenants' ? 'domain' :
                                item.label === 'Subscriptions' ? 'card_membership' :
                                item.label === 'Invoices' ? 'receipt_long' :
+                               item.label === 'Payments' ? 'payments' :
                                item.label === 'Platform Admins' ? 'admin_panel_settings' :
                                item.label === 'System Health' ? 'monitor_heart' :
                                item.label === 'Announcements' ? 'campaign' :
@@ -318,6 +320,7 @@ export function Sidebar() {
                       {item.label === 'Tenants' ? 'domain' :
                        item.label === 'Subscriptions' ? 'card_membership' :
                        item.label === 'Invoices' ? 'receipt_long' :
+                       item.label === 'Payments' ? 'payments' :
                        item.label === 'Platform Admins' ? 'admin_panel_settings' :
                        item.label === 'System Health' ? 'monitor_heart' :
                        item.label === 'Announcements' ? 'campaign' :

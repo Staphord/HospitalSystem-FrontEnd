@@ -170,6 +170,7 @@ export const MASTER_NAV: NavItem[] = [
   { label: 'Tenants', path: '/master/tenants', roles: [ROLES.superAdmin] },
   { label: 'Subscriptions', path: '/master/subscriptions', roles: [ROLES.superAdmin] },
   { label: 'Invoices', path: '/master/invoices', roles: [ROLES.superAdmin] },
+  { label: 'Payments', path: '/master/payments', roles: [ROLES.superAdmin] },
   { label: 'Platform Admins', path: '/master/admins', roles: [ROLES.superAdmin] },
   { label: 'System Health', path: '/master/health', roles: [ROLES.superAdmin] },
   { label: 'Announcements', path: '/master/announcements', roles: [ROLES.superAdmin] },

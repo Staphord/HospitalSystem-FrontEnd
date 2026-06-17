@@ -61,12 +61,7 @@ export function CreateTenantPage() {
     masterService.listPlans().then((data) => {
       setPlans(data)
     }).catch(() => {
-      // // Fallback local plans in case fetch fails
-      // setPlans([
-      //   { plan_id: 'basic', plan_name: 'Basic', description: 'Essential modules for small clinics', max_users: 10, max_patients: 10000, storage_gb: 10, modules_included: ['reception', 'triage', 'consultation'], monthly_price: 299, annual_price: 2990, uptime_sla_pct: 99.9, backup_frequency_hours: 24, is_active: true },
-      //   { plan_id: 'standard', plan_name: 'Standard', description: 'Standard modules for medium general hospitals', max_users: 30, max_patients: 50000, storage_gb: 50, modules_included: ['reception', 'triage', 'consultation', 'laboratory', 'radiology', 'pharmacy', 'billing'], monthly_price: 599, annual_price: 5990, uptime_sla_pct: 99.95, backup_frequency_hours: 12, is_active: true },
-      //   { plan_id: 'premium', plan_name: 'Premium', description: 'Full clinical workflow and advanced tools for large networks', max_users: null, max_patients: null, storage_gb: 200, modules_included: ['reception', 'triage', 'consultation', 'laboratory', 'radiology', 'pharmacy', 'billing', 'ward', 'notifications', 'reports'], monthly_price: 1199, annual_price: 11990, uptime_sla_pct: 99.99, backup_frequency_hours: 4, is_active: true }
-      // ])
+   
     })
   }, [])
 

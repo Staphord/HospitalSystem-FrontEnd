@@ -72,5 +72,8 @@ export const masterService = {
 
   updatePlan: (planId: string, data: Partial<SubscriptionPlan>) =>
     apiClient.patch<SubscriptionPlan>(`/plans/${planId}`, data).then((r) => r.data),
+
+  getRevenueHistory: () =>
+    apiClient.get<{ months: string[]; revenue: number[] }>('/finance/revenue-history').then((r) => r.data),
 }
 

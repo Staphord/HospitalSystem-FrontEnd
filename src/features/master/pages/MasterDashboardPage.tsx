@@ -267,7 +267,7 @@ export function MasterDashboardPage() {
           <div className="card" style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Active System Incidents</h3>
-              <Link to="/master/health" style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+              <Link to="/master/incidents?from=dashboard" style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
                 View All →
               </Link>
             </div>
@@ -386,7 +386,7 @@ export function MasterDashboardPage() {
               </Link>
 
               <Link
-                to="/master/invoices"
+                to="/master/invoices/overdue"
                 className="btn btn-secondary"
                 style={{
                   display: 'flex',

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Navigate } from 'react-router-dom'
 import { AuthLayout } from '@/app/layout/AuthLayout'
 import { HospitalLayout } from '@/app/layout/HospitalLayout'
@@ -28,8 +29,11 @@ import { CreateTenantPage } from '@/features/master/pages/CreateTenantPage'
 import { SubscriptionManagementPage } from '@/features/master/pages/SubscriptionManagementPage'
 import { SubscriptionDetailPage } from '@/features/master/pages/SubscriptionDetailPage'
 import { InvoiceManagementPage } from '@/features/master/pages/InvoiceManagementPage'
+import { PaymentsPage } from '@/features/master/pages/PaymentsPage'
+import { OverdueAccountsPage } from '@/features/master/pages/OverdueAccountsPage'
 import { MasterAdminsPage } from '@/features/master/pages/MasterAdminsPage'
 import { SystemHealthPage } from '@/features/master/pages/SystemHealthPage'
+import { IncidentsPage } from '@/features/master/pages/IncidentsPage'
 import { AnnouncementsPage } from '@/features/master/pages/AnnouncementsPage'
 import { AuditLogsPage } from '@/features/master/pages/AuditLogsPage'
 import { ReportsDashboardPage } from '@/features/reports/pages/ReportsDashboardPage'
@@ -88,6 +92,9 @@ export const routes = [
               { path: '/master/subscriptions/:id', element: <SubscriptionDetailPage /> },
 
               { path: '/master/invoices', element: <InvoiceManagementPage /> },
+              { path: '/master/invoices/overdue', element: <OverdueAccountsPage /> },
+              { path: '/master/payments', element: <PaymentsPage /> },
+              { path: '/master/incidents', element: <IncidentsPage /> },
               { path: '/master/admins', element: <MasterAdminsPage /> },
               { path: '/master/health', element: <SystemHealthPage /> },
               { path: '/master/announcements', element: <AnnouncementsPage /> },

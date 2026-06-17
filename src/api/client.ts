@@ -52,10 +52,10 @@ const initLocalStorage = () => {
 
   if (!localStorage.getItem('hf_mock_subscriptions')) {
     localStorage.setItem('hf_mock_subscriptions', JSON.stringify([
-      { id: 'sub-1', tenant_id: 'aga-khan', plan_name: 'Enterprise', status: 'active', start_date: '2025-01-10T08:00:00Z', end_date: '2026-12-31T23:59:59Z' },
-      { id: 'sub-2', tenant_id: 'gilgal', plan_name: 'Standard', status: 'active', start_date: '2026-05-15T10:30:00Z', end_date: '2026-07-15T23:59:59Z' },
-      { id: 'sub-3', tenant_id: 'nairobi-hosp', plan_name: 'Premium', status: 'suspended', start_date: '2025-06-01T14:15:00Z', end_date: '2026-06-01T23:59:59Z' },
-      { id: 'sub-4', tenant_id: 'aga-khan', plan_name: 'Basic', status: 'active', start_date: '2026-06-01T00:00:00Z', end_date: '2026-06-23T23:59:59Z' }
+      { id: 'sub-1', tenant_id: 'aga-khan', plan_name: 'Enterprise', status: 'active', start_date: '2025-01-10T08:00:00Z', end_date: '2026-12-31T23:59:59Z', auto_renew: true },
+      { id: 'sub-2', tenant_id: 'gilgal', plan_name: 'Standard', status: 'active', start_date: '2026-05-15T10:30:00Z', end_date: '2026-07-15T23:59:59Z', auto_renew: true },
+      { id: 'sub-3', tenant_id: 'nairobi-hosp', plan_name: 'Premium', status: 'suspended', start_date: '2025-06-01T14:15:00Z', end_date: '2026-06-01T23:59:59Z', auto_renew: false },
+      { id: 'sub-4', tenant_id: 'aga-khan', plan_name: 'Basic', status: 'active', start_date: '2026-06-01T00:00:00Z', end_date: '2026-06-23T23:59:59Z', auto_renew: true }
     ]))
   }
 
@@ -78,7 +78,7 @@ const initLocalStorage = () => {
   if (!localStorage.getItem('hf_mock_incidents')) {
     localStorage.setItem('hf_mock_incidents', JSON.stringify([
       { id: 'inc-1', title: 'Database Replication Lag', severity: 'critical', status: 'active', message: 'Active lag of 45s detected on US-East database read replica.', created_at: new Date(Date.now() - 3600000 * 2).toISOString() },
-      { id: 'inc-2', title: 'API Gateway Latency Spike', severity: 'warning', status: 'resolved', message: 'Gateway response times spiked to 1200ms during peak load.', created_at: new Date(Date.now() - 3600000 * 24).toISOString() }
+      { id: 'inc-2', title: 'API Gateway Latency Spike', severity: 'warning', status: 'resolved', message: 'Gateway response times spiked to 1200ms during peak load.', created_at: new Date(Date.now() - 3600000 * 24).toISOString(), resolved_at: new Date(Date.now() - 3600000 * 23).toISOString(), resolved_notes: 'Redundant replica nodes provisioned to handle peak traffic load.', resolved_by: 'Lead Infrastructure Manager' }
     ]))
   }
 
@@ -755,13 +755,24 @@ apiClient.defaults.adapter = async (config) => {
       const diskUsage = 71 // static 71%
       const uptime = '99.98%'
 
+      const cpuHistory = [45, 48, 52, 49, 47, 53, 58, 62, 55, 50, 48, cpuUsage]
+      const ramHistory = [68, 68, 69, 69, 70, 70, 71, 71, 70, 70, 69, ramUsage]
+      const diskHistory = [72, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72, diskUsage]
+      const dbHistory = [32, 34, 38, 35, 33, 40, 42, 45, 41, 38, 36, Math.floor(activeUsersCount * 0.35) + 12]
+
       return respond(200, {
         telemetry: {
           uptime,
           active_users: activeUsersCount,
           cpu_usage: cpuUsage,
           ram_usage: ramUsage,
-          disk_usage: diskUsage
+          disk_usage: diskUsage,
+          history: {
+            cpu: cpuHistory,
+            ram: ramHistory,
+            disk: diskHistory,
+            db: dbHistory
+          }
         },
         incidents
       })
@@ -816,6 +827,55 @@ apiClient.defaults.adapter = async (config) => {
 
       return respond(200, incidents[index])
     }
+  }
+
+  // Query tenant analytics details
+  if (url.includes('/monitoring/tenants/') && url.endsWith('/analytics') && method === 'get') {
+    const tenantId = url.split('/monitoring/tenants/')[1].split('/')[0]
+    const code0 = tenantId.charCodeAt(0) || 100
+    const code1 = tenantId.charCodeAt(1) || 100
+    const code2 = tenantId.charCodeAt(2) || 100
+
+    const uptimeTrend = [99.8 + (code0 % 10)/100, 99.8 + (code1 % 10)/100, 99.8 + (code2 % 10)/100, 99.9, 99.95, 99.88, 99.92]
+    const activeUsersPeak = [code0 % 30 + 10, code1 % 30 + 15, code2 % 30 + 20, code0 % 20 + 30, code1 % 20 + 25, code2 % 20 + 10, code0 % 20 + 8]
+    const storageGrowth = [code0 % 20 + 10, code0 % 20 + 12, code1 % 20 + 15, code1 % 20 + 18, code2 % 20 + 22, code2 % 20 + 25, code0 % 60 + 15]
+
+    return respond(200, {
+      uptime_trend: uptimeTrend,
+      active_users_peak: activeUsersPeak,
+      storage_growth: storageGrowth,
+      module_usage: [
+        { module: 'OPD Module', percentage: 40 },
+        { module: 'IPD Module', percentage: 25 },
+        { module: 'Pharmacy', percentage: 20 },
+        { module: 'Lab & Diagnostics', percentage: 15 }
+      ],
+      activity_logs: [
+        { timestamp: '10:15 AM', event: 'Automated NAS backup completed', details: 'Backup size: 4.2 GB. File transfer verified successfully.' },
+        { timestamp: '09:30 AM', event: 'API key renewed for external gateway integration', details: 'Triggered by admin configuration update.' },
+        { timestamp: '08:00 AM', event: 'Nurse shift handover completed', details: 'Established 12 new nurse sessions across OPD/IPD wards.' }
+      ]
+    })
+  }
+
+  // Calculate monthly revenue
+  if (url.includes('/finance/revenue-history') && method === 'get') {
+    const invoices = JSON.parse(localStorage.getItem('hf_mock_invoices') || '[]')
+    const nowTime = new Date()
+    const currentMonthTotal = invoices
+      .filter((p: Invoice) => {
+        if (p.status !== 'paid' && p.status !== 'partially_paid') return false
+        if (!p.payment_date) return false
+        const d = new Date(p.payment_date)
+        return d.getMonth() === nowTime.getMonth() && d.getFullYear() === nowTime.getFullYear()
+      })
+      .reduce((sum: number, p: Invoice) => sum + (p.amount_paid || p.amount), 0)
+
+    const junRevenue = currentMonthTotal || 24000
+    return respond(200, {
+      months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+      revenue: [12500, 14200, 11800, 16500, 18200, junRevenue]
+    })
   }
 
   // New: Announcements CRUD

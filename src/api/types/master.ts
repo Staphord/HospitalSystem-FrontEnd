@@ -77,6 +77,7 @@ export interface Subscription {
   end_date?: string | null
   grace_period_days?: number
   auto_renew?: boolean
+  pending_plan_name?: string | null
 }
 
 export interface Invoice {
@@ -89,6 +90,7 @@ export interface Invoice {
   payment_method?: string
   reference_number?: string
   payment_date?: string
+  amount_paid?: number
 }
 
 export interface MasterAdminUser {
