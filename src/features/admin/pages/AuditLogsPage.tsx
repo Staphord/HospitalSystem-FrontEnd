@@ -1,17 +1,6 @@
-import React, { useState } from 'react';
-
-interface AuditLogRow {
-  id: string;
-  timestamp: string;
-  staffName: string;
-  staffRole: string;
-  action: 'DIAGNOSIS' | 'PATIENT_REGISTER' | 'LOGIN' | 'LAB_RESULT' | 'PAYMENT' | 'DELETE';
-  department: string;
-  recordId: string;
-  ipAddress: string;
-  details: string;
-  signature: string;
-}
+import React, { useState, useEffect } from 'react';
+import { adminService } from '@/api/services/admin';
+import type { AuditLogRow } from '@/api/types/admin';
 
 export const AuditLogsPage: React.FC = () => {
   const [selectedStaff, setSelectedStaff] = useState('All Staff');
@@ -19,80 +8,27 @@ export const AuditLogsPage: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState('All Departments');
   const [expandedRowId, setExpandedRowId] = useState<string | null>('1');
 
-  const logs: AuditLogRow[] = [
-    {
-      id: '1',
-      timestamp: '2026-06-09 09:14',
-      staffName: 'Dr. Amina Hassan',
-      staffRole: 'Doctor',
-      action: 'DIAGNOSIS',
-      department: 'Consultation',
-      recordId: 'PT-4421',
-      ipAddress: '192.168.1.104',
-      details: 'Dr. Amina Hassan updated clinical findings for Patient #PT-4421. Diagnosis confirmed: Acute Respiratory Infection. Prescribed follow-up in 7 days.',
-      signature: 'SHA-256: 8f92b...',
-    },
-    {
-      id: '2',
-      timestamp: '2026-06-09 09:02',
-      staffName: 'Nurse Grace',
-      staffRole: 'Nurse',
-      action: 'PATIENT_REGISTER',
-      department: 'Triage',
-      recordId: 'PT-4421',
-      ipAddress: '192.168.1.112',
-      details: 'Nurse Grace registered patient entry in triage system.',
-      signature: 'SHA-256: 7f13c...',
-    },
-    {
-      id: '3',
-      timestamp: '2026-06-09 08:55',
-      staffName: 'John Baraka',
-      staffRole: 'Receptionist',
-      action: 'LOGIN',
-      department: 'Reception',
-      recordId: '—',
-      ipAddress: '192.168.1.5',
-      details: 'John Baraka completed secure terminal login session.',
-      signature: 'SHA-256: 3b94a...',
-    },
-    {
-      id: '4',
-      timestamp: '2026-06-09 08:32',
-      staffName: 'Lab Tech Sarah',
-      staffRole: 'Tech',
-      action: 'LAB_RESULT',
-      department: 'Laboratory',
-      recordId: 'LB-992',
-      ipAddress: '192.168.1.45',
-      details: 'Lab Tech Sarah pushed diagnostic laboratory record updates.',
-      signature: 'SHA-256: c542e...',
-    },
-    {
-      id: '5',
-      timestamp: '2026-06-09 08:15',
-      staffName: 'John Baraka',
-      staffRole: 'Receptionist',
-      action: 'PAYMENT',
-      department: 'Reception',
-      recordId: 'TX-1044',
-      ipAddress: '192.168.1.5',
-      details: 'John Baraka finalized bill settlement for txn #TX-1044.',
-      signature: 'SHA-256: 9e32f...',
-    },
-    {
-      id: '6',
-      timestamp: '2026-06-09 07:45',
-      staffName: 'Dr. Amina Hassan',
-      staffRole: 'Doctor',
-      action: 'DELETE',
-      department: 'Consultation',
-      recordId: 'REC-112',
-      ipAddress: '192.168.1.104',
-      details: 'Dr. Amina Hassan purged invalid consultation entry record #REC-112.',
-      signature: 'SHA-256: a123b...',
-    },
-  ];
+  const [logs, setLogs] = useState<AuditLogRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLogs = () => {
+    setLoading(true);
+    adminService.listHospitalAuditLogs()
+      .then((data) => {
+        setLogs(data);
+      })
+      .catch((err) => {
+        console.error('Failed to load audit logs:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchLogs();
+  }, []);
 
   const toggleRowExpanded = (id: string) => {
     setExpandedRowId((prev) => (prev === id ? null : id));
@@ -217,59 +153,73 @@ export const AuditLogsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="text-body-sm divide-y divide-border-subtle bg-surface-white">
-              {logs.map((log) => {
-                const isExpanded = expandedRowId === log.id;
-                return (
-                  <React.Fragment key={log.id}>
-                    <tr
-                      onClick={() => toggleRowExpanded(log.id)}
-                      className={`hover:bg-row-hover transition-colors group cursor-pointer ${
-                        isExpanded ? 'border-l-4 border-l-primary bg-row-hover' : ''
-                      }`}
-                    >
-                      <td className="px-md py-md font-mono text-secondary">{log.timestamp}</td>
-                      <td className="px-md py-md">
-                        <div className="flex items-center gap-sm">
-                          <span className="font-semibold text-on-surface">{log.staffName}</span>
-                          <span className="px-1.5 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded">
-                            {log.staffRole}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-md py-md">
-                        <span className={`px-2 py-1 rounded-full text-[11px] font-bold inline-block ${getActionBadgeClass(log.action)}`}>
-                          {log.action}
-                        </span>
-                      </td>
-                      <td className="px-md py-md text-secondary">{log.department}</td>
-                      <td className="px-md py-md font-mono text-primary font-medium">{log.recordId}</td>
-                      <td className="px-md py-md font-mono text-secondary">{log.ipAddress}</td>
-                      <td className="px-md py-md text-center">
-                        <span
-                          className={`material-symbols-outlined text-secondary transition-transform duration-200 ${
-                            isExpanded ? 'rotate-180' : ''
-                          }`}
-                        >
-                          expand_more
-                        </span>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr className="bg-[#F4F5F7]">
-                        <td className="px-xl py-lg" colSpan={7}>
-                          <div className="border-l-2 border-primary-container pl-md">
-                            <p className="text-secondary font-label-sm uppercase mb-xs opacity-60">Full Action Details</p>
-                            <p className="text-body-md text-on-surface leading-relaxed">
-                              {log.details} Log authenticated via digital signature{' '}
-                              <span className="text-[11px] font-mono opacity-50">{log.signature}</span>
-                            </p>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-xl text-center text-outline font-body-sm text-sm">
+                    Loading audit logs...
+                  </td>
+                </tr>
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-xl text-center text-outline font-body-sm text-sm">
+                    No audit logs recorded.
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => {
+                  const isExpanded = expandedRowId === log.id;
+                  return (
+                    <React.Fragment key={log.id}>
+                      <tr
+                        onClick={() => toggleRowExpanded(log.id)}
+                        className={`hover:bg-row-hover transition-colors group cursor-pointer ${
+                          isExpanded ? 'border-l-4 border-l-primary bg-row-hover' : ''
+                        }`}
+                      >
+                        <td className="px-md py-md font-mono text-secondary">{log.timestamp}</td>
+                        <td className="px-md py-md">
+                          <div className="flex items-center gap-sm">
+                            <span className="font-semibold text-on-surface">{log.staffName}</span>
+                            <span className="px-1.5 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded">
+                              {log.staffRole}
+                            </span>
                           </div>
                         </td>
+                        <td className="px-md py-md">
+                          <span className={`px-2 py-1 rounded-full text-[11px] font-bold inline-block ${getActionBadgeClass(log.action)}`}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-md py-md text-secondary">{log.department}</td>
+                        <td className="px-md py-md font-mono text-primary font-medium">{log.recordId}</td>
+                        <td className="px-md py-md font-mono text-secondary">{log.ipAddress}</td>
+                        <td className="px-md py-md text-center">
+                          <span
+                            className={`material-symbols-outlined text-secondary transition-transform duration-200 ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`}
+                          >
+                            expand_more
+                          </span>
+                        </td>
                       </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                      {isExpanded && (
+                        <tr className="bg-[#F4F5F7]">
+                          <td className="px-xl py-lg" colSpan={7}>
+                            <div className="border-l-2 border-primary-container pl-md">
+                              <p className="text-secondary font-label-sm uppercase mb-xs opacity-60">Full Action Details</p>
+                              <p className="text-body-md text-on-surface leading-relaxed">
+                                {log.details} Log authenticated via digital signature{' '}
+                                <span className="text-[11px] font-mono opacity-50">{log.signature}</span>
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
