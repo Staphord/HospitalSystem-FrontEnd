@@ -1,9 +1,17 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissions } from '@/hooks/usePermissions'
+import { ROLES } from '@/lib/roles'
+import { ReceptionTopbar } from '@/app/layout/ReceptionTopbar'
 
 export function Topbar() {
   const { user } = useAuth()
   const location = useLocation()
+  const { hasRole, isHospitalAdmin } = usePermissions()
+
+  if (hasRole(ROLES.receptionist) && !isHospitalAdmin()) {
+    return <ReceptionTopbar />
+  }
 
   // Dynamic route page titles
   const getPageTitle = (path: string) => {
@@ -32,6 +40,7 @@ export function Topbar() {
     if (p.includes('/backup')) return 'Data Backup'
     if (p.includes('/subscription')) return 'My Subscription'
     if (p.includes('/reception/register')) return 'Patient Registration'
+    if (p.includes('/reception/search')) return 'Patient Search'
     if (p.includes('/reception/queue')) return 'Reception Queue'
     if (p.includes('/triage/queue')) return 'Triage Queue'
     if (p.includes('/consultation/queue')) return 'Clinical Consultation'

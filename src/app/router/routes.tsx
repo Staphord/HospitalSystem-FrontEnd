@@ -46,6 +46,7 @@ import { PatientReportsPage } from '@/features/reports/pages/PatientReportsPage'
 import { RevenueReportsPage } from '@/features/reports/pages/RevenueReportsPage'
 import { OperationalReportsPage } from '@/features/reports/pages/OperationalReportsPage'
 import { PatientRegistrationPage } from '@/features/reception/pages/PatientRegistrationPage'
+import { PatientSearchPage } from '@/features/reception/pages/PatientSearchPage'
 import { VisitQueuePage } from '@/features/reception/pages/VisitQueuePage'
 import { TriageQueuePage } from '@/features/triage/pages/TriageQueuePage'
 import { ConsultationQueuePage } from '@/features/consultation/pages/ConsultationQueuePage'
@@ -146,6 +147,7 @@ export const routes = [
             element: <RoleRoute allowed={[ROLES.hospitalAdmin, ROLES.receptionist]} />,
             children: [
               { path: '/reception/register', element: <PatientRegistrationPage /> },
+              { path: '/reception/search', element: <PatientSearchPage /> },
               { path: '/reception/queue', element: <VisitQueuePage /> },
             ],
           },
@@ -170,7 +172,7 @@ export const routes = [
             children: [{ path: '/pharmacy/dispense', element: <DispensingPage /> }],
           },
           {
-            element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin]} />,
+            element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist]} />,
             children: [{ path: '/billing', element: <BillsPage /> }],
           },
           {
