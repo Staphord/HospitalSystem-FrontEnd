@@ -11,6 +11,7 @@ import { SignupPage } from '@/features/auth/pages/SignupPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { AccountLockedPage } from '@/features/auth/pages/AccountLockedPage'
+import { MfaLoginPage } from '@/features/auth/pages/MfaLoginPage'
 import { MfaSelectionPage } from '@/features/auth/pages/MfaSelectionPage'
 import { MfaVerificationPage } from '@/features/auth/pages/MfaVerificationPage'
 import { FirstLoginChangePasswordPage } from '@/features/auth/pages/FirstLoginChangePasswordPage'
@@ -81,6 +82,7 @@ export const routes = [
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/reset-password', element: <ResetPasswordPage /> },
       { path: '/account-locked', element: <AccountLockedPage /> },
+      { path: '/mfa-login', element: <MfaLoginPage /> },
       { path: '/mfa-select', element: <MfaSelectionPage /> },
       { path: '/mfa-verify', element: <MfaVerificationPage /> },
       { path: '/first-login-change-password', element: <FirstLoginChangePasswordPage /> },

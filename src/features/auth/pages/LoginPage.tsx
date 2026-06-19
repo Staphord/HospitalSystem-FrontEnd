@@ -60,6 +60,16 @@ export function LoginPage() {
       const tokens = isMasterLogin 
         ? await authService.loginSuperAdmin({ username, password })
         : await authService.login({ username, password })
+
+      if (!('access_token' in tokens)) {
+        clearAuth()
+        sessionStorage.setItem('mfa_login_challenge', tokens.challenge_token)
+        localStorage.removeItem('login_failed_attempts')
+        setFailedAttempts(0)
+        toast.info('Enter your authenticator code to finish signing in.')
+        navigate('/mfa-login')
+        return
+      }
       
       // Clear failed attempts upon successful login
       localStorage.removeItem('login_failed_attempts')

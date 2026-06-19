@@ -7,9 +7,25 @@ export interface TokenResponse {
   access_token: string
   refresh_token: string
   expires_in: number
+  refresh_expires_in?: number
+  token_type?: string
+  session_id?: string
+  not_before_policy?: number
   scope?: string
   tenant_id?: string | null
 }
+
+export interface MFAChallengeResponse {
+  mfa_required: true
+  challenge_token: string
+}
+
+export interface MFALoginVerifyRequest {
+  challenge_token: string
+  totp_code: string
+}
+
+export type LoginResponse = TokenResponse | MFAChallengeResponse
 
 export interface SignupRequest {
   hospital_name: string

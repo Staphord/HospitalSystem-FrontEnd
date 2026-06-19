@@ -53,6 +53,10 @@ export function MfaVerificationPage() {
   // 30-second countdown timer
   useEffect(() => {
     if (timer <= 0) {
+      if (method === 'authenticator') {
+        setTimer(30)
+        return
+      }
       setTimerExpired(true)
       return
     }
@@ -61,7 +65,7 @@ export function MfaVerificationPage() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [timer])
+  }, [method, timer])
 
   // Auto focus first input on mount
   useEffect(() => {
@@ -128,7 +132,7 @@ export function MfaVerificationPage() {
       return
     }
 
-    if (timerExpired) {
+    if (method !== 'authenticator' && timerExpired) {
       setError(true)
       toast.error('The verification code has expired. Please request a new one.')
       return
@@ -228,7 +232,7 @@ export function MfaVerificationPage() {
             error
           </span>
           <div>
-            <strong>Verification Error:</strong> {timerExpired ? 'The code has expired.' : 'Invalid digit passcode sequence.'}
+            <strong>Verification Error:</strong> {method !== 'authenticator' && timerExpired ? 'The code has expired.' : 'Invalid digit passcode sequence.'}
           </div>
         </div>
       )}
@@ -300,13 +304,16 @@ export function MfaVerificationPage() {
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
               schedule
             </span>
-            {timerExpired ? (
+            {method !== 'authenticator' && timerExpired ? (
               <span style={{ color: 'var(--color-error)', fontWeight: 600 }}>Code Expired</span>
             ) : (
-              <span>Code expires in <strong style={{ color: 'var(--color-primary)' }}>{timer}s</strong></span>
+              <span>
+                {method === 'authenticator' ? 'Authenticator code refreshes every ' : 'Code expires in '}
+                <strong style={{ color: 'var(--color-primary)' }}>{timer}s</strong>
+              </span>
             )}
           </div>
-          {(method === 'sms' || method === 'email' || timerExpired) && (
+          {(method === 'sms' || method === 'email' || (method !== 'authenticator' && timerExpired)) && (
             <button
               type="button"
               onClick={handleResend}
