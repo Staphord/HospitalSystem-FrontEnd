@@ -92,3 +92,42 @@
   background-color: #0052cc;
 }
 
+/* Reception portal sidebar nav — overrides global a:hover underline */
+a.reception-nav-link {
+  text-decoration: none !important;
+  font-weight: inherit;
+  color: #4f5f7b;
+}
+
+a.reception-nav-link:hover,
+a.reception-nav-link:focus,
+a.reception-nav-link:active,
+a.reception-nav-link:visited {
+  text-decoration: none !important;
+}
+
+a.reception-nav-link:not(.reception-nav-link--active):hover {
+  color: #4f5f7b;
+  background-color: #f3f4f6;
+}
+
+a.reception-nav-link--active,
+a.reception-nav-link--active:hover,
+a.reception-nav-link--active:focus {
+  color: #003d9b;
+  background-color: #deebff;
+  font-weight: 600;
+  box-shadow: inset 4px 0 0 #003d9b;
+}
+
+a.reception-nav-link--mobile-active,
+a.reception-nav-link--mobile-active:hover,
+a.reception-nav-link--mobile-active:focus {
+  color: #003d9b;
+  text-decoration: none !important;
+}
+
+a.reception-nav-link:not(.reception-nav-link--mobile-active):hover {
+  color: #4f5f7b;
+}
+

@@ -44,7 +44,9 @@ export default {
         "surface-variant": "#e1e2e4",
         "border-subtle": "#DFE1E6",
         "row-hover": "#DEEBFF",
+        "hover-tint": "#DEEBFF",
         "primary": "#0052CC",
+        "reception-primary": "#003d9b",
         "on-primary-container": "#c4d2ff",
         "surface-bright": "#f8f9fb",
         "on-error-container": "#93000a",
@@ -61,7 +63,8 @@ export default {
         "tertiary-container": "#006477",
         "surface-tint": "#0c56d0",
         "surface-container-highest": "#e1e2e4",
-        "warning": "#FFAB00"
+        "warning": "#FFAB00",
+        "info": "#00B8D9"
       },
       borderRadius: {
         "DEFAULT": "4px",
