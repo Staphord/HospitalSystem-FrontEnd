@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+
 import { authService } from '@/api/services/auth'
 import { usersService } from '@/api/services/users'
 import { useAuth } from '@/hooks/useAuth'
@@ -12,19 +13,24 @@ const CHALLENGE_STORAGE_KEY = 'mfa_login_challenge'
 export function MfaLoginPage() {
   const navigate = useNavigate()
   const { setTokens, setUser, clearAuth } = useAuth()
+
   const [digits, setDigits] = useState<string[]>(Array(6).fill(''))
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
+
   const [useBackup, setUseBackup] = useState(false)
   const [backupCode, setBackupCode] = useState('')
+
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
     const challenge = sessionStorage.getItem(CHALLENGE_STORAGE_KEY)
+
     if (!challenge) {
       navigate('/login', { replace: true })
       return
     }
+
     inputRefs.current[0]?.focus()
   }, [navigate])
 
@@ -33,6 +39,7 @@ export function MfaLoginPage() {
 
     const nextDigits = [...digits]
     nextDigits[index] = value.slice(-1)
+
     setDigits(nextDigits)
     setError(false)
 
@@ -41,12 +48,16 @@ export function MfaLoginPage() {
     }
   }
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
     if (e.key !== 'Backspace') return
 
     if (!digits[index] && index > 0) {
       const nextDigits = [...digits]
       nextDigits[index - 1] = ''
+
       setDigits(nextDigits)
       inputRefs.current[index - 1]?.focus()
       return
@@ -59,31 +70,49 @@ export function MfaLoginPage() {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
-    const pasted = e.clipboardData.getData('text').trim().slice(0, 6)
+
+    const pasted = e.clipboardData
+      .getData('text')
+      .trim()
+      .slice(0, 6)
+
     if (!/^\d+$/.test(pasted)) return
 
     const nextDigits = Array(6).fill('')
+
     for (let i = 0; i < pasted.length; i += 1) {
       nextDigits[i] = pasted[i]
     }
+
     setDigits(nextDigits)
     setError(false)
+
     inputRefs.current[Math.min(pasted.length, 5)]?.focus()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     const challengeToken = sessionStorage.getItem(CHALLENGE_STORAGE_KEY)
-    const totpCode = useBackup ? backupCode.trim() : digits.join('')
 
     if (!challengeToken) {
       navigate('/login', { replace: true })
       return
     }
 
-    if (totpCode.length < (useBackup ? 6 : 6)) {
+    const code = useBackup
+      ? backupCode.trim()
+      : digits.join('')
+
+    if (!useBackup && code.length !== 6) {
       setError(true)
-      toast.error(useBackup ? 'Enter your backup recovery code.' : 'Enter the 6-digit authenticator code.')
+      toast.error('Enter the 6-digit authenticator code.')
+      return
+    }
+
+    if (useBackup && !code) {
+      setError(true)
+      toast.error('Enter your backup recovery code.')
       return
     }
 
@@ -93,21 +122,34 @@ export function MfaLoginPage() {
     try {
       const tokens = await authService.verifyMfaLogin({
         challenge_token: challengeToken,
-        totp_code: totpCode,
+        totp_code: code,
       })
 
       sessionStorage.removeItem(CHALLENGE_STORAGE_KEY)
+
       setTokens(tokens.access_token, tokens.refresh_token)
+
       const user = await usersService.getMe()
       setUser(user)
+
       toast.success('Welcome back!')
-      navigate(getDefaultRoute(getRolesFromToken(tokens.access_token)), { replace: true })
+
+      navigate(
+        getDefaultRoute(
+          getRolesFromToken(tokens.access_token)
+        ),
+        { replace: true }
+      )
     } catch {
       clearAuth()
+
       setError(true)
       setDigits(Array(6).fill(''))
+      setBackupCode('')
+
       inputRefs.current[0]?.focus()
-      toast.error('Invalid or expired MFA code.')
+
+      toast.error('Invalid or expired verification code.')
     } finally {
       setLoading(false)
     }
@@ -121,118 +163,235 @@ export function MfaLoginPage() {
 
   const handleToggleBackup = () => {
     setUseBackup((prev) => !prev)
+
     setError(false)
     setDigits(Array(6).fill(''))
     setBackupCode('')
   }
 
-  const digitErrorStyle = error ? { borderColor: 'var(--color-error)' } : {}
+  const digitErrorStyle = error
+    ? { borderColor: 'var(--color-error)' }
+    : {}
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '48px',
-          height: '48px',
-          backgroundColor: 'var(--color-primary-light)',
-          borderRadius: '8px',
-          marginBottom: '1rem',
-          color: 'var(--color-primary)'
-        }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.25rem',
+      }}
+    >
+      <div
+        style={{
+          textAlign: 'center',
+          marginBottom: '0.25rem',
+        }}
+      >
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '48px',
+            height: '48px',
+            backgroundColor: 'var(--color-primary-light)',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            color: 'var(--color-primary)',
+          }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: '28px' }}
+          >
             shield_locked
           </span>
         </div>
-        <h2 style={{
-          fontFamily: 'var(--font-headline)',
-          fontSize: '1.5rem',
-          fontWeight: 700,
-          color: 'var(--color-text)',
-          margin: '0 0 0.5rem 0'
-        }}>
+
+        <h2
+          style={{
+            fontFamily: 'var(--font-headline)',
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            color: 'var(--color-text)',
+            margin: '0 0 0.5rem 0',
+          }}
+        >
           Two-Step Verification
         </h2>
-        <p style={{
-          fontSize: '0.875rem',
-          color: 'var(--color-text-muted)',
-          lineHeight: 1.4,
-          margin: 0
-        }}>
-          Enter the 6-digit code from your authenticator app.
+
+        <p
+          style={{
+            fontSize: '0.875rem',
+            color: 'var(--color-text-muted)',
+            lineHeight: 1.4,
+            margin: 0,
+          }}
+        >
+          {useBackup
+            ? 'Enter one of your backup recovery codes.'
+            : 'Enter the 6-digit code from your authenticator app.'}
         </p>
       </div>
 
       {error && (
-        <div style={{
-          backgroundColor: 'var(--color-error-bg)',
-          border: '1px solid var(--color-error)',
-          color: 'var(--color-error)',
-          padding: '0.75rem 1rem',
-          borderRadius: '8px',
-          fontSize: '0.8125rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px', flexShrink: 0 }}>
+        <div
+          style={{
+            backgroundColor: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error)',
+            color: 'var(--color-error)',
+            padding: '0.75rem 1rem',
+            borderRadius: '8px',
+            fontSize: '0.8125rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{
+              fontSize: '18px',
+              flexShrink: 0,
+            }}
+          >
             error
           </span>
+
           <div>
-            <strong>Verification failed:</strong> Check your authenticator code and try again.
+            <strong>Verification failed:</strong>{' '}
+            Check your code and try again.
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-          {digits.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => { inputRefs.current[index] = el }}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={digit}
-              onChange={(e) => handleChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              onPaste={index === 0 ? handlePaste : undefined}
-              maxLength={1}
-              style={{
-                width: '44px',
-                height: '48px',
-                textAlign: 'center',
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                borderRadius: '8px',
-                border: '1px solid var(--color-border)',
-                outline: 'none',
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                ...digitErrorStyle
-              }}
-              required
-            />
-          ))}
-        </div>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.5rem',
+        }}
+      >
+        {!useBackup ? (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '0.5rem',
+            }}
+          >
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => {
+                  inputRefs.current[index] = el
+                }}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={digit}
+                onChange={(e) =>
+                  handleChange(index, e.target.value)
+                }
+                onKeyDown={(e) =>
+                  handleKeyDown(index, e)
+                }
+                onPaste={
+                  index === 0 ? handlePaste : undefined
+                }
+                maxLength={1}
+                required
+                style={{
+                  width: '44px',
+                  height: '48px',
+                  textAlign: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-border)',
+                  outline: 'none',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  ...digitErrorStyle,
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <input
+            type="text"
+            placeholder="Enter backup recovery code"
+            value={backupCode}
+            onChange={(e) => {
+              setBackupCode(e.target.value)
+              setError(false)
+            }}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              border: error
+                ? '1px solid var(--color-error)'
+                : '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+            }}
+          />
+        )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <button
+          type="button"
+          onClick={handleToggleBackup}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-primary)',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            alignSelf: 'center',
+          }}
+        >
+          {useBackup
+            ? 'Use authenticator app instead'
+            : 'Use a backup recovery code'}
+        </button>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem',
+          }}
+        >
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%', padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
             disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.625rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+            }}
           >
-            {loading ? 'Verifying...' : 'Verify and sign in'}
+            {loading
+              ? 'Verifying...'
+              : 'Verify and sign in'}
           </button>
+
           <button
             type="button"
             onClick={handleCancel}
             className="btn btn-secondary"
-            style={{ width: '100%', padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
             disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.625rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+            }}
           >
             Back to login
           </button>
