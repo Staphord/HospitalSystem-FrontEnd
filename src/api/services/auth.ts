@@ -5,6 +5,7 @@ import type {
   LoginResponse,
   LoginRequest,
   MFALoginVerifyRequest,
+  MFAVerifyResponse,
   PasswordResetConfirm,
   PasswordResetRequest,
   RefreshRequest,
@@ -40,10 +41,19 @@ export const authService = {
   setupMfa: () => apiClient.post<{ secret: string; qr_code_url: string }>('/auth/mfa/setup').then((r) => r.data),
 
   verifyMfa: (code: string) =>
-    apiClient.post('/auth/mfa/verify', { totp_code: code }),
+    apiClient.post<MFAVerifyResponse>('/auth/mfa/verify', { totp_code: code }).then((r) => r.data),
+
+  sendMfaEmailSetupCode: () =>
+    apiClient.post<{ detail: string }>('/auth/mfa/email/send-setup-code').then((r) => r.data),
+
+  sendMfaEmailLoginCode: (challengeToken: string) =>
+    apiClient.post<{ detail: string }>('/auth/mfa/email/send-login-code', { challenge_token: challengeToken }).then((r) => r.data),
 
   verifyMfaLogin: (data: MFALoginVerifyRequest) =>
     apiClient.post<TokenResponse>('/auth/mfa/verify-login', data).then((r) => r.data),
+
+  disableMfa: () =>
+    apiClient.post<{ detail: string }>('/auth/mfa/disable').then((r) => r.data),
 
   impersonate: (data: ImpersonateRequest) =>
     apiClient.post<ImpersonateResponse>('/auth/impersonate', data).then((r) => r.data),

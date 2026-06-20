@@ -11,7 +11,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!accessToken) return
 
-    if (isTokenExpired(accessToken)) {
+    const rToken = useAuthStore.getState().refreshToken
+    if (rToken && isTokenExpired(rToken)) {
       clearAuth()
       return
     }

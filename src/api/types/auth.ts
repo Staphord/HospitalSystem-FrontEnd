@@ -62,3 +62,9 @@ export interface ImpersonateResponse {
   expires_in: number
   target_tenant_id: string
 }
+
+export interface MFAVerifyResponse {
+  detail: string
+  backup_codes: string[]
+}
+

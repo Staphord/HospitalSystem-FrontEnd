@@ -172,9 +172,9 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    // Every 5 seconds, check if the token is expired
+    // Every 5 seconds, check if the refresh token is expired
     const interval = setInterval(() => {
-      const token = useAuthStore.getState().accessToken
+      const token = useAuthStore.getState().refreshToken
       if (token && isTokenExpired(token)) {
         handleTimeout()
       }

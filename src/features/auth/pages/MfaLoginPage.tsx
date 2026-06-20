@@ -18,8 +18,10 @@ export function MfaLoginPage() {
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const [useBackup, setUseBackup] = useState(false)
+  const [mfaMode, setMfaMode] = useState<'authenticator' | 'email' | 'backup'>('authenticator')
   const [backupCode, setBackupCode] = useState('')
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailSending, setEmailSending] = useState(false)
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -100,17 +102,21 @@ export function MfaLoginPage() {
       return
     }
 
-    const code = useBackup
+    const code = mfaMode === 'backup'
       ? backupCode.trim()
       : digits.join('')
 
-    if (!useBackup && code.length !== 6) {
+    if (mfaMode !== 'backup' && code.length !== 6) {
       setError(true)
-      toast.error('Enter the 6-digit authenticator code.')
+      toast.error(
+        mfaMode === 'email'
+          ? 'Enter the 6-digit email verification code.'
+          : 'Enter the 6-digit authenticator code.'
+      )
       return
     }
 
-    if (useBackup && !code) {
+    if (mfaMode === 'backup' && !code) {
       setError(true)
       toast.error('Enter your backup recovery code.')
       return
@@ -161,12 +167,46 @@ export function MfaLoginPage() {
     navigate('/login')
   }
 
-  const handleToggleBackup = () => {
-    setUseBackup((prev) => !prev)
+  const handleSendEmailCode = async () => {
+    const challengeToken = sessionStorage.getItem(CHALLENGE_STORAGE_KEY)
+    if (!challengeToken) {
+      navigate('/login', { replace: true })
+      return
+    }
 
+    setEmailSending(true)
+    try {
+      await authService.sendMfaEmailLoginCode(challengeToken)
+      setEmailSent(true)
+      toast.success('MFA verification code sent to your email.')
+    } catch {
+      toast.error('Failed to send verification code. Please try again.')
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
+  const handleSwitchToEmail = () => {
+    setMfaMode('email')
     setError(false)
     setDigits(Array(6).fill(''))
     setBackupCode('')
+
+    const challengeToken = sessionStorage.getItem(CHALLENGE_STORAGE_KEY)
+    if (challengeToken && !emailSent) {
+      setEmailSending(true)
+      authService.sendMfaEmailLoginCode(challengeToken)
+        .then(() => {
+          setEmailSent(true)
+          toast.success('MFA verification code sent to your email.')
+        })
+        .catch(() => {
+          toast.error('Failed to send verification code.')
+        })
+        .finally(() => {
+          setEmailSending(false)
+        })
+    }
   }
 
   const digitErrorStyle = error
@@ -228,8 +268,10 @@ export function MfaLoginPage() {
             margin: 0,
           }}
         >
-          {useBackup
+          {mfaMode === 'backup'
             ? 'Enter one of your backup recovery codes.'
+            : mfaMode === 'email'
+            ? 'Enter the 6-digit code sent to your registered email address.'
             : 'Enter the 6-digit code from your authenticator app.'}
         </p>
       </div>
@@ -273,7 +315,7 @@ export function MfaLoginPage() {
           gap: '1.5rem',
         }}
       >
-        {!useBackup ? (
+        {mfaMode !== 'backup' ? (
           <div
             style={{
               display: 'flex',
@@ -340,23 +382,87 @@ export function MfaLoginPage() {
           />
         )}
 
-        <button
-          type="button"
-          onClick={handleToggleBackup}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--color-primary)',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            alignSelf: 'center',
-          }}
-        >
-          {useBackup
-            ? 'Use authenticator app instead'
-            : 'Use a backup recovery code'}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+          {mfaMode !== 'authenticator' && (
+            <button
+              type="button"
+              onClick={() => {
+                setMfaMode('authenticator')
+                setError(false)
+                setDigits(Array(6).fill(''))
+                setBackupCode('')
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              }}
+            >
+              Use authenticator app instead
+            </button>
+          )}
+
+          {mfaMode !== 'email' && (
+            <button
+              type="button"
+              onClick={handleSwitchToEmail}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              }}
+            >
+              Email me a verification code instead
+            </button>
+          )}
+
+          {mfaMode === 'email' && (
+            <button
+              type="button"
+              onClick={handleSendEmailCode}
+              disabled={emailSending}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                opacity: emailSending ? 0.6 : 1,
+              }}
+            >
+              {emailSending ? 'Sending...' : 'Resend email code'}
+            </button>
+          )}
+
+          {mfaMode !== 'backup' && (
+            <button
+              type="button"
+              onClick={() => {
+                setMfaMode('backup')
+                setError(false)
+                setDigits(Array(6).fill(''))
+                setBackupCode('')
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              }}
+            >
+              Use a backup recovery code
+            </button>
+          )}
+        </div>
 
         <div
           style={{
