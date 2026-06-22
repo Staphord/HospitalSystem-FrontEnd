@@ -14,6 +14,7 @@ export interface AuthUser {
   full_name?: string | null
   role?: string
   hospital_id?: string | null
+  mfa_enabled?: boolean
 }
 
 interface AuthState {

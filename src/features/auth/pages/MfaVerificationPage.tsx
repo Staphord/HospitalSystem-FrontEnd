@@ -20,6 +20,7 @@ export function MfaVerificationPage() {
   const [timerExpired, setTimerExpired] = useState(false)
   const [qrCode, setQrCode] = useState('')
   const [secret, setSecret] = useState('')
+  const [backupCodes, setBackupCodes] = useState<string[]>([])
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -36,7 +37,7 @@ export function MfaVerificationPage() {
     email: 'We sent a 6-digit verification code to your registered email address.'
   }[method] || 'Enter your 6-digit verification code.'
 
-  // Fetch MFA setup if using authenticator
+  // Fetch MFA setup if using authenticator or send email code if email
   useEffect(() => {
     if (method === 'authenticator') {
       authService.setupMfa()
@@ -47,12 +48,24 @@ export function MfaVerificationPage() {
         .catch(() => {
           toast.error('Failed to initialize MFA setup from server.')
         })
+    } else if (method === 'email') {
+      authService.sendMfaEmailSetupCode()
+        .then(() => {
+          toast.success('MFA verification code sent to your email.')
+        })
+        .catch(() => {
+          toast.error('Failed to send verification code to your email.')
+        })
     }
   }, [method])
 
   // 30-second countdown timer
   useEffect(() => {
     if (timer <= 0) {
+      if (method === 'authenticator') {
+        setTimer(30)
+        return
+      }
       setTimerExpired(true)
       return
     }
@@ -61,7 +74,7 @@ export function MfaVerificationPage() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [timer])
+  }, [method, timer])
 
   // Auto focus first input on mount
   useEffect(() => {
@@ -119,6 +132,27 @@ export function MfaVerificationPage() {
     inputRefs.current[focusIndex]?.focus()
   }
 
+  const downloadBackupCodes = () => {
+    const element = document.createElement("a");
+    const file = new Blob([
+      "HOSPITALFLOW MFA RECOVERY BACKUP CODES\n",
+      "Keep these codes in a safe place. Each code can only be used once.\n\n",
+      backupCodes.join("\n"),
+      "\n\nGenerated on: " + new Date().toLocaleString()
+    ], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "hospitalflow-mfa-backup-codes.txt";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success('Backup codes file downloaded!');
+  }
+
+  const copyBackupCodes = () => {
+    navigator.clipboard.writeText(backupCodes.join('\n'))
+    toast.success('Backup codes copied to clipboard!')
+  }
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     const code = digits.join('')
@@ -128,7 +162,7 @@ export function MfaVerificationPage() {
       return
     }
 
-    if (timerExpired) {
+    if (method !== 'authenticator' && timerExpired) {
       setError(true)
       toast.error('The verification code has expired. Please request a new one.')
       return
@@ -138,12 +172,16 @@ export function MfaVerificationPage() {
     setError(false)
 
     try {
-      await authService.verifyMfa(code)
+      const res = await authService.verifyMfa(code)
       toast.success('MFA verification successful!')
-      
-      const token = useAuthStore.getState().accessToken
-      const route = token ? getDefaultRoute(getRolesFromToken(token)) : '/dashboard'
-      navigate(route)
+      if (res && res.backup_codes && res.backup_codes.length > 0) {
+        setBackupCodes(res.backup_codes)
+        setLoading(false)
+      } else {
+        const token = useAuthStore.getState().accessToken
+        const route = token ? getDefaultRoute(getRolesFromToken(token)) : '/dashboard'
+        navigate(route)
+      }
     } catch {
       setError(true)
       toast.error('Invalid verification code. Please try again.')
@@ -167,6 +205,14 @@ export function MfaVerificationPage() {
         .catch(() => {
           toast.error('Failed to regenerate setup code.')
         })
+    } else if (method === 'email') {
+      authService.sendMfaEmailSetupCode()
+        .then(() => {
+          toast.success('A new verification code has been sent to your email.')
+        })
+        .catch(() => {
+          toast.error('Failed to send a new verification code.')
+        })
     } else {
       toast.success('A new 6-digit passcode has been generated/sent!')
     }
@@ -188,6 +234,145 @@ export function MfaVerificationPage() {
   }
 
   const digitErrorStyle = error ? { borderColor: 'var(--color-error)' } : {}
+
+  if (backupCodes.length > 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '48px',
+            height: '48px',
+            backgroundColor: 'var(--color-warning-light, #fef3c7)',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            color: 'var(--color-warning, #d97706)'
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>
+              key
+            </span>
+          </div>
+          <h2 style={{
+            fontFamily: 'var(--font-headline)',
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            color: 'var(--color-text)',
+            margin: '0 0 0.5rem 0'
+          }}>
+            Save your backup codes
+          </h2>
+          <p style={{
+            fontSize: '0.875rem',
+            color: 'var(--color-text-muted)',
+            lineHeight: 1.4,
+            margin: 0
+          }}>
+            If you lose access to your phone or authenticator app, you can use these recovery codes to sign in.
+          </p>
+        </div>
+
+        <div style={{
+          backgroundColor: 'var(--color-warning-bg, #fffbeb)',
+          border: '1px solid var(--color-warning, #fef3c7)',
+          color: 'var(--color-warning-text, #92400e)',
+          padding: '0.75rem 1rem',
+          borderRadius: '8px',
+          fontSize: '0.8125rem',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.5rem'
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '18px', flexShrink: 0, marginTop: '2px' }}>
+            warning
+          </span>
+          <div>
+            <strong>Important warning:</strong> Keep these codes secure. Each code is single-use only. We cannot show these to you again.
+          </div>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '0.5rem',
+          padding: '1rem',
+          backgroundColor: 'var(--color-surface-hover, #f9fafb)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px',
+          fontFamily: 'monospace',
+          fontSize: '1rem',
+          fontWeight: 600,
+          color: 'var(--color-text)',
+          textAlign: 'center'
+        }}>
+          {backupCodes.map((code, idx) => (
+            <div key={idx} style={{
+              padding: '0.5rem',
+              backgroundColor: 'var(--color-surface, #ffffff)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '4px',
+              letterSpacing: '1px'
+            }}>
+              {code}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={copyBackupCodes}
+            style={{
+              flex: 1,
+              padding: '0.625rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>content_copy</span>
+            Copy
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={downloadBackupCodes}
+            style={{
+              flex: 1,
+              padding: '0.625rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>download</span>
+            Download
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            const token = useAuthStore.getState().accessToken
+            const route = token ? getDefaultRoute(getRolesFromToken(token)) : '/dashboard'
+            navigate(route)
+          }}
+          style={{ width: '100%', padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
+        >
+          I've saved my codes, continue
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -228,7 +413,7 @@ export function MfaVerificationPage() {
             error
           </span>
           <div>
-            <strong>Verification Error:</strong> {timerExpired ? 'The code has expired.' : 'Invalid digit passcode sequence.'}
+            <strong>Verification Error:</strong> {method !== 'authenticator' && timerExpired ? 'The code has expired.' : 'Invalid digit passcode sequence.'}
           </div>
         </div>
       )}
@@ -300,13 +485,16 @@ export function MfaVerificationPage() {
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
               schedule
             </span>
-            {timerExpired ? (
+            {method !== 'authenticator' && timerExpired ? (
               <span style={{ color: 'var(--color-error)', fontWeight: 600 }}>Code Expired</span>
             ) : (
-              <span>Code expires in <strong style={{ color: 'var(--color-primary)' }}>{timer}s</strong></span>
+              <span>
+                {method === 'authenticator' ? 'Authenticator code refreshes every ' : 'Code expires in '}
+                <strong style={{ color: 'var(--color-primary)' }}>{timer}s</strong>
+              </span>
             )}
           </div>
-          {(method === 'sms' || method === 'email' || timerExpired) && (
+          {(method === 'sms' || method === 'email' || (method !== 'authenticator' && timerExpired)) && (
             <button
               type="button"
               onClick={handleResend}
@@ -379,4 +567,5 @@ export function MfaVerificationPage() {
       </form>
     </div>
   )
+
 }

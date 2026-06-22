@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-type MfaMethod = 'authenticator' | 'sms' | 'email'
+type MfaMethod = 'authenticator' | 'email'
 
 export function MfaSelectionPage() {
   const navigate = useNavigate()
@@ -23,18 +23,13 @@ export function MfaSelectionPage() {
       icon: 'phonelink_setup'
     },
     {
-      id: 'sms' as MfaMethod,
-      title: 'Text Message (SMS)',
-      description: 'Receive a temporary 6-digit passcode on your registered mobile number.',
-      icon: 'sms'
-    },
-    {
       id: 'email' as MfaMethod,
       title: 'Email verification',
       description: 'We will send a one-time passcode to your hospital administrative email address.',
       icon: 'mail'
     }
   ]
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
