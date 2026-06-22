@@ -14,6 +14,7 @@ export interface AuthUser {
   full_name?: string | null
   role?: string
   hospital_id?: string | null
+  hospital_name?: string | null
   mfa_enabled?: boolean
 }
 
@@ -41,20 +42,26 @@ export const useAuthStore = create<AuthState>()(
       isImpersonating: false,
       isReadOnly: false,
 
-      setTokens: (accessToken, refreshToken) =>
+      setTokens: (accessToken, refreshToken) => {
+        const isImpersonating = isImpersonationToken(accessToken)
+        const roles = isImpersonating ? ['hospital_admin'] : getRolesFromToken(accessToken)
         set({
           accessToken,
           refreshToken,
-          roles: getRolesFromToken(accessToken),
+          roles,
           tenantId: getTenantIdFromToken(accessToken),
-          isImpersonating: isImpersonationToken(accessToken),
+          isImpersonating,
           isReadOnly: isReadOnlyToken(accessToken),
-        }),
+        })
+      },
 
       setUser: (user) => set({ user }),
 
       clearAuth: () => {
         localStorage.removeItem('session_warning_acknowledged')
+        localStorage.removeItem('impersonated_tenant_id')
+        localStorage.removeItem('original_access_token')
+        localStorage.removeItem('original_refresh_token')
         set({
           accessToken: null,
           refreshToken: null,

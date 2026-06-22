@@ -27,11 +27,16 @@ export function InvoiceManagementPage() {
   const [generating, setGenerating] = useState(false)
   const [billingPeriodStart, setBillingPeriodStart] = useState('')
   const [billingPeriodEnd, setBillingPeriodEnd] = useState('')
+  const [selectedSub, setSelectedSub] = useState<Subscription | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
+  const [isManualOverride, setIsManualOverride] = useState(false)
 
   // Record Payment Form State
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer')
   const [paymentAmount, setPaymentAmount] = useState('')
   const [recordingPayment, setRecordingPayment] = useState(false)
+  const [referenceNumber, setReferenceNumber] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   const fetchData = useCallback(async () => {
     try {
@@ -61,15 +66,20 @@ export function InvoiceManagementPage() {
     if (selectedInvoiceForPayment) {
       const remaining = selectedInvoiceForPayment.amount - (selectedInvoiceForPayment.amount_paid || 0)
       setPaymentAmount(remaining.toString())
+      setReferenceNumber('')
     } else {
       setPaymentAmount('')
+      setReferenceNumber('')
     }
   }, [selectedInvoiceForPayment])
 
   // Auto-populate invoice parameters when selecting a tenant
   const handleTenantSelection = (selectedId: string) => {
     setTenantId(selectedId)
+    setIsManualOverride(false)
     if (!selectedId) {
+      setSelectedSub(null)
+      setSelectedPlan(null)
       setAmount('')
       setDescription('')
       setDueDate('')
@@ -78,17 +88,18 @@ export function InvoiceManagementPage() {
       return
     }
 
-    const sub = subscriptions.find((s) => s.tenant_id === selectedId)
-    const plan = sub ? plans.find((p) => p.plan_name.toLowerCase() === sub.plan_name.toLowerCase()) : null
+    const sub = subscriptions.find((s) => s.tenant_id === selectedId) || null
+    setSelectedSub(sub)
 
-    if (plan) {
-      setAmount(plan.monthly_price.toString())
-      const monthLabel = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
-      setDescription(`${plan.plan_name} Plan Monthly Subscription - ${monthLabel}`)
-    } else {
-      setAmount('299') // default fallback
-      setDescription('Monthly Plan Subscription Renewal')
-    }
+    const plan = sub ? plans.find((p) => (p.plan_name || '').toLowerCase() === (sub.plan_name || '').toLowerCase()) : null
+    setSelectedPlan(plan || null)
+
+    const baseAmount = plan ? plan.monthly_price : 299
+    setAmount(baseAmount.toString())
+
+    const planName = plan ? plan.plan_name : (sub ? sub.plan_name : 'Basic')
+    const monthLabel = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+    setDescription(`${planName} Plan Monthly Subscription - ${monthLabel}`)
 
     const defaultStart = new Date().toISOString().split('T')[0]
     const defaultEnd = new Date()
@@ -101,7 +112,9 @@ export function InvoiceManagementPage() {
   }
 
   const getHospitalName = (id: string) => {
-    return tenants.find((t) => t.tenant_id === id)?.hospital_name || id
+    if (!id) return ''
+    const name = tenants.find((t) => t.tenant_id === id)?.hospital_name || id
+    return String(name)
   }
 
   const handleGenerateInvoice = async (e: React.FormEvent) => {
@@ -110,6 +123,22 @@ export function InvoiceManagementPage() {
       toast.error('Please select a hospital.')
       return
     }
+    const tenant = tenants.find((t) => t.tenant_id === tenantId)
+    const sub = subscriptions.find((s) => s.tenant_id === tenantId)
+    const subId = sub?.id || ''
+    if (!subId) {
+      toast.error('The selected hospital does not have an active subscription.')
+      return
+    }
+    const planName = selectedPlan?.plan_name || sub?.plan_name || 'Basic'
+    const currency = tenant?.currency || 'USD'
+
+    const finalAmount = Number(amount)
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      toast.error('Please enter a valid amount.')
+      return
+    }
+
     setGenerating(true)
 
     const finalDescription = description
@@ -119,8 +148,13 @@ export function InvoiceManagementPage() {
     try {
       await masterService.createInvoice({
         tenant_id: tenantId,
-        amount: Number(amount),
-        due_date: dueDate || undefined,
+        subscription_id: subId,
+        plan_name: planName,
+        billing_period_start: billingPeriodStart,
+        billing_period_end: billingPeriodEnd,
+        currency: currency,
+        amount: finalAmount,
+        due_date: dueDate,
         description: finalDescription,
         status: 'unpaid',
       })
@@ -133,10 +167,13 @@ export function InvoiceManagementPage() {
       setDescription('')
       setBillingPeriodStart('')
       setBillingPeriodEnd('')
+      setSelectedSub(null)
+      setSelectedPlan(null)
+      setIsManualOverride(false)
       fetchData()
-    } catch (err) {
-      const error = err as { response?: { data?: { detail?: string } } }
-      toast.error(error.response?.data?.detail || 'Failed to generate invoice.')
+    } catch (err: any) {
+      const errorDetail = err?.response?.data?.detail || err?.message || 'Failed to generate invoice.'
+      toast.error(errorDetail)
     } finally {
       setGenerating(false)
     }
@@ -157,17 +194,17 @@ export function InvoiceManagementPage() {
     }
 
     setRecordingPayment(true)
-    const newPaidAmount = (selectedInvoiceForPayment.amount_paid || 0) + enteredAmount
-    const status = newPaidAmount >= selectedInvoiceForPayment.amount ? 'paid' : 'partially_paid'
 
     try {
-      await masterService.updateInvoice(selectedInvoiceForPayment.id, {
-        status,
-        amount_paid: newPaidAmount,
+      await masterService.recordPayment(selectedInvoiceForPayment.tenant_id, {
+        invoice_id: selectedInvoiceForPayment.id || selectedInvoiceForPayment.invoice_id,
+        amount: enteredAmount,
         payment_method: paymentMethod,
+        reference_number: referenceNumber || undefined,
       })
       toast.success(`Payment of $${enteredAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} recorded for invoice ${selectedInvoiceForPayment.id}!`)
       setSelectedInvoiceForPayment(null)
+      setReferenceNumber('')
       fetchData()
     } catch (err) {
       const error = err as { response?: { data?: { detail?: string } } }
@@ -177,22 +214,24 @@ export function InvoiceManagementPage() {
     }
   }
 
-  // Filter invoices list by search and URL tenant ID query param
+  // Filter invoices list by search, status filter, and URL tenant ID query param
   const filteredInvoices = invoices.filter((i) => {
     const matchesTenantParam = !tenantIdParam || i.tenant_id === tenantIdParam
+    const matchesStatusFilter = statusFilter === 'all' || (i.status || '').toLowerCase() === statusFilter.toLowerCase()
     
     const hospital = getHospitalName(i.tenant_id).toLowerCase()
-    const id = i.id.toLowerCase()
-    const status = i.status.toLowerCase()
+    const id = (i.id || i.invoice_id || '').toLowerCase()
+    const invNum = (i.invoice_number || '').toLowerCase()
+    const status = (i.status || '').toLowerCase()
     const query = search.toLowerCase()
 
-    const matchesSearch = hospital.includes(query) || id.includes(query) || status.includes(query)
+    const matchesSearch = hospital.includes(query) || id.includes(query) || invNum.includes(query) || status.includes(query)
 
-    return matchesTenantParam && matchesSearch
+    return matchesTenantParam && matchesSearch && matchesStatusFilter
   })
 
   const getStatusBadgeClass = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch ((status || '').toLowerCase()) {
       case 'paid':
         return 'status-badge status-active'
       case 'partially_paid':
@@ -223,7 +262,7 @@ export function InvoiceManagementPage() {
         </button>
       </div>
 
-      {invoices.filter((i) => i.status.toLowerCase() === 'overdue').length > 0 && (
+      {invoices.filter((i) => (i.status || '').toLowerCase() === 'overdue').length > 0 && (
         <div
           style={{
             marginBottom: '1.5rem',
@@ -238,7 +277,7 @@ export function InvoiceManagementPage() {
         >
           <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#dc3545', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
             <span className="material-symbols-outlined text-[18px]">warning</span>
-            There are {invoices.filter((i) => i.status.toLowerCase() === 'overdue').length} overdue invoices that require immediate attention.
+            There are {invoices.filter((i) => (i.status || '').toLowerCase() === 'overdue').length} overdue invoices that require immediate attention.
           </span>
           <Link
             to="/master/invoices/overdue"
@@ -280,7 +319,7 @@ export function InvoiceManagementPage() {
       <div className="card" style={{ padding: '1.5rem' }}>
         <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
           <div className="search-input-wrapper" style={{ maxWidth: '400px', flex: 1 }}>
-            <span className="search-input-icon">🔍</span>
+            <span className="search-input-icon material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>search</span>
             <input
               type="text"
               className="form-control"
@@ -288,6 +327,20 @@ export function InvoiceManagementPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+          <div style={{ width: '200px' }}>
+            <select
+              className="form-control"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter by Status"
+            >
+              <option value="all">All Statuses</option>
+              <option value="paid">Paid</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="overdue">Overdue</option>
+              <option value="partially_paid">Partially Paid</option>
+            </select>
           </div>
         </div>
 
@@ -323,7 +376,7 @@ export function InvoiceManagementPage() {
                       </div>
                     </td>
                     <td>
-                      <strong>${i.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                      <strong>${(Number(i.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                     </td>
                     <td>
                       <span className={getStatusBadgeClass(i.status)}>
@@ -335,10 +388,11 @@ export function InvoiceManagementPage() {
                       {i.status !== 'paid' && (
                         <button
                           className="btn btn-secondary"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                           onClick={() => setSelectedInvoiceForPayment(i)}
                         >
-                          💵 Record Payment
+                          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>paid</span>
+                          Record Payment
                         </button>
                       )}
                     </td>
@@ -379,6 +433,19 @@ export function InvoiceManagementPage() {
                     </select>
                   </div>
 
+                  {tenantId && selectedSub && (
+                    <div style={{ padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '4px', fontSize: '0.875rem' }}>
+                      <div><strong>Active Subscription:</strong> {selectedSub.plan_name} ({selectedSub.status})</div>
+                      <div><strong>Billing Currency:</strong> {tenants.find(t => t.tenant_id === tenantId)?.currency || 'USD'}</div>
+                    </div>
+                  )}
+
+                  {tenantId && !selectedSub && (
+                    <div style={{ color: '#dc3545', fontSize: '0.875rem', fontWeight: 500 }}>
+                      ⚠️ No active subscription found for this tenant.
+                    </div>
+                  )}
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div className="form-group">
                       <label>Billing Period Start</label>
@@ -402,18 +469,43 @@ export function InvoiceManagementPage() {
                     </div>
                   </div>
 
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      id="manual-override-checkbox"
+                      checked={isManualOverride}
+                      onChange={(e) => {
+                        setIsManualOverride(e.target.checked)
+                        if (!e.target.checked) {
+                          const sub = subscriptions.find((s) => s.tenant_id === tenantId)
+                          const plan = sub ? plans.find((p) => (p.plan_name || '').toLowerCase() === (sub.plan_name || '').toLowerCase()) : null
+                          setAmount(plan ? plan.monthly_price.toString() : '299')
+                        }
+                      }}
+                    />
+                    <label htmlFor="manual-override-checkbox" style={{ margin: 0, fontWeight: 500, cursor: 'pointer' }}>
+                      Manual Price Override
+                    </label>
+                  </div>
+
                   <div className="form-group">
                     <label>Billing Amount ($ USD)</label>
                     <input
                       type="number"
                       className="form-control"
                       required
-                      min="1"
+                      min="0.01"
                       step="0.01"
                       placeholder="e.g. 1500.00"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
+                      disabled={!isManualOverride}
                     />
+                    {isManualOverride && (
+                      <div style={{ color: '#b58900', fontSize: '0.75rem', marginTop: '0.25rem', fontWeight: 500 }} id="manual-override-warning">
+                        ⚠️ Warning: Manual price override is active. Ensure this change is authorized.
+                      </div>
+                    )}
                   </div>
 
                   <div className="form-group">
@@ -488,16 +580,16 @@ export function InvoiceManagementPage() {
                       </div>
                       <div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Total Amount</div>
-                        <strong>${selectedInvoiceForPayment.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                        <strong>${(Number(selectedInvoiceForPayment.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                       </div>
                       <div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Previously Paid</div>
-                        <strong>${(selectedInvoiceForPayment.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                        <strong>${(Number(selectedInvoiceForPayment.amount_paid) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                       </div>
                       <div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Remaining Balance</div>
                         <strong style={{ color: remaining > 0 ? '#b58900' : '#28a745' }}>
-                          ${remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          ${(Number(remaining) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </strong>
                       </div>
                     </div>
@@ -541,7 +633,7 @@ export function InvoiceManagementPage() {
                           borderRadius: '4px',
                           border: '1px solid rgba(255, 193, 7, 0.3)'
                         }}>
-                          Partial Payment: ${balanceAfter.toLocaleString(undefined, { minimumFractionDigits: 2 })} remaining
+                          Partial Payment: ${(Number(balanceAfter) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} remaining
                         </span>
                       )}
                     </div>
@@ -559,6 +651,17 @@ export function InvoiceManagementPage() {
                       <option value="Cheque">Corporate Cheque</option>
                       <option value="Mobile Money">Mobile Money (M-Pesa, etc.)</option>
                     </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Reference / Transaction Number</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. TXN-1002345"
+                      value={referenceNumber}
+                      onChange={(e) => setReferenceNumber(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="modal-footer">

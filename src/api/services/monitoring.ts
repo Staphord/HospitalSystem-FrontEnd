@@ -74,16 +74,16 @@ export const monitoringService = {
     apiClient.patch<Incident>(`/monitoring/health/${incidentId}`, data).then((r) => r.data),
 
   listAnnouncements: () =>
-    apiClient.get<Announcement[]>('/announcements').then((r) => r.data),
+    apiClient.get<Announcement[]>('/superadmin/announcements').then((r) => r.data),
 
   createAnnouncement: (data: AnnouncementCreate) =>
-    apiClient.post<Announcement>('/announcements', data).then((r) => r.data),
+    apiClient.post<Announcement>('/superadmin/announcements', data).then((r) => r.data),
 
   updateAnnouncement: (announcementId: string, data: Partial<Announcement>) =>
-    apiClient.patch<Announcement>(`/announcements/${announcementId}`, data).then((r) => r.data),
+    apiClient.patch<Announcement>(`/superadmin/announcements/${announcementId}`, data).then((r) => r.data),
 
   getAuditLogs: () =>
-    apiClient.get<AuditLog[]>('/audit-logs').then((r) => r.data),
+    apiClient.get<AuditLog[]>('/superadmin/audit-log').then((r) => r.data),
 
   getTenantAnalytics: (tenantId: string) =>
     apiClient.get<TenantAnalytics>(`/monitoring/tenants/${tenantId}/analytics`).then((r) => r.data),

@@ -13,6 +13,7 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase()
 
   useEffect(() => {
     let active = true
@@ -37,7 +38,7 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
   }, [])
 
   // Find price of current plan
-  const currentPlan = plans.find((p) => p.plan_name.toLowerCase() === currentPlanName.toLowerCase())
+  const currentPlan = plans.find((p) => safeLower(p.plan_name) === safeLower(currentPlanName))
   const currentPrice = currentPlan ? currentPlan.monthly_price : 0
 
   const handleSelect = async (planName: string) => {
@@ -81,7 +82,7 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                 {plans.map((plan) => {
-                  const isCurrent = plan.plan_name.toLowerCase() === currentPlanName.toLowerCase()
+                  const isCurrent = safeLower(plan.plan_name) === safeLower(currentPlanName)
                   const priceDiff = plan.monthly_price - currentPrice
                   
                   return (

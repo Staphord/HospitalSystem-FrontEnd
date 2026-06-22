@@ -60,6 +60,9 @@ export function CreateTenantPage() {
     // Fetch available plans for radio cards
     masterService.listPlans().then((data) => {
       setPlans(data)
+      setSelectedPlanId((currentPlanId) =>
+        data.some((plan) => plan.plan_id === currentPlanId) ? currentPlanId : (data[0]?.plan_id || '')
+      )
     }).catch(() => {
    
     })
@@ -111,8 +114,13 @@ export function CreateTenantPage() {
       address,
       timezone,
       currency,
+      date_format: dateFormat || undefined,
+      logo_url: logoUrl || undefined,
       logo: logoUrl || undefined,
       data_region: country === 'Tanzania' ? 'AF-East' : 'AF-South',
+      primary_contact_name: adminFullName || undefined,
+      primary_contact_email: adminEmail || undefined,
+      primary_contact_phone: contactPhone || undefined,
       billing_email: billingEmail || adminEmail,
       tax_id: taxId || undefined,
       grace_days: Number(graceDays),

@@ -9,11 +9,19 @@ import { toast } from 'sonner'
 
 export function Sidebar() {
   const { hasRole, hasAnyRole, isSuperAdmin, isHospitalAdmin } = usePermissions()
-  const { user, clearAuth, refreshToken } = useAuth()
+  const { user, clearAuth, refreshToken, tenantId } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const navItems = isSuperAdmin() ? MASTER_NAV : HOSPITAL_NAV
+
+  // Retrieve dynamic hospital name from /me response or local mock store
+  const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
+  const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId)
+  const hospitalName =
+    user?.hospital_name ||
+    (currentTenant ? currentTenant.hospital_name : null) ||
+    'Muhimbili National Hospital'
 
   const handleLogout = async () => {
     try {
@@ -208,7 +216,7 @@ export function Sidebar() {
           </div>
           <div className="overflow-hidden" style={{ overflow: 'hidden' }}>
             <h1 className="font-headline-sm text-[14px] leading-tight truncate text-on-surface" style={{ fontFamily: 'Manrope, sans-serif', fontSize: '14px', fontWeight: 600, lineHeight: 1.25, margin: 0, color: '#191c1e', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-              Muhimbili National Hospital
+              {hospitalName}
             </h1>
             <p className="font-label-sm text-outline text-[11px] leading-tight" style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 500, lineHeight: 1.25, margin: 0, color: '#737685' }}>
               Admin Portal
