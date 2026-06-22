@@ -22,11 +22,9 @@ export const SubscriptionPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [now] = useState(() => Date.now());
 
-  // Real-world critique flow states
+ 
   const [selectedPlanForChange, setSelectedPlanForChange] = useState<SubscriptionPlan | null>(null);
   const [isConfirmChangeModalOpen, setIsConfirmChangeModalOpen] = useState(false);
-  const [proratedAmount, setProratedAmount] = useState(0);
-  const [daysRemaining, setDaysRemaining] = useState(30);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // Write audit log entry to hospital tenant's local log
@@ -85,32 +83,7 @@ export const SubscriptionPage: React.FC = () => {
 
   const handleSelectPlan = (plan: SubscriptionPlan) => {
     if (!subscription) return;
-
-    const currentPlanObj = plans.find(
-      (p) => p.plan_name.toLowerCase() === subscription.plan_name.toLowerCase()
-    );
-    const currentPrice = currentPlanObj?.monthly_price ?? 0;
-    const newPrice = plan.monthly_price;
-
     setSelectedPlanForChange(plan);
-
-    if (newPrice > currentPrice) {
-      // Upgrade: calculate proration
-      const remaining = subscription.end_date
-        ? Math.max(0, Math.ceil((new Date(subscription.end_date).getTime() - now) / (1000 * 3600 * 24)))
-        : 30;
-      const amount = Math.max(0, Math.round(((newPrice - currentPrice) * remaining) / 30));
-      setProratedAmount(amount);
-      setDaysRemaining(remaining);
-    } else {
-      // Downgrade
-      setProratedAmount(0);
-      setDaysRemaining(
-        subscription.end_date
-          ? Math.max(0, Math.ceil((new Date(subscription.end_date).getTime() - now) / (1000 * 3600 * 24)))
-          : 30
-      );
-    }
     setIsConfirmChangeModalOpen(true);
   };
 
@@ -118,33 +91,47 @@ export const SubscriptionPage: React.FC = () => {
     if (!subscription || !selectedPlanForChange) return;
     setIsProcessingPayment(true);
     try {
-      // 1. Update subscription plan and clear pending plans
-      await masterService.updateSubscription(subscription.id, {
-        plan_name: selectedPlanForChange.plan_name,
-        pending_plan_name: null
+      const response = await masterService.upgradeSubscriptionEndpoint(subscription.id, {
+        plan_id: selectedPlanForChange.plan_id
       });
 
-      // 2. Generate paid invoice for proration
-      await masterService.createInvoice({
-        tenant_id: tenantId,
-        amount: proratedAmount,
-        status: 'paid',
-        description: `Plan Upgrade to ${selectedPlanForChange.plan_name} (Prorated for remaining ${daysRemaining} days)`,
-        due_date: new Date().toISOString().split('T')[0]
-      });
+      const invoiceAmount = response?.invoice?.amount ?? response?.amount ?? 0;
+      const checkoutUrl = response?.payment_checkout_url;
 
-      // 3. Log to audit trail
-      logHospitalAudit(
-        'SUBSCRIPTION_UPGRADE',
-        `Upgraded plan to ${selectedPlanForChange.plan_name}. Paid prorated invoice of ${tenant?.currency || 'USD'} ${proratedAmount}.`
-      );
+      if (checkoutUrl) {
+        window.open(checkoutUrl, '_blank');
+      }
 
-      toast.success(`Successfully upgraded to ${selectedPlanForChange.plan_name}!`);
-      setIsConfirmChangeModalOpen(false);
-      setIsUpgradeModalOpen(false);
-      fetchSubscriptionData();
+      toast.info(`Checkout invoice of ${currencySymbol} ${invoiceAmount} generated. Verifying payment...`);
+
+      // Wait for server verification
+      let verified = false;
+      for (let i = 0; i < 5; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const allSubs = await masterService.listSubscriptions();
+        const sub = allSubs.find((s) => s.id === subscription.id);
+        if (sub && sub.plan_name === selectedPlanForChange.plan_name && sub.status.toLowerCase() === 'active') {
+          verified = true;
+          break;
+        }
+      }
+
+      if (verified) {
+        logHospitalAudit(
+          'SUBSCRIPTION_UPGRADE',
+          `Upgraded plan to ${selectedPlanForChange.plan_name}.`
+        );
+        toast.success(`Successfully upgraded to ${selectedPlanForChange.plan_name}!`);
+        setIsConfirmChangeModalOpen(false);
+        setIsUpgradeModalOpen(false);
+        fetchSubscriptionData();
+      } else {
+        toast.info('Payment processing. The dashboard will reflect the active status shortly.');
+        setIsConfirmChangeModalOpen(false);
+        setIsUpgradeModalOpen(false);
+      }
     } catch {
-      toast.error('Failed to process upgrade payment.');
+      toast.error('Failed to process upgrade.');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -154,12 +141,10 @@ export const SubscriptionPage: React.FC = () => {
     if (!subscription || !selectedPlanForChange) return;
     setSubmitting(true);
     try {
-      // 1. Update subscription pending plan
-      await masterService.updateSubscription(subscription.id, {
-        pending_plan_name: selectedPlanForChange.plan_name
+      await masterService.downgradeSubscriptionEndpoint(subscription.id, {
+        plan_id: selectedPlanForChange.plan_id
       });
 
-      // 2. Log to audit trail
       logHospitalAudit(
         'SUBSCRIPTION_DOWNGRADE_SCHEDULED',
         `Scheduled subscription downgrade to ${selectedPlanForChange.plan_name} at next renewal.`
@@ -849,22 +834,18 @@ export const SubscriptionPage: React.FC = () => {
                     </p>
                     <div style={{ background: '#f0f5ff', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: '#4f5f7b' }}>Days remaining this cycle</span>
-                        <strong style={{ fontSize: '13px', color: '#191c1e' }}>{daysRemaining} days</strong>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <span style={{ fontSize: '13px', color: '#4f5f7b' }}>Price difference</span>
                         <strong style={{ fontSize: '13px', color: '#191c1e' }}>
                           {currencySymbol} {selectedPlanForChange.monthly_price - (currentPlanObj?.monthly_price ?? 0)}/mo
                         </strong>
                       </div>
                       <div style={{ borderTop: '1px solid #DFE1E6', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#191c1e' }}>Prorated Amount Due Today</span>
-                        <strong style={{ color: '#0052CC', fontSize: '18px' }}>{currencySymbol} {proratedAmount}</strong>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#191c1e' }}>Prorated Amount</span>
+                        <strong style={{ color: '#0052CC', fontSize: '14px' }}>Calculated at checkout</strong>
                       </div>
                     </div>
                     <p style={{ fontSize: '12px', color: '#4f5f7b' }}>
-                      A paid invoice for this amount will appear in your billing history.
+                      A payment checkout link will be generated to complete your upgrade.
                     </p>
                   </div>
                 ) : (
@@ -905,7 +886,7 @@ export const SubscriptionPage: React.FC = () => {
                   {(isProcessingPayment || submitting)
                     ? 'Processing...'
                     : isUpgrade
-                    ? `Pay ${currencySymbol} ${proratedAmount} & Upgrade`
+                    ? 'Confirm Upgrade'
                     : 'Confirm Downgrade'}
                 </button>
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
@@ -8,6 +8,8 @@ import { SubscriptionPlansView } from '../components/SubscriptionPlansView'
 
 export function SubscriptionManagementPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const tenantIdParam = searchParams.get('tenant_id')
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
@@ -18,7 +20,7 @@ export function SubscriptionManagementPage() {
   const fetchData = useCallback(async () => {
     try {
       const [subsData, tenantsData] = await Promise.all([
-        masterService.listSubscriptions(),
+        masterService.listSubscriptions(tenantIdParam || undefined),
         masterService.listTenants(),
       ])
       setSubscriptions(subsData)
@@ -28,7 +30,7 @@ export function SubscriptionManagementPage() {
       toast.error('Failed to load subscription data.')
       setLoading(false)
     }
-  }, [])
+  }, [tenantIdParam])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -39,8 +41,11 @@ export function SubscriptionManagementPage() {
     return tenants.find((t) => t.tenant_id === tenantId)?.hospital_name || tenantId
   }
 
+  const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase()
+
   const getRowStyle = (sub: Subscription) => {
-    const isRed = ['expired', 'suspended', 'grace_period', 'grace'].includes(sub.status.toLowerCase())
+    const status = safeLower(sub.status)
+    const isRed = ['expired', 'suspended', 'grace_period', 'grace'].includes(status)
     if (isRed) {
       return { backgroundColor: 'rgba(255, 86, 48, 0.08)' } // Red highlight for grace/suspended/expired
     }
@@ -57,16 +62,16 @@ export function SubscriptionManagementPage() {
   }
 
   const filteredSubs = subscriptions.filter((s) => {
-    const hospital = getHospitalName(s.tenant_id).toLowerCase()
-    const plan = s.plan_name.toLowerCase()
-    const id = s.id.toLowerCase()
-    const query = search.toLowerCase()
+    const hospital = safeLower(getHospitalName(s.tenant_id))
+    const plan = safeLower(s.plan_name)
+    const id = safeLower(s.id)
+    const query = safeLower(search)
 
     return hospital.includes(query) || plan.includes(query) || id.includes(query)
   })
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusBadgeClass = (status: string | null | undefined) => {
+    switch (safeLower(status)) {
       case 'active':
         return 'status-badge status-active'
       case 'grace_period':
@@ -159,7 +164,7 @@ export function SubscriptionManagementPage() {
                       </td>
                       <td>
                         <span className={getStatusBadgeClass(s.status)}>
-                          {s.status.replace('_', ' ')}
+                          {safeLower(s.status).replace('_', ' ') || 'unknown'}
                         </span>
                       </td>
                       <td>{s.start_date ? new Date(s.start_date).toLocaleDateString() : 'N/A'}</td>
@@ -187,4 +192,3 @@ export function SubscriptionManagementPage() {
     </>
   )
 }
-

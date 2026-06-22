@@ -47,15 +47,8 @@ export function OverdueAccountsPage() {
     return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)))
   }, [now])
 
-  // Filter overdue and unpaid invoices whose due date is in the past
-  const overdueInvoices = invoices.filter((i) => {
-    if (i.status === 'paid') return false
-    if (i.status === 'overdue') return true
-    if (i.due_date) {
-      return getDaysOverdue(i.due_date) > 0
-    }
-    return false
-  })
+  // Filter invoices strictly by backend confirmed overdue status
+  const overdueInvoices = invoices.filter((i) => i.status.toLowerCase() === 'overdue')
 
   // Get 4-tier status attributes
   const getTierInfo = (days: number) => {

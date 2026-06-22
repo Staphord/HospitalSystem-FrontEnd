@@ -79,14 +79,15 @@ export function AuditLogsPage() {
           description="Read-only immutable transaction logs tracking tenant provisioning, billing modifications, and admin actions."
         />
         <button className="btn btn-secondary" onClick={handleExportJSON}>
-          📥 Export Log Data (JSON)
+          <span className="material-symbols-outlined" aria-hidden="true" style={{ verticalAlign: 'middle', marginRight: '0.35rem' }}>download</span>
+          Export Log Data (JSON)
         </button>
       </div>
 
       <div className="card" style={{ padding: '1.5rem' }}>
         <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <div className="search-input-wrapper" style={{ maxWidth: '350px', flex: 1 }}>
-            <span className="search-input-icon">🔍</span>
+            <span className="search-input-icon material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>search</span>
             <input
               type="text"
               className="form-control"

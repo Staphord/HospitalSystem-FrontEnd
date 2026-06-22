@@ -12,6 +12,14 @@ export function DashboardPage() {
 
   const isHospitalAdmin = roles.includes(ROLES.hospitalAdmin)
 
+  // Retrieve dynamic hospital name based on the active tenant ID
+  const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
+  const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId)
+  const hospitalName =
+    user?.hospital_name ||
+    (currentTenant ? currentTenant.hospital_name : null) ||
+    'Muhimbili National Hospital'
+
   if (isHospitalAdmin) {
     const previewSessions = sessions.slice(0, 3)
 
@@ -23,7 +31,7 @@ export function DashboardPage() {
           <div className="w-full flex items-center gap-sm p-md bg-[#e6f6ef] border border-success/20 rounded-lg">
             <span className="material-symbols-outlined text-success">check_circle</span>
             <span className="font-headline-sm text-on-surface text-[14px]">
-              All Systems Operational — Muhimbili National Hospital
+              All Systems Operational — {hospitalName}
             </span>
           </div>
 

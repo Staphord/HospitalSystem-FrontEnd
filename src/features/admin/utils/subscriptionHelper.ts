@@ -27,8 +27,8 @@ export interface SubscriptionBanner {
  */
 export const getSubscriptionBanners = (
   subscription: Subscription,
-  tenant: Tenant,
-  plans: SubscriptionPlan[]
+  _tenant: Tenant,
+  _plans: SubscriptionPlan[]
 ): SubscriptionBanner[] => {
   const banners: SubscriptionBanner[] = [];
   const planName = subscription.plan_name;

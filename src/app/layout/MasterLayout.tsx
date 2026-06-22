@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/app/layout/Sidebar'
 import { Topbar } from '@/app/layout/Topbar'
 import { useEffect, useState } from 'react'
+import { useAuthStore } from '@/store/authStore'
 
 export function MasterLayout() {
   const [impersonatedId, setImpersonatedId] = useState<string | null>(null)
@@ -24,6 +25,15 @@ export function MasterLayout() {
   }, [])
 
   const stopImpersonating = () => {
+    const originalAccess = localStorage.getItem('original_access_token')
+    const originalRefresh = localStorage.getItem('original_refresh_token')
+    if (originalAccess) {
+      useAuthStore.getState().setTokens(originalAccess, originalRefresh || '')
+      localStorage.removeItem('original_access_token')
+      localStorage.removeItem('original_refresh_token')
+    } else {
+      useAuthStore.getState().clearAuth()
+    }
     localStorage.removeItem('impersonated_tenant_id')
     setImpersonatedId(null)
     window.dispatchEvent(new Event('impersonation-change'))
@@ -37,7 +47,7 @@ export function MasterLayout() {
         {impersonatedId && (
           <div className="impersonation-banner">
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1.1rem' }}>warning</span>
               <span>
                 <strong>Impersonation Active:</strong> Viewing tenant space (ID: {impersonatedId}) in read-only preview mode.
               </span>
