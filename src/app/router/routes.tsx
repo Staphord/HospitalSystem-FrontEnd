@@ -49,6 +49,9 @@ import { PatientRegistrationPage } from '@/features/reception/pages/PatientRegis
 import { PatientSearchPage } from '@/features/reception/pages/PatientSearchPage'
 import { VisitQueuePage } from '@/features/reception/pages/VisitQueuePage'
 import { TriageQueuePage } from '@/features/triage/pages/TriageQueuePage'
+import { TriageHistoryPage } from '@/features/triage/pages/TriageHistoryPage'
+import { TriageHistoryPatientPage } from '@/features/triage/pages/TriageHistoryPatientPage'
+import { TriageAssessPage } from '@/features/triage/pages/TriageAssessPage'
 import { ConsultationQueuePage } from '@/features/consultation/pages/ConsultationQueuePage'
 import { LabRequestsPage } from '@/features/laboratory/pages/LabRequestsPage'
 import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
@@ -153,7 +156,12 @@ export const routes = [
           },
           {
             element: <RoleRoute allowed={[ROLES.triageNurse, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/triage/queue', element: <TriageQueuePage /> }],
+            children: [
+              { path: '/triage/queue', element: <TriageQueuePage /> },
+              { path: '/triage/history', element: <TriageHistoryPage /> },
+              { path: '/triage/history/:patientId', element: <TriageHistoryPatientPage /> },
+              { path: '/triage/assess/:visitId', element: <TriageAssessPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.doctor, ROLES.hospitalAdmin]} />,

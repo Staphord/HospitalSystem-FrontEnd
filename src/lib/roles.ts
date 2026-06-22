@@ -125,6 +125,11 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.triageNurse, ROLES.hospitalAdmin],
   },
   {
+    label: 'Patient History',
+    path: '/triage/history',
+    roles: [ROLES.triageNurse, ROLES.hospitalAdmin],
+  },
+  {
     label: 'Consultation',
     path: '/consultation/queue',
     roles: [ROLES.doctor, ROLES.hospitalAdmin],
@@ -186,7 +191,7 @@ export function getDefaultRoute(roles: string[]): string {
   if (roles.includes(ROLES.superAdmin)) return '/master/dashboard'
   if (roles.includes(ROLES.hospitalAdmin)) return '/admin/dashboard'
   if (roles.includes(ROLES.doctor)) return '/consultation/queue'
-  if (roles.includes(ROLES.triageNurse)) return '/triage/queue'
+  if (roles.includes(ROLES.triageNurse)) return '/dashboard'
   if (roles.includes(ROLES.receptionist)) return '/dashboard'
   if (roles.includes(ROLES.labTechnician)) return '/laboratory/requests'
   if (roles.includes(ROLES.radiographer)) return '/radiology/schedule'
