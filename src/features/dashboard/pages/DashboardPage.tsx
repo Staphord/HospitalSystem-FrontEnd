@@ -5,6 +5,7 @@ import { useApp } from '@/features/admin/context/AppContext'
 import { StatCard } from '../components/StatCard'
 import { DepartmentCard } from '../components/DepartmentCard'
 import { AlertFeedItem } from '../components/AlertFeedItem'
+import { TriageDashboardContent } from '@/features/triage/components/TriageDashboardContent'
 import { ROLES } from '@/lib/roles'
 import { useNavigate } from 'react-router-dom'
 
@@ -189,6 +190,11 @@ export function DashboardPage() {
 
   const isHospitalAdmin = roles.includes(ROLES.hospitalAdmin)
   const isReceptionist = roles.includes(ROLES.receptionist)
+  const isTriageNurse = roles.includes(ROLES.triageNurse) && !isHospitalAdmin
+
+  if (isTriageNurse) {
+    return <TriageDashboardContent />
+  }
 
   if (isReceptionist) {
     return (

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ROLES } from '@/lib/roles'
 import { ReceptionTopbar } from '@/app/layout/ReceptionTopbar'
+import { TriageTopbar } from '@/app/layout/TriageTopbar'
 
 export function Topbar() {
   const { user } = useAuth()
@@ -11,6 +12,10 @@ export function Topbar() {
 
   if (hasRole(ROLES.receptionist) && !isHospitalAdmin()) {
     return <ReceptionTopbar />
+  }
+
+  if (hasRole(ROLES.triageNurse) && !isHospitalAdmin()) {
+    return <TriageTopbar />
   }
 
   // Dynamic route page titles
@@ -42,6 +47,8 @@ export function Topbar() {
     if (p.includes('/reception/register')) return 'Patient Registration'
     if (p.includes('/reception/search')) return 'Patient Search'
     if (p.includes('/reception/queue')) return 'Reception Queue'
+    if (p.includes('/triage/assess')) return 'Triage Assessment'
+    if (p.includes('/triage/history')) return 'Patient History'
     if (p.includes('/triage/queue')) return 'Triage Queue'
     if (p.includes('/consultation/queue')) return 'Clinical Consultation'
     if (p.includes('/laboratory')) return 'Laboratory Services'
