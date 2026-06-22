@@ -12,6 +12,7 @@ import { SignupPage } from '@/features/auth/pages/SignupPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { AccountLockedPage } from '@/features/auth/pages/AccountLockedPage'
+import { MfaLoginPage } from '@/features/auth/pages/MfaLoginPage'
 import { MfaSelectionPage } from '@/features/auth/pages/MfaSelectionPage'
 import { MfaVerificationPage } from '@/features/auth/pages/MfaVerificationPage'
 import { FirstLoginChangePasswordPage } from '@/features/auth/pages/FirstLoginChangePasswordPage'
@@ -48,8 +49,12 @@ import { PatientReportsPage } from '@/features/reports/pages/PatientReportsPage'
 import { RevenueReportsPage } from '@/features/reports/pages/RevenueReportsPage'
 import { OperationalReportsPage } from '@/features/reports/pages/OperationalReportsPage'
 import { PatientRegistrationPage } from '@/features/reception/pages/PatientRegistrationPage'
+import { PatientSearchPage } from '@/features/reception/pages/PatientSearchPage'
 import { VisitQueuePage } from '@/features/reception/pages/VisitQueuePage'
 import { TriageQueuePage } from '@/features/triage/pages/TriageQueuePage'
+import { TriageHistoryPage } from '@/features/triage/pages/TriageHistoryPage'
+import { TriageHistoryPatientPage } from '@/features/triage/pages/TriageHistoryPatientPage'
+import { TriageAssessPage } from '@/features/triage/pages/TriageAssessPage'
 import { ConsultationQueuePage } from '@/features/consultation/pages/ConsultationQueuePage'
 import { LabRequestsPage } from '@/features/laboratory/pages/LabRequestsPage'
 import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
@@ -83,6 +88,7 @@ export const routes = [
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/reset-password', element: <ResetPasswordPage /> },
       { path: '/account-locked', element: <AccountLockedPage /> },
+      { path: '/mfa-login', element: <MfaLoginPage /> },
       { path: '/mfa-select', element: <MfaSelectionPage /> },
       { path: '/mfa-verify', element: <MfaVerificationPage /> },
       { path: '/first-login-change-password', element: <FirstLoginChangePasswordPage /> },
@@ -149,12 +155,18 @@ export const routes = [
             element: <RoleRoute allowed={[ROLES.hospitalAdmin, ROLES.receptionist]} />,
             children: [
               { path: '/reception/register', element: <PatientRegistrationPage /> },
+              { path: '/reception/search', element: <PatientSearchPage /> },
               { path: '/reception/queue', element: <VisitQueuePage /> },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.triageNurse, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/triage/queue', element: <TriageQueuePage /> }],
+            children: [
+              { path: '/triage/queue', element: <TriageQueuePage /> },
+              { path: '/triage/history', element: <TriageHistoryPage /> },
+              { path: '/triage/history/:patientId', element: <TriageHistoryPatientPage /> },
+              { path: '/triage/assess/:visitId', element: <TriageAssessPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.doctor, ROLES.hospitalAdmin]} />,
@@ -173,7 +185,7 @@ export const routes = [
             children: [{ path: '/pharmacy/dispense', element: <DispensingPage /> }],
           },
           {
-            element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin]} />,
+            element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist]} />,
             children: [{ path: '/billing', element: <BillsPage /> }],
           },
           {

@@ -1,10 +1,5 @@
-import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
+import { TriageQueueContent } from '@/features/triage/components/TriageQueueContent'
 
 export function TriageQueuePage() {
-  return (
-    <ComingSoonPage
-      title="Triage queue"
-      description="Waiting on /api/v1/triage endpoints."
-    />
-  )
+  return <TriageQueueContent />
 }

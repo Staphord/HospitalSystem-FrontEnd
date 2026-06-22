@@ -2,7 +2,10 @@ import { apiClient } from '@/api/client'
 import type {
   ImpersonateRequest,
   ImpersonateResponse,
+  LoginResponse,
   LoginRequest,
+  MFALoginVerifyRequest,
+  MFAVerifyResponse,
   PasswordResetConfirm,
   PasswordResetRequest,
   RefreshRequest,
@@ -13,10 +16,10 @@ import type {
 
 export const authService = {
   login: (data: LoginRequest) =>
-    apiClient.post<TokenResponse>('/auth/login', data).then((r) => r.data),
+    apiClient.post<LoginResponse>('/auth/login', data).then((r) => r.data),
 
   loginSuperAdmin: (data: LoginRequest) =>
-    apiClient.post<TokenResponse>('/auth/superadmin/login', data).then((r) => r.data),
+    apiClient.post<LoginResponse>('/auth/superadmin/login', data).then((r) => r.data),
 
   signup: (data: SignupRequest) =>
     apiClient.post<SignupResponse>('/auth/signup', data).then((r) => r.data),
@@ -38,7 +41,19 @@ export const authService = {
   setupMfa: () => apiClient.post<{ secret: string; qr_code_url: string }>('/auth/mfa/setup').then((r) => r.data),
 
   verifyMfa: (code: string) =>
-    apiClient.post('/auth/mfa/verify', { totp_code: code }),
+    apiClient.post<MFAVerifyResponse>('/auth/mfa/verify', { totp_code: code }).then((r) => r.data),
+
+  sendMfaEmailSetupCode: () =>
+    apiClient.post<{ detail: string }>('/auth/mfa/email/send-setup-code').then((r) => r.data),
+
+  sendMfaEmailLoginCode: (challengeToken: string) =>
+    apiClient.post<{ detail: string }>('/auth/mfa/email/send-login-code', { challenge_token: challengeToken }).then((r) => r.data),
+
+  verifyMfaLogin: (data: MFALoginVerifyRequest) =>
+    apiClient.post<TokenResponse>('/auth/mfa/verify-login', data).then((r) => r.data),
+
+  disableMfa: () =>
+    apiClient.post<{ detail: string }>('/auth/mfa/disable').then((r) => r.data),
 
   impersonate: (data: ImpersonateRequest) =>
     apiClient.post<ImpersonateResponse>('/auth/impersonate', data).then((r) => r.data),
