@@ -1,6 +1,22 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 export function AuthLayout() {
+  const { pathname } = useLocation()
+  const isHospitalLoginPage = pathname === '/login'
+
+  if (isHospitalLoginPage) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: 'var(--color-bg)',
+        color: 'var(--color-text)',
+        fontFamily: 'var(--font-body)',
+      }}>
+        <Outlet />
+      </div>
+    )
+  }
+
   return (
     <div style={{
       display: 'flex',

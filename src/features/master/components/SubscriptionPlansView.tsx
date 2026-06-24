@@ -8,6 +8,8 @@ export function SubscriptionPlansView() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null)
+  const safeNumber = (value: number | null | undefined) =>
+    value == null ? 'Unlimited' : value.toLocaleString()
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -37,7 +39,7 @@ export function SubscriptionPlansView() {
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
         {plans.map((plan) => {
-          const isPremium = plan.plan_id === 'premium'
+          const isPremium = plan.plan_name.toLowerCase() === 'premium'
           return (
             <div
               key={plan.plan_id}
@@ -95,13 +97,13 @@ export function SubscriptionPlansView() {
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
-                        <strong>{plan.max_users === null ? 'Unlimited' : plan.max_users}</strong> staff user accounts
+                        <strong>{safeNumber(plan.max_users)}</strong> staff user accounts
                       </span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="material-symbols-outlined text-success text-[18px]">check</span>
                       <span>
-                        <strong>{plan.max_patients === null ? 'Unlimited' : plan.max_patients.toLocaleString()}</strong> patient records
+                        <strong>{safeNumber(plan.max_patients)}</strong> patient records
                       </span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -126,11 +128,11 @@ export function SubscriptionPlansView() {
                 </div>
 
                 <div style={{ marginBottom: '1.5rem' }}>
-                  <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-light)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>
+                <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--color-text-light)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>
                     Included Modules
                   </h4>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                    {plan.modules_included.map((mod) => (
+                    {(Array.isArray(plan.modules_included) ? plan.modules_included : []).map((mod) => (
                       <span
                         key={mod}
                         className="badge"

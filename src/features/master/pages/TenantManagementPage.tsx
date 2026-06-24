@@ -53,12 +53,7 @@ export function TenantManagementPage() {
   }
 
   const handleImpersonate = (tenant: Tenant) => {
-    localStorage.setItem('impersonated_tenant_id', tenant.tenant_id)
-    window.dispatchEvent(new Event('impersonation-change'))
-    toast.success(`Now impersonating ${tenant.hospital_name}. Redirecting to clinical view...`)
-    setTimeout(() => {
-      window.location.href = '/dashboard'
-    }, 1200)
+    navigate(`/impersonation/switching?tenant_id=${tenant.tenant_id}&return_to=/admin/dashboard`, { replace: true })
   }
 
   // Filtering logic
@@ -261,7 +256,10 @@ export function TenantManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedTenants.map((t) => (
+                  {paginatedTenants.map((t, index) => {
+                    const isLastVisibleRow = index === paginatedTenants.length - 1
+
+                    return (
                     <tr 
                       key={t.tenant_id} 
                       style={{ cursor: 'pointer' }}
@@ -319,7 +317,10 @@ export function TenantManagementPage() {
                                 setActiveDropdown(null)
                               }}
                             />
-                            <div className="dropdown-menu-wrapper" onClick={(e) => e.stopPropagation()}>
+                            <div
+                              className={`dropdown-menu-wrapper ${isLastVisibleRow ? 'dropdown-menu-up' : ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <button
                                 className="dropdown-item-btn"
                                 onClick={(e) => {
@@ -378,7 +379,8 @@ export function TenantManagementPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

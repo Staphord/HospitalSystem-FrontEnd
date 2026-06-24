@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '@/features/admin/context/AppContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ContactInfo {
   name: string;
@@ -30,8 +31,18 @@ interface SettingsState {
 // Renders settings control panel, regional restrictions, and contact details
 export const SettingsPage: React.FC = () => {
   const { setActiveView } = useApp();
+  const { tenantId, user } = useAuth();
+
+  // Retrieve dynamic hospital name based on the active tenant ID
+  const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]');
+  const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId);
+  const hospitalName =
+    user?.hospital_name ||
+    (currentTenant ? currentTenant.hospital_name : null) ||
+    'Muhimbili National Hospital';
+
   const [settings, setSettings] = useState<SettingsState>({
-    hospitalName: 'Muhimbili National Hospital',
+    hospitalName,
     address: 'Kalenga St, Dar es Salaam',
     city: 'Dar es Salaam',
     country: 'Tanzania',

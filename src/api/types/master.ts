@@ -45,6 +45,7 @@ export interface TenantCreate {
   timezone?: string
   currency?: string
   logo?: string
+  logo_url?: string
   data_region?: string
   billing_email?: string
   tax_id?: string
@@ -52,6 +53,10 @@ export interface TenantCreate {
   nas_backup_path?: string
   secondary_contact_name?: string
   secondary_contact_phone?: string
+  primary_contact_name?: string
+  primary_contact_email?: string
+  primary_contact_phone?: string
+  date_format?: string
   plan_id?: string
   billing_cycle?: string
   subscription_end?: string
@@ -78,6 +83,7 @@ export interface Subscription {
   tenant_id: string
   plan_name: string
   status: string
+  subscription_id: string;
   start_date?: string
   end_date?: string | null
   grace_period_days?: number
@@ -87,7 +93,14 @@ export interface Subscription {
 
 export interface Invoice {
   id: string
+  invoice_id: string
   tenant_id: string
+  subscription_id?: string
+  invoice_number?: string
+  billing_period_start?: string
+  billing_period_end?: string
+  plan_name?: string
+  currency?: string
   amount: number
   status: string
   due_date?: string
@@ -96,14 +109,18 @@ export interface Invoice {
   reference_number?: string
   payment_date?: string
   amount_paid?: number
+  paid_at?: string | null
 }
 
 export interface MasterAdminUser {
-  keycloak_sub: string
+  super_admin_id: string
+  keycloak_sub?: string
   username: string
   email: string
   full_name?: string | null
   role: string
+  is_active: boolean
+  last_login_at?: string | null
 }
 
 export interface MasterAdminUserCreate {
@@ -111,4 +128,15 @@ export interface MasterAdminUserCreate {
   password: string
   email: string
   full_name?: string
+  mfa_secret?: string
+}
+
+export interface MasterAdminUserUpdate {
+  username?: string
+  password?: string
+  email?: string
+  full_name?: string
+  role?: string
+  mfa_secret?: string
+  is_active?: boolean
 }

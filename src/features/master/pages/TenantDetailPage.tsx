@@ -14,6 +14,8 @@ export function TenantDetailPage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [analytics, setAnalytics] = useState<any>(null)
   
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'subscription' | 'invoices' | 'audit' | 'config'>('overview')
@@ -43,14 +45,24 @@ export function TenantDetailPage() {
       setTenant(tData)
       
       // Parallel requests for related info
-      const [subs, invs, logs] = await Promise.all([
-        masterService.listSubscriptions(id),
-        masterService.listInvoices(id),
-        monitoringService.getAuditLogs()
+      const [subs, invs, logs, statsData, analyticsData] = await Promise.all([
+        masterService.listSubscriptions(id).catch(() => []),
+        masterService.listInvoices(id).catch(() => []),
+        monitoringService.getAuditLogs().catch(() => []),
+        masterService.getTenantStats(id).catch((err) => {
+          console.error("Failed to fetch tenant stats", err)
+          return null
+        }),
+        monitoringService.getTenantAnalytics(id).catch((err) => {
+          console.error("Failed to fetch tenant analytics", err)
+          return null
+        })
       ])
       
       setSubscriptions(subs)
       setInvoices(invs)
+      setStats(statsData)
+      setAnalytics(analyticsData)
       
       // Filter logs related to this tenant
       const filteredLogs = logs.filter(
@@ -106,12 +118,21 @@ export function TenantDetailPage() {
 
   const handleDownloadBackup = () => {
     if (!tenant) return
+    const currentStorage = analytics && analytics.storage_growth ? analytics.storage_growth[analytics.storage_growth.length - 1] : 0
     const backupData = {
       tenant_id: tenant.tenant_id,
       hospital_name: tenant.hospital_name,
       exported_at: new Date().toISOString(),
-      statistics: { active_staff_users: 18, total_patients: 8450, storage_gb: 23, db_size_mb: 184 },
-      profile: tenant
+      statistics: { 
+        active_staff_users: stats ? (stats.user_count || stats.kc_user_count || 0) : 0, 
+        total_patients: stats ? (stats.patient_count || 0) : 0, 
+        storage_gb: currentStorage, 
+        db_size_mb: stats ? (stats.db_size_mb || 0) : 0 
+      },
+      profile: tenant,
+      subscriptions: subscriptions,
+      invoices: invoices,
+      audit_logs: auditLogs
     }
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -232,10 +253,7 @@ export function TenantDetailPage() {
                 <button 
                   className="btn btn-secondary" 
                   onClick={() => {
-                    localStorage.setItem('impersonated_tenant_id', tenant.tenant_id)
-                    window.dispatchEvent(new Event('impersonation-change'))
-                    toast.success(`Now impersonating ${tenant.hospital_name}. Redirecting to clinical view...`)
-                    setTimeout(() => { window.location.href = '/dashboard' }, 1200)
+                    navigate(`/impersonation/switching?tenant_id=${tenant.tenant_id}&return_to=/admin/dashboard`, { replace: true })
                   }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
@@ -533,7 +551,7 @@ export function TenantDetailPage() {
               Invoices and Payments
             </h3>
             <Link
-              to={`/master/invoices?search=${tenant.tenant_id}`}
+              to={`/master/invoices?tenant_id=${tenant.tenant_id}`}
               className="btn btn-secondary btn-sm"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
             >
@@ -709,7 +727,7 @@ export function TenantDetailPage() {
             <form onSubmit={handleSuspend}>
               <div className="modal-body">
                 <p style={{ fontSize: '0.875rem', color: 'var(--color-text)', marginBottom: '1rem' }}>
-                  You are about to suspend access for <strong>{tenant.hospital_name}</strong>. All staff users will be locked out immediately.
+                  You are about to suspend access for <strong>{tenant.hospital_name}</strong>. All <strong>{stats ? (stats.user_count || stats.kc_user_count || 0) : '0'}</strong> staff users will be locked out immediately.
                 </p>
                 <div className="form-group">
                   <label>Suspension Reason *</label>
@@ -760,10 +778,10 @@ export function TenantDetailPage() {
                 <h4 style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Data Loss Statistics Summary:</h4>
                 <div style={{ padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid var(--color-border)' }}>
                   <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.8125rem', lineHeight: '1.5' }}>
-                    <li>Active Hospital Staff Accounts: <strong>18 accounts</strong></li>
-                    <li>Stored Patient Demographic Profiles: <strong>8,450 records</strong></li>
-                    <li>Document Storage attachments: <strong>23 GB</strong></li>
-                    <li>Provisioned Database Space: <strong>184 MB</strong></li>
+                    <li>Active Hospital Staff Accounts: <strong>{stats ? (stats.user_count || stats.kc_user_count || 0) : '0'} accounts</strong></li>
+                    <li>Stored Patient Demographic Profiles: <strong>{stats ? (stats.patient_count || 0).toLocaleString() : '0'} records</strong></li>
+                    <li>Document Storage attachments: <strong>{analytics && analytics.storage_growth ? analytics.storage_growth[analytics.storage_growth.length - 1] : '0'} GB</strong></li>
+                    <li>Provisioned Database Space: <strong>{stats ? (stats.db_size_mb || 0) : '0'} MB</strong></li>
                   </ul>
                 </div>
 

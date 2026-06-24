@@ -935,6 +935,13 @@ p {
   animation: dropdownFadeIn 0.1s ease-out;
 }
 
+.dropdown-menu-wrapper.dropdown-menu-up {
+  top: auto;
+  bottom: calc(100% + 0.25rem);
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
 @keyframes dropdownFadeIn {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1095,3 +1102,30 @@ p {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
+
+/* Read-only Support Impersonation styling */
+.read-only-session input,
+.read-only-session select,
+.read-only-session textarea {
+  user-select: none !important;
+}
+
+.read-only-session input[disabled],
+.read-only-session select[disabled],
+.read-only-session textarea[disabled] {
+  pointer-events: none !important;
+  opacity: 0.7 !important;
+  background-color: var(--color-bg) !important;
+  cursor: not-allowed !important;
+}
+
+.read-only-session button[disabled] {
+  pointer-events: none !important;
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.read-only-session label {
+  cursor: not-allowed !important;
+}
+

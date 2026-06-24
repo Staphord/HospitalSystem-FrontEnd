@@ -17,6 +17,7 @@ export function SubscriptionDetailPage() {
   const [isChangePlanOpen, setIsChangePlanOpen] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [now] = useState(() => Date.now())
+  const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase()
 
   useEffect(() => {
     if (!id) return
@@ -75,8 +76,57 @@ export function SubscriptionDetailPage() {
 
   const handleChangePlan = async (newPlanName: string) => {
     if (!subscription || !id) return
+    const planSlug = newPlanName.toLowerCase()
+
+    const targetPlan = plans.find((p) => p.plan_name.toLowerCase() === planSlug)
+    if (!targetPlan) {
+      toast.error('Selected plan was not found.')
+      return
+    }
+
+    // Map plan names to their rankings
+    const PLAN_RANKS: Record<string, number> = {
+      'free trial': 0,
+      'free_trial': 0,
+      'trial': 0,
+      'basic': 1,
+      'standard': 2,
+      'premium': 3,
+      'enterprise': 4
+    }
+
+    const currentRank = PLAN_RANKS[subscription.plan_name.toLowerCase()] ?? 0
+    const targetRank = PLAN_RANKS[planSlug] ?? 0
+
     try {
-      await masterService.updateSubscription(id, { plan_name: newPlanName })
+      if (subscription.status.toLowerCase() === 'trial') {
+        await masterService.upgradeSubscriptionEndpoint(subscription.id, {
+          plan_id: targetPlan.plan_id
+        })
+      } else if (targetRank > currentRank) {
+        await masterService.upgradeSubscriptionEndpoint(subscription.id, {
+          plan_id: targetPlan.plan_id
+        })
+      } else {
+        await masterService.downgradeSubscriptionEndpoint(subscription.id, {
+          plan_id: targetPlan.plan_id
+        })
+      }
+
+      // Generate manual override zero-amount adjustment invoice on the server
+      await masterService.createInvoice({
+        tenant_id: subscription.tenant_id,
+        subscription_id: subscription.id,
+        plan_name: newPlanName,
+        billing_period_start: new Date().toISOString().split('T')[0],
+        billing_period_end: subscription.end_date || new Date().toISOString().split('T')[0],
+        currency: tenant?.currency || 'USD',
+        amount: 0,
+        status: 'paid',
+        description: `Admin manual override adjustment to plan: ${newPlanName}`,
+        due_date: new Date().toISOString().split('T')[0]
+      })
+
       const allSubs = await masterService.listSubscriptions()
       const sub = allSubs.find((s) => s.id === id)
       if (sub) {
@@ -86,6 +136,7 @@ export function SubscriptionDetailPage() {
       }
     } catch {
       toast.error('Failed to change subscription plan.')
+      throw new Error('Failed to change subscription plan.')
     }
   }
 
@@ -114,15 +165,18 @@ export function SubscriptionDetailPage() {
 
   const daysRemaining = getDaysRemaining()
   const activePlanDetails = plans.find(
-    (p) => p.plan_name.toLowerCase() === subscription.plan_name.toLowerCase()
+    (p) => safeLower(p.plan_name) === safeLower(subscription.plan_name)
   )
+  const includedModules = Array.isArray(activePlanDetails?.modules_included)
+    ? activePlanDetails.modules_included
+    : []
 
   // Determine styles and labels for countdown display
   let countdownBg = 'rgba(54, 179, 126, 0.1)'
   let countdownColor = '#36b37e'
   let countdownLabel = 'Healthy'
 
-  if (subscription.status.toLowerCase() === 'suspended' || subscription.status.toLowerCase() === 'expired') {
+  if (safeLower(subscription.status) === 'suspended' || safeLower(subscription.status) === 'expired') {
     countdownBg = 'rgba(255, 86, 48, 0.1)'
     countdownColor = '#ff5630'
     countdownLabel = 'Expired / Suspended'
@@ -174,8 +228,8 @@ export function SubscriptionDetailPage() {
               </div>
               <div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)', marginBottom: '0.25rem' }}>Current Status</div>
-                <span className={`status-badge status-${subscription.status.toLowerCase()}`}>
-                  {subscription.status.replace('_', ' ')}
+                <span className={`status-badge status-${safeLower(subscription.status)}`}>
+                  {subscription.status ? subscription.status.replace('_', ' ') : 'unknown'}
                 </span>
               </div>
             </div>
@@ -216,11 +270,11 @@ export function SubscriptionDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                 <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '8px' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>Staff Accounts</div>
-                  <strong style={{ fontSize: '1.25rem' }}>{activePlanDetails.max_users === null ? 'Unlimited' : activePlanDetails.max_users}</strong>
+                  <strong style={{ fontSize: '1.25rem' }}>{activePlanDetails.max_users == null ? 'Unlimited' : activePlanDetails.max_users}</strong>
                 </div>
                 <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '8px' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>Patient Records</div>
-                  <strong style={{ fontSize: '1.25rem' }}>{activePlanDetails.max_patients === null ? 'Unlimited' : activePlanDetails.max_patients.toLocaleString()}</strong>
+                  <strong style={{ fontSize: '1.25rem' }}>{activePlanDetails.max_patients == null ? 'Unlimited' : activePlanDetails.max_patients.toLocaleString()}</strong>
                 </div>
                 <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '8px' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>Storage Space</div>
@@ -233,7 +287,7 @@ export function SubscriptionDetailPage() {
                   Included Application Modules
                 </h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                  {activePlanDetails.modules_included.map((mod) => (
+                  {includedModules.map((mod) => (
                     <span
                       key={mod}
                       className="badge"

@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
 import { API_BASE_URL } from '@/lib/constants'
 import { useAuthStore, getStoredRefreshToken } from '@/store/authStore'
+import { isReadOnlyToken } from '@/lib/token'
 import type { TokenResponse } from '@/api/types/auth'
 import type { Tenant, SubscriptionPlan, Subscription, Invoice, MasterAdminUser } from '@/api/types/master'
 import type { HospitalUser, ActiveSession, FeeItem, Provider, WardItem, Department } from '@/api/types/admin'
@@ -36,11 +37,51 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+// Response interceptor to map backend IDs (invoice_id, subscription_id, announcement_id, payment_id) to frontend expected 'id'
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => {
+    const mapKeys = (obj: any): any => {
+      if (!obj || typeof obj !== 'object') return obj
+      if (Array.isArray(obj)) {
+        return obj.map(mapKeys)
+      }
+      
+      const newObj = { ...obj }
+      
+      if ('invoice_id' in newObj && !('id' in newObj)) {
+        newObj.id = newObj.invoice_id
+      }
+      if ('subscription_id' in newObj && !('id' in newObj)) {
+        newObj.id = newObj.subscription_id
+      }
+      if ('announcement_id' in newObj && !('id' in newObj)) {
+        newObj.id = newObj.announcement_id
+      }
+      if ('payment_id' in newObj && !('id' in newObj)) {
+        newObj.id = newObj.payment_id
+      }
+      
+      for (const key in newObj) {
+        if (typeof newObj[key] === 'object' && newObj[key] !== null) {
+          newObj[key] = mapKeys(newObj[key])
+        }
+      }
+      return newObj
+    }
+    
+    response.data = mapKeys(response.data)
+    return response
+  },
+  (error: AxiosError) => {
+    return Promise.reject(error)
+  }
+)
+
 // MOCK API LAYER & PERSISTENT LOCAL STORAGE STATE
 const MOCK_ENABLED = true // Frontend-only flow enabled by default
 
 // Initial Mock Data Helpers
-const initLocalStorage = () => {
+export const initLocalStorage = () => {
   if (!localStorage.getItem('hf_mock_tenants')) {
     localStorage.setItem('hf_mock_tenants', JSON.stringify([
       { tenant_id: 'aga-khan', hospital_name: 'Aga Khan Hospital', status: 'active', created_at: '2025-01-10T08:00:00Z', subscription_end: '2026-12-31T23:59:59Z', country: 'Kenya', city: 'Nairobi', address: 'Limuru Road', timezone: 'Africa/Nairobi', currency: 'TSH', logo: '', data_region: 'AF-South', contact_name: 'Dr. John Miller', contact_email: 'john.miller@agakhan.org', contact_phone: '+254 711 090000', grace_days: 15 },
@@ -469,29 +510,78 @@ const defaultAdapter = axios.getAdapter(axios.defaults.adapter) as any
 
 apiClient.defaults.adapter = async (config) => {
   let url = config.url || ''
+  const token = useAuthStore.getState().accessToken
+  const isReadOnly = token ? isReadOnlyToken(token) : false
+  let method = config.method ? config.method.toLowerCase() : 'get'
+  const isWriteMethod = ['post', 'put', 'patch', 'delete'].includes(method)
+  const isAuthExempt = url.includes('/auth/refresh') || url.includes('/auth/logout') || url.includes('/auth/logout-all')
+
+  if (isReadOnly && isWriteMethod && !isAuthExempt) {
+    return Promise.reject({
+      response: {
+        status: 403,
+        statusText: 'Forbidden',
+        data: { detail: 'Action not allowed: Support impersonation mode is read-only' },
+        headers: {},
+        config,
+      },
+      message: 'Request failed with status code 403',
+      config,
+      isAxiosError: true,
+      toJSON: () => ({}),
+    })
+  }
+
   const useRealBackend =
     url.includes('/auth/login') ||
     url.includes('/auth/superadmin/login') ||
+    url.includes('/auth/signup') ||
+    url.includes('/auth/refresh') ||
     url.includes('/auth/logout') ||
     url.includes('/auth/logout-all') ||
     url.includes('/auth/password-reset') ||
     url.includes('/auth/mfa/') ||
+    url.includes('/auth/impersonate') ||
     url.includes('/me') ||
     url.includes('/superadmin/') ||
     url.includes('/tenants') ||
-    url.includes('/master-admins')
+    url.includes('/subscriptions') ||
+    url.includes('/invoices') ||
+    url.includes('/plans') ||
+    url.includes('/finance') ||
+    url.includes('/master-admins') ||
+    url.includes('/announcements')
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url.startsWith('/tenants')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/master-admins')) {
       config.url = `/superadmin/users`
+    } else if (url.startsWith('/subscriptions')) {
+      config.url = `/superadmin${url}`
+    } else if (url.startsWith('/invoices')) {
+      const methodLower = config.method?.toLowerCase()
+      if (methodLower === 'post') {
+        const bodyObj = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
+        if (bodyObj && bodyObj.tenant_id) {
+          config.url = `/superadmin/tenants/${bodyObj.tenant_id}/invoices`
+        } else {
+          config.url = `/superadmin${url}`
+        }
+      } else {
+        config.url = `/superadmin${url}`
+      }
+    } else if (url.startsWith('/plans')) {
+      config.url = `/superadmin${url}`
+    } else if (url.startsWith('/finance')) {
+    } else if (url.startsWith('/announcements')) {
+      config.url = `/superadmin${url}`
     }
     if (defaultAdapter) return defaultAdapter(config)
   }
 
   url = config.url || ''
-  const method = config.method ? config.method.toLowerCase() : 'get'
+  method = config.method ? config.method.toLowerCase() : 'get'
   const data = config.data ? JSON.parse(config.data) : null
   const headers = (config.headers || {}) as Record<string, string | number | boolean>
 
@@ -742,11 +832,11 @@ apiClient.defaults.adapter = async (config) => {
         address: data.address || '',
         timezone: data.timezone || 'Africa/Dar_es_Salaam',
         currency: data.currency || 'TZS',
-        logo: data.logo || '',
+        logo: data.logo_url || data.logo || '',
         data_region: data.data_region || 'AF-East',
-        contact_name: data.admin_full_name || 'Admin',
-        contact_email: data.admin_email || '',
-        contact_phone: data.contact_phone || '',
+        contact_name: data.primary_contact_name || data.admin_full_name || 'Admin',
+        contact_email: data.primary_contact_email || data.admin_email || '',
+        contact_phone: data.primary_contact_phone || data.contact_phone || '',
         billing_email: data.billing_email || data.admin_email || '',
         tax_id: data.tax_id || '',
         grace_days: Number(data.grace_days) || 14,

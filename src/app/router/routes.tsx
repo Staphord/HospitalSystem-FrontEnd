@@ -7,6 +7,7 @@ import { ProtectedRoute } from '@/app/router/ProtectedRoute'
 import { RoleRoute } from '@/app/router/RoleRoute'
 import { ROLES } from '@/lib/roles'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { HospitalLoginPage } from '@/features/auth/pages/HospitalLoginPage'
 import { SignupPage } from '@/features/auth/pages/SignupPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
@@ -16,6 +17,7 @@ import { MfaSelectionPage } from '@/features/auth/pages/MfaSelectionPage'
 import { MfaVerificationPage } from '@/features/auth/pages/MfaVerificationPage'
 import { FirstLoginChangePasswordPage } from '@/features/auth/pages/FirstLoginChangePasswordPage'
 import { DeactivatedAccountPage } from '@/features/auth/pages/DeactivatedAccountPage'
+import { ImpersonationSwitchPage } from '@/features/auth/pages/ImpersonationSwitchPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { UserManagementPage } from '@/features/admin/pages/UserManagementPage'
 import { AddStaffPage } from '@/features/admin/pages/AddStaffPage'
@@ -91,7 +93,7 @@ export const routes = [
   {
     element: <AuthLayout />,
     children: [
-      { path: '/login', element: <LoginPage /> },
+      { path: '/login', element: <HospitalLoginPage /> },
       { path: '/master/login', element: <LoginPage /> },
       { path: '/signup', element: <SignupPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
@@ -107,6 +109,7 @@ export const routes = [
   {
     element: <ProtectedRoute />,
     children: [
+      { path: '/impersonation/switching', element: <ImpersonationSwitchPage /> },
       {
         element: <RoleRoute allowed={[ROLES.superAdmin]} />,
         children: [

@@ -23,22 +23,26 @@ const AVAILABLE_MODULES = [
 ]
 
 export function EditPlanModal({ plan, onClose, onSave }: EditPlanModalProps) {
-  const [planName, setPlanName] = useState(plan.plan_name)
-  const [description, setDescription] = useState(plan.description || '')
-  const [monthlyPrice, setMonthlyPrice] = useState(plan.monthly_price.toString())
-  const [annualPrice, setAnnualPrice] = useState(plan.annual_price.toString())
-  
-  const [isUnlimitedUsers, setIsUnlimitedUsers] = useState(plan.max_users === null)
-  const [maxUsers, setMaxUsers] = useState(plan.max_users ? plan.max_users.toString() : '10')
+  const safeString = (value: string | null | undefined, fallback = '') => value ?? fallback
+  const safeNumberInput = (value: number | null | undefined, fallback: number) => String(value ?? fallback)
+  const safeArray = (value: string[] | null | undefined) => (Array.isArray(value) ? value : [])
 
-  const [isUnlimitedPatients, setIsUnlimitedPatients] = useState(plan.max_patients === null)
-  const [maxPatients, setMaxPatients] = useState(plan.max_patients ? plan.max_patients.toString() : '10000')
-
-  const [storageGb, setStorageGb] = useState(plan.storage_gb.toString())
-  const [uptimeSla, setUptimeSla] = useState(plan.uptime_sla_pct.toString())
-  const [backupHours, setBackupHours] = useState(plan.backup_frequency_hours.toString())
+  const [planName, setPlanName] = useState(safeString(plan.plan_name))
+  const [description, setDescription] = useState(safeString(plan.description))
+  const [monthlyPrice, setMonthlyPrice] = useState(safeNumberInput(plan.monthly_price, 0))
+  const [annualPrice, setAnnualPrice] = useState(safeNumberInput(plan.annual_price, 0))
   
-  const [selectedModules, setSelectedModules] = useState<string[]>(plan.modules_included)
+  const [isUnlimitedUsers, setIsUnlimitedUsers] = useState(plan.max_users == null)
+  const [maxUsers, setMaxUsers] = useState(safeNumberInput(plan.max_users, 10))
+
+  const [isUnlimitedPatients, setIsUnlimitedPatients] = useState(plan.max_patients == null)
+  const [maxPatients, setMaxPatients] = useState(safeNumberInput(plan.max_patients, 10000))
+
+  const [storageGb, setStorageGb] = useState(safeNumberInput(plan.storage_gb, 0))
+  const [uptimeSla, setUptimeSla] = useState(safeNumberInput(plan.uptime_sla_pct, 0))
+  const [backupHours, setBackupHours] = useState(safeNumberInput(plan.backup_frequency_hours, 0))
+  
+  const [selectedModules, setSelectedModules] = useState<string[]>(safeArray(plan.modules_included))
   const [submitting, setSubmitting] = useState(false)
 
   const handleModuleToggle = (mod: string) => {
@@ -81,7 +85,7 @@ export function EditPlanModal({ plan, onClose, onSave }: EditPlanModalProps) {
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '650px', width: '100%' }}>
         <div className="modal-header">
-          <h3>Edit Plan Configuration - {plan.plan_name}</h3>
+          <h3>Edit Plan Configuration - {safeString(plan.plan_name, 'Unnamed Plan')}</h3>
           <button className="modal-close" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>
             &times;
           </button>
