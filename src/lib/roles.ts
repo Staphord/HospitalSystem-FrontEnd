@@ -14,6 +14,37 @@ export const ROLES = {
 
 export type Role = (typeof ROLES)[keyof typeof ROLES]
 
+/** Normalize role strings from JWT or /me (e.g. "Lab Technician" → "lab_technician"). */
+export function normalizeRole(role: string): string {
+  return role.toLowerCase().trim().replace(/[\s-]+/g, '_')
+}
+
+export function collectUserRoles(roles: string[], userRole?: string | null): string[] {
+  const merged = new Set<string>()
+  for (const role of roles) {
+    if (role) merged.add(normalizeRole(role))
+  }
+  if (userRole) merged.add(normalizeRole(userRole))
+  return [...merged]
+}
+
+export function hasEffectiveRole(
+  roles: string[],
+  userRole: string | null | undefined,
+  target: Role | string,
+): boolean {
+  const normalizedTarget = normalizeRole(target)
+  return collectUserRoles(roles, userRole).includes(normalizedTarget)
+}
+
+export function hasAnyEffectiveRole(
+  roles: string[],
+  userRole: string | null | undefined,
+  targets: (Role | string)[],
+): boolean {
+  return targets.some((target) => hasEffectiveRole(roles, userRole, target))
+}
+
 export interface NavItem {
   label: string
   path: string
@@ -160,11 +191,6 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
-    label: 'Results Entry',
-    path: '/laboratory/results',
-    roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
-  },
-  {
     label: 'Specimen Tracking',
     path: '/laboratory/specimens',
     roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
@@ -217,15 +243,16 @@ export const MASTER_NAV: NavItem[] = [
   { label: 'Audit Logs', path: '/master/audit-logs', roles: [ROLES.superAdmin] },
 ]
 
-export function getDefaultRoute(roles: string[]): string {
-  if (roles.includes(ROLES.superAdmin)) return '/master/dashboard'
-  if (roles.includes(ROLES.hospitalAdmin)) return '/admin/dashboard'
-  if (roles.includes(ROLES.doctor)) return '/dashboard'
-  if (roles.includes(ROLES.triageNurse)) return '/dashboard'
-  if (roles.includes(ROLES.receptionist)) return '/dashboard'
-  if (roles.includes(ROLES.labTechnician)) return '/dashboard'
-  if (roles.includes(ROLES.radiographer)) return '/radiology/schedule'
-  if (roles.includes(ROLES.pharmacist)) return '/pharmacy/dispense'
-  if (roles.includes(ROLES.cashier)) return '/billing'
+export function getDefaultRoute(roles: string[], userRole?: string | null): string {
+  const effective = collectUserRoles(roles, userRole)
+  if (effective.includes(ROLES.superAdmin)) return '/master/dashboard'
+  if (effective.includes(ROLES.hospitalAdmin)) return '/admin/dashboard'
+  if (effective.includes(ROLES.doctor)) return '/dashboard'
+  if (effective.includes(ROLES.triageNurse)) return '/dashboard'
+  if (effective.includes(ROLES.receptionist)) return '/dashboard'
+  if (effective.includes(ROLES.labTechnician)) return '/dashboard'
+  if (effective.includes(ROLES.radiographer)) return '/radiology/schedule'
+  if (effective.includes(ROLES.pharmacist)) return '/pharmacy/dispense'
+  if (effective.includes(ROLES.cashier)) return '/billing'
   return '/dashboard'
 }

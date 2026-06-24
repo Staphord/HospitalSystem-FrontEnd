@@ -141,9 +141,7 @@ export function MfaLoginPage() {
       toast.success('Welcome back!')
 
       navigate(
-        getDefaultRoute(
-          getRolesFromToken(tokens.access_token)
-        ),
+        getDefaultRoute(getRolesFromToken(tokens.access_token), user?.role),
         { replace: true }
       )
     } catch {

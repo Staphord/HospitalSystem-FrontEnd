@@ -1,10 +1,6 @@
-import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
+import { Navigate } from 'react-router-dom'
 
+/** Legacy route — results entry is now scoped to a test request. */
 export function LabResultsPage() {
-  return (
-    <ComingSoonPage
-      title="Results Entry"
-      description="Waiting on /api/v1/laboratory/results endpoints."
-    />
-  )
+  return <Navigate to="/laboratory/requests" replace />
 }

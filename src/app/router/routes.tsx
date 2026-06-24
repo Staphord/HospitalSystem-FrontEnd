@@ -63,6 +63,7 @@ import { InpatientOrdersPage } from '@/features/consultation/pages/InpatientOrde
 import { InpatientDischargePage } from '@/features/consultation/pages/InpatientDischargePage'
 import { MyReferralsPage } from '@/features/consultation/pages/MyReferralsPage'
 import { LabRequestsPage } from '@/features/laboratory/pages/LabRequestsPage'
+import { LabRequestDetailPage } from '@/features/laboratory/pages/LabRequestDetailPage'
 import { LabResultsPage } from '@/features/laboratory/pages/LabResultsPage'
 import { SpecimenTrackingPage } from '@/features/laboratory/pages/SpecimenTrackingPage'
 import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
@@ -191,7 +192,10 @@ export const routes = [
           },
           {
             element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/laboratory/requests', element: <LabRequestsPage /> }],
+            children: [
+              { path: '/laboratory/requests', element: <LabRequestsPage /> },
+              { path: '/laboratory/requests/:requestId', element: <LabRequestDetailPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.hospitalAdmin]} />,

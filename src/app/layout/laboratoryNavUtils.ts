@@ -4,8 +4,6 @@ export function getLaboratoryNavIcon(label: string): string {
       return 'dashboard'
     case 'Test Requests':
       return 'biotech'
-    case 'Results Entry':
-      return 'assignment'
     case 'Specimen Tracking':
       return 'inventory_2'
     default:
@@ -16,8 +14,8 @@ export function getLaboratoryNavIcon(label: string): string {
 export function getLaboratoryPageTitle(path: string): string {
   const p = path.toLowerCase()
   if (p === '/dashboard' || p.endsWith('/dashboard')) return 'My Dashboard'
+  if (/\/laboratory\/requests\/[^/]+/.test(p)) return 'Test Request'
   if (p.includes('/laboratory/requests')) return 'Test Requests'
-  if (p.includes('/laboratory/results')) return 'Results Entry'
   if (p.includes('/laboratory/specimens')) return 'Specimen Tracking'
   if (p.includes('/notifications')) return 'Notifications'
   if (p.includes('/profile')) return 'My Profile'
@@ -32,9 +30,6 @@ export function isLaboratoryNavItemActive(navPath: string, pathname: string): bo
   }
   if (navPath === '/laboratory/requests') {
     return p.includes('/laboratory/requests')
-  }
-  if (navPath === '/laboratory/results') {
-    return p.includes('/laboratory/results')
   }
   if (navPath === '/laboratory/specimens') {
     return p.includes('/laboratory/specimens')

@@ -94,9 +94,9 @@ export function LoginPage() {
       setUser(user)
       toast.success('Welcome back!')
 
-      // If user is logging in for the first time (simulate with a condition or flag if needed)
-      // Here we will navigate to default route
-      navigate(getDefaultRoute(getRolesFromToken(tokens.access_token)))
+      navigate(
+        getDefaultRoute(getRolesFromToken(tokens.access_token), user?.role),
+      )
     } catch (err: any) {
       console.error('[DEBUG LOGIN ERROR] Full error:', err)
       if (err?.response) {

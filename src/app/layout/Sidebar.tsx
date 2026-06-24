@@ -162,11 +162,7 @@ export function Sidebar() {
         },
         {
           title: 'Laboratory',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/laboratory/requests' ||
-              item.path === '/laboratory/results'
-          ),
+          items: visibleItems.filter((item) => item.path === '/laboratory/requests'),
         },
         {
           title: 'Specimens',
@@ -501,7 +497,6 @@ export function Sidebar() {
         section: 'Laboratory',
         items: [
           { label: 'Test Requests', path: '/laboratory/requests' },
-          { label: 'Results Entry', path: '/laboratory/results' },
         ],
       },
       {

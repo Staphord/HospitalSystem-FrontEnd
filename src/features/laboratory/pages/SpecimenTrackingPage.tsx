@@ -1,10 +1,5 @@
-import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
+import { LabSpecimensContent } from '@/features/laboratory/components/LabSpecimensContent'
 
 export function SpecimenTrackingPage() {
-  return (
-    <ComingSoonPage
-      title="Specimen Tracking"
-      description="Waiting on /api/v1/laboratory/specimens endpoints."
-    />
-  )
+  return <LabSpecimensContent />
 }
