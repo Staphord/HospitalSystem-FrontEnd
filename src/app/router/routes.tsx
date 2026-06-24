@@ -56,7 +56,18 @@ import { TriageHistoryPage } from '@/features/triage/pages/TriageHistoryPage'
 import { TriageHistoryPatientPage } from '@/features/triage/pages/TriageHistoryPatientPage'
 import { TriageAssessPage } from '@/features/triage/pages/TriageAssessPage'
 import { ConsultationQueuePage } from '@/features/consultation/pages/ConsultationQueuePage'
+import { EncounterPage } from '@/features/consultation/pages/EncounterPage'
+import { InvestigationResultsPage } from '@/features/consultation/pages/InvestigationResultsPage'
+import { ConsultationHistoryPage } from '@/features/consultation/pages/ConsultationHistoryPage'
+import { ConsultationHistoryPatientPage } from '@/features/consultation/pages/ConsultationHistoryPatientPage'
+import { InpatientPage } from '@/features/consultation/pages/InpatientPage'
+import { InpatientOrdersPage } from '@/features/consultation/pages/InpatientOrdersPage'
+import { InpatientDischargePage } from '@/features/consultation/pages/InpatientDischargePage'
+import { MyReferralsPage } from '@/features/consultation/pages/MyReferralsPage'
 import { LabRequestsPage } from '@/features/laboratory/pages/LabRequestsPage'
+import { LabRequestDetailPage } from '@/features/laboratory/pages/LabRequestDetailPage'
+import { LabResultsPage } from '@/features/laboratory/pages/LabResultsPage'
+import { SpecimenTrackingPage } from '@/features/laboratory/pages/SpecimenTrackingPage'
 import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
 import { DispensingPage } from '@/features/pharmacy/pages/DispensingPage'
 import { BillsPage } from '@/features/billing/pages/BillsPage'
@@ -170,11 +181,31 @@ export const routes = [
           },
           {
             element: <RoleRoute allowed={[ROLES.doctor, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/consultation/queue', element: <ConsultationQueuePage /> }],
+            children: [
+              { path: '/consultation/queue', element: <ConsultationQueuePage /> },
+              { path: '/consultation/encounter/:visitId', element: <EncounterPage /> },
+              { path: '/consultation/results', element: <InvestigationResultsPage /> },
+              { path: '/consultation/inpatient', element: <InpatientPage /> },
+              { path: '/consultation/inpatient/:admissionId/orders', element: <InpatientOrdersPage /> },
+              { path: '/consultation/inpatient/:admissionId/discharge', element: <InpatientDischargePage /> },
+              { path: '/consultation/history', element: <ConsultationHistoryPage /> },
+              { path: '/consultation/history/:patientId', element: <ConsultationHistoryPatientPage /> },
+              { path: '/consultation/referrals', element: <MyReferralsPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/laboratory/requests', element: <LabRequestsPage /> }],
+            children: [
+              { path: '/laboratory/requests', element: <LabRequestsPage /> },
+              { path: '/laboratory/requests/:requestId', element: <LabRequestDetailPage /> },
+            ],
+          },
+          {
+            element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.hospitalAdmin]} />,
+            children: [
+              { path: '/laboratory/results', element: <LabResultsPage /> },
+              { path: '/laboratory/specimens', element: <SpecimenTrackingPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin]} />,

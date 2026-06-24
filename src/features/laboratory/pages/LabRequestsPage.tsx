@@ -1,10 +1,5 @@
-import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
+import { LabRequestsContent } from '@/features/laboratory/components/LabRequestsContent'
 
 export function LabRequestsPage() {
-  return (
-    <ComingSoonPage
-      title="Laboratory requests"
-      description="Waiting on /api/v1/laboratory endpoints."
-    />
-  )
+  return <LabRequestsContent />
 }

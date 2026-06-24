@@ -620,6 +620,8 @@ apiClient.defaults.adapter = async (config) => {
       roles = ['receptionist']
     } else if (username === 'nurse') {
       roles = ['triage_nurse']
+    } else if (username === 'lab' || username === 'labtech' || username === 'labtechnician') {
+      roles = ['lab_technician']
     } else if (username === 'pharmacist') {
       roles = ['pharmacist']
     } else if (username === 'cashier') {
