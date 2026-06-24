@@ -36,22 +36,24 @@ export interface IncidentCreate {
 }
 
 export interface Announcement {
-  id: string
+  announcement_id: string
   title: string
-  message: string
-  type: 'info' | 'alert' | 'maintenance'
-  scope: 'all' | 'tenants_only' | 'staff_only'
-  display_format: 'banner' | 'modal' | 'toast'
-  active: boolean
+  body: string
+  audience: 'all' | 'selected'
+  target_tenant_ids: string[] | null
+  publish_at: string
+  expires_at: string | null
+  created_by?: string | null
   created_at: string
 }
 
 export interface AnnouncementCreate {
   title: string
-  message: string
-  type: 'info' | 'alert' | 'maintenance'
-  scope: 'all' | 'tenants_only' | 'staff_only'
-  display_format: 'banner' | 'modal' | 'toast'
+  body: string
+  audience: 'all' | 'selected'
+  target_tenant_ids?: string[] | null
+  publish_at: string
+  expires_at?: string | null
 }
 
 export interface AuditLog {
@@ -79,8 +81,11 @@ export const monitoringService = {
   createAnnouncement: (data: AnnouncementCreate) =>
     apiClient.post<Announcement>('/announcements', data).then((r) => r.data),
 
-  updateAnnouncement: (announcementId: string, data: Partial<Announcement>) =>
+  updateAnnouncement: (announcementId: string, data: Partial<AnnouncementCreate>) =>
     apiClient.patch<Announcement>(`/announcements/${announcementId}`, data).then((r) => r.data),
+
+  deleteAnnouncement: (announcementId: string) =>
+    apiClient.delete(`/announcements/${announcementId}`).then(() => {}),
 
   getAuditLogs: () =>
     apiClient.get<AuditLog[]>('/audit-logs').then((r) => r.data),

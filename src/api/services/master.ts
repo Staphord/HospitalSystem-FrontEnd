@@ -3,6 +3,7 @@ import type {
   Invoice,
   MasterAdminUser,
   MasterAdminUserCreate,
+  MasterAdminUserUpdate,
   Subscription,
   Tenant,
   TenantCreate,
@@ -64,13 +65,16 @@ export const masterService = {
     apiClient.patch<Invoice>(`/invoices/${invoiceId}`, data).then((r) => r.data),
 
   listMasterAdmins: () =>
-    apiClient.get<MasterAdminUser[]>('/master-admins').then((r) => r.data),
+    apiClient.get<MasterAdminUser[]>('/superadmin/users').then((r) => r.data),
 
   createMasterAdmin: (data: MasterAdminUserCreate) =>
-    apiClient.post<MasterAdminUser>('/master-admins', data).then((r) => r.data),
+    apiClient.post<MasterAdminUser>('/superadmin/users', data).then((r) => r.data),
 
   deleteMasterAdmin: (username: string) =>
-    apiClient.delete('/master-admins', { data: { username } }),
+    apiClient.delete(`/superadmin/users`, { data: { username } }),
+
+  updateMasterAdmin: (userId: string, data: MasterAdminUserUpdate) =>
+    apiClient.patch<MasterAdminUser>(`/superadmin/users/${userId}`, data).then((r) => r.data),
 
   listPlans: () =>
     apiClient.get<SubscriptionPlan[]>('/plans').then((r) => r.data),
@@ -86,5 +90,14 @@ export const masterService = {
 
   getRevenueHistory: () =>
     apiClient.get<{ months: string[]; revenue: number[] }>('/finance/revenue-history').then((r) => r.data),
+
+  listActiveSessions: () =>
+    apiClient.get<any[]>('/superadmin/sessions').then((r) => r.data),
+
+  revokeSession: (sessionId: string) =>
+    apiClient.delete(`/superadmin/sessions/${sessionId}`),
+
+  revokeAllSessions: () =>
+    apiClient.delete('/superadmin/sessions'),
 }
 

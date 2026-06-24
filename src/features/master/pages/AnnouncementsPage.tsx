@@ -2,280 +2,341 @@ import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { monitoringService } from '@/api/services/monitoring'
-import type { Announcement } from '@/api/services/monitoring'
+import { masterService } from '@/api/services/master'
+import type { Announcement, AnnouncementCreate } from '@/api/services/monitoring'
+import type { Tenant } from '@/api/types/master'
+
+import { AnnouncementStats } from '../components/announcements/AnnouncementStats'
+import { AnnouncementTable } from '../components/announcements/AnnouncementTable'
+import { AnnouncementDrawer } from '../components/announcements/AnnouncementDrawer'
+import { AnnouncementPreview } from '../components/announcements/AnnouncementPreview'
+import { DeleteConfirmationModal } from '../components/announcements/DeleteConfirmationModal'
 
 export function AnnouncementsPage() {
+  // Data States
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-  // Form State
+  // Filter / Search States
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'scheduled' | 'expired'>('all')
+
+  // Drawer / Form States
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
-  const [message, setMessage] = useState('')
-  const [type, setType] = useState<'info' | 'alert' | 'maintenance'>('info')
-  const [scope, setScope] = useState<'all' | 'tenants_only' | 'staff_only'>('all')
-  const [displayFormat, setDisplayFormat] = useState<'banner' | 'modal' | 'toast'>('banner')
+  const [body, setBody] = useState('')
+  const [audience, setAudience] = useState<'all' | 'selected'>('all')
+  const [targetTenantIds, setTargetTenantIds] = useState<string[]>([])
+  const [publishAt, setPublishAt] = useState('')
+  const [expiresAt, setExpiresAt] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const fetchAnnouncements = async () => {
+  // Preview State
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<Announcement | null>(null)
+  
+  // Delete Confirmation State
+  const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null)
+
+  // Helper to format ISO to datetime-local format (YYYY-MM-DDThh:mm)
+  const formatIsoToDatetimeLocal = (isoString?: string | null) => {
+    if (!isoString) return ''
+    const date = new Date(isoString)
+    const pad = (num: number) => String(num).padStart(2, '0')
+    const yyyy = date.getFullYear()
+    const MM = pad(date.getMonth() + 1)
+    const dd = pad(date.getDate())
+    const hh = pad(date.getHours())
+    const mm = pad(date.getMinutes())
+    return `${yyyy}-${MM}-${dd}T${hh}:${mm}`
+  }
+
+  // Fetch announcements and tenants on mount
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const data = await monitoringService.listAnnouncements()
-      setAnnouncements(data)
+      const [annData, tenantData] = await Promise.all([
+        monitoringService.listAnnouncements(),
+        masterService.listTenants()
+      ])
+      setAnnouncements(annData)
+      setTenants(tenantData)
     } catch (err) {
-      toast.error('Failed to load announcements.')
+      toast.error('Failed to load announcements or tenant list.')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchAnnouncements()
+    fetchData()
   }, [])
 
-  const handleCreate = async (e: React.FormEvent) => {
+  // Calculate status of an announcement
+  const getAnnouncementStatus = (ann: Announcement): 'active' | 'scheduled' | 'expired' => {
+    const now = new Date()
+    const pub = new Date(ann.publish_at)
+    const exp = ann.expires_at ? new Date(ann.expires_at) : null
+
+    if (pub > now) return 'scheduled'
+    if (exp && exp < now) return 'expired'
+    return 'active'
+  }
+
+  // Open drawer for creating a new announcement
+  const handleOpenCreate = () => {
+    setEditingId(null)
+    setTitle('')
+    setBody('')
+    setAudience('all')
+    setTargetTenantIds([])
+    setPublishAt(formatIsoToDatetimeLocal(new Date().toISOString()))
+    setExpiresAt('')
+    setIsDrawerOpen(true)
+  }
+
+  // Open drawer for editing an announcement
+  const handleOpenEdit = (ann: Announcement) => {
+    setEditingId(ann.announcement_id)
+    setTitle(ann.title)
+    setBody(ann.body)
+    setAudience(ann.audience)
+    setTargetTenantIds(ann.target_tenant_ids || [])
+    setPublishAt(formatIsoToDatetimeLocal(ann.publish_at))
+    setExpiresAt(formatIsoToDatetimeLocal(ann.expires_at))
+    setIsDrawerOpen(true)
+  }
+
+  // Handle Form Submission (Create or Edit)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!title.trim() || !body.trim() || !publishAt) {
+      toast.error('Please fill in all required fields.')
+      return
+    }
+
     setSubmitting(true)
+    const payload: AnnouncementCreate = {
+      title,
+      body,
+      audience,
+      target_tenant_ids: audience === 'selected' ? targetTenantIds : null,
+      publish_at: new Date(publishAt).toISOString(),
+      expires_at: expiresAt ? new Date(expiresAt).toISOString() : null
+    }
 
     try {
-      await monitoringService.createAnnouncement({
-        title,
-        message,
-        type,
-        scope,
-        display_format: displayFormat,
-      })
-      toast.success('Announcement broadcasted successfully!')
-      setIsCreateOpen(false)
-      // Reset form
-      setTitle('')
-      setMessage('')
-      setType('info')
-      setScope('all')
-      setDisplayFormat('banner')
-      fetchAnnouncements()
+      if (editingId) {
+        await monitoringService.updateAnnouncement(editingId, payload)
+        toast.success('Announcement updated successfully!')
+      } else {
+        await monitoringService.createAnnouncement(payload)
+        toast.success('Announcement broadcasted successfully!')
+      }
+      setIsDrawerOpen(false)
+      fetchData()
     } catch (err) {
-      toast.error('Failed to create announcement.')
+      toast.error(editingId ? 'Failed to update announcement.' : 'Failed to create announcement.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleToggleActive = async (ann: Announcement) => {
+  // Handle Deactivation / Expiry
+  const handleDeactivate = async (ann: Announcement) => {
     try {
-      await monitoringService.updateAnnouncement(ann.id, { active: !ann.active })
-      toast.success(`Announcement ${ann.active ? 'deactivated' : 'activated'} successfully.`)
-      fetchAnnouncements()
+      await monitoringService.updateAnnouncement(ann.announcement_id, {
+        expires_at: new Date().toISOString()
+      })
+      toast.success('Announcement deactivated successfully.')
+      fetchData()
     } catch (err) {
-      toast.error('Failed to update announcement state.')
+      toast.error('Failed to deactivate announcement.')
     }
   }
 
-  const getScopeBadge = (scope: string) => {
-    switch (scope) {
-      case 'all':
-        return 'All Users'
-      case 'tenants_only':
-        return 'Tenant Admins Only'
-      case 'staff_only':
-        return 'Hospital Staff Only'
-      default:
-        return scope
+  // Handle Re-activation
+  const handleActivate = async (ann: Announcement) => {
+    try {
+      await monitoringService.updateAnnouncement(ann.announcement_id, {
+        publish_at: new Date().toISOString(),
+        expires_at: null
+      })
+      toast.success('Announcement activated successfully.')
+      fetchData()
+    } catch (err) {
+      toast.error('Failed to activate announcement.')
     }
   }
 
-  const getTypeBadgeClass = (type: string) => {
-    switch (type) {
-      case 'alert':
-        return 'status-badge status-terminated'
-      case 'maintenance':
-        return 'status-badge status-suspended'
-      case 'info':
-      default:
-        return 'status-badge status-active'
+  // Handle Deletion
+  const confirmDelete = async () => {
+    if (!announcementToDelete) return
+    try {
+      await monitoringService.deleteAnnouncement(announcementToDelete)
+      toast.success('Announcement deleted successfully.')
+      fetchData()
+    } catch (err) {
+      toast.error('Failed to delete announcement.')
+    } finally {
+      setAnnouncementToDelete(null)
     }
+  }
+
+  // Calculate Metrics
+  const activeCount = announcements.filter(ann => getAnnouncementStatus(ann) === 'active').length
+  const scheduledCount = announcements.filter(ann => getAnnouncementStatus(ann) === 'scheduled').length
+  const expiredCount = announcements.filter(ann => getAnnouncementStatus(ann) === 'expired').length
+
+  const activeAndScheduled = announcements.filter(ann => {
+    const status = getAnnouncementStatus(ann)
+    return status === 'active' || status === 'scheduled'
+  })
+  
+  const reachedTenantIds = new Set<string>()
+  let hasAllAudience = false
+
+  activeAndScheduled.forEach(ann => {
+    if (ann.audience === 'all') {
+      hasAllAudience = true
+    } else if (ann.target_tenant_ids) {
+      ann.target_tenant_ids.forEach(id => reachedTenantIds.add(id))
+    }
+  })
+
+  const reachCount = hasAllAudience ? tenants.length : reachedTenantIds.size
+
+  // Filter & Search List
+  const filteredAnnouncements = announcements.filter(ann => {
+    const status = getAnnouncementStatus(ann)
+    const matchesStatus = statusFilter === 'all' || status === statusFilter
+    const matchesSearch = 
+      ann.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      ann.body.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesStatus && matchesSearch
+  })
+
+  // Helpers
+  const getAudienceLabel = (ann: Announcement) => {
+    if (ann.audience === 'all') return 'All Tenants'
+    const count = ann.target_tenant_ids?.length || 0
+    return `${count} Selected ${count === 1 ? 'Tenant' : 'Tenants'}`
+  }
+
+  const formatDateTime = (isoString: string) => {
+    const d = new Date(isoString)
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const dateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} Local`
+    return { dateStr, timeStr }
   }
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <PageHeader
-          title="Announcements & Broadcasts"
-          description="Create system-wide notices, maintenance banners, and popups for target tenant scopes."
-        />
-        <button className="btn btn-primary" onClick={() => setIsCreateOpen(true)}>
-          📢 New Broadcast Notice
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-md mb-lg">
+        <div>
+          <PageHeader
+            title="Announcements & Broadcasts"
+            description="Manage platform-wide communications, updates, and notices for all tenants."
+          />
+        </div>
+        <button 
+          className="bg-primary-container text-white hover:bg-on-primary-fixed-variant transition-colors font-label-md text-label-md px-md py-sm rounded-lg flex items-center gap-xs shadow-sm whitespace-nowrap h-10 border-0 cursor-pointer"
+          onClick={handleOpenCreate}
+        >
+          <span className="material-symbols-outlined text-[18px]">add</span>
+          Create Announcement
         </button>
       </div>
 
-      <div className="card" style={{ padding: '1.5rem' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-secondary)' }}>
-            Loading broadcast log...
-          </div>
-        ) : announcements.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-secondary)' }}>
-            No system announcements broadcasted yet.
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Title & Message</th>
-                  <th>Type</th>
-                  <th>Target Scope</th>
-                  <th>Format</th>
-                  <th>Status</th>
-                  <th>Date Created</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {announcements.map((ann) => (
-                  <tr key={ann.id}>
-                    <td style={{ maxWidth: '300px' }}>
-                      <strong>{ann.title}</strong>
-                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {ann.message}
-                      </p>
-                    </td>
-                    <td>
-                      <span className={getTypeBadgeClass(ann.type)}>
-                        {ann.type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="badge" style={{ backgroundColor: '#e9ecef', color: '#495057' }}>
-                        {getScopeBadge(ann.scope)}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="badge" style={{ textTransform: 'capitalize' }}>
-                        {ann.display_format}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={ann.active ? 'status-badge status-active' : 'status-badge status-terminated'}>
-                        {ann.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>{new Date(ann.created_at).toLocaleDateString()}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                        onClick={() => handleToggleActive(ann)}
-                      >
-                        {ann.active ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Stats Cards Grid */}
+      <AnnouncementStats 
+        activeCount={activeCount}
+        scheduledCount={scheduledCount}
+        reachCount={reachCount}
+        expiredCount={expiredCount}
+      />
 
-      {isCreateOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '550px', width: '100%' }}>
-            <div className="modal-header">
-              <h2>New System Broadcast</h2>
-              <button className="modal-close" onClick={() => setIsCreateOpen(false)}>
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleCreate}>
-              <div className="modal-body">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label>Announcement Title</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      required
-                      placeholder="e.g. Scheduled Maintenance - June 15th"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Broadcast Message / Content</label>
-                    <textarea
-                      className="form-control"
-                      required
-                      rows={3}
-                      placeholder="Enter the notification message detail..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                    />
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="form-group">
-                      <label>Severity/Type</label>
-                      <select
-                        className="form-control"
-                        value={type}
-                        onChange={(e) => setType(e.target.value as any)}
-                      >
-                        <option value="info">Info (Blue/General)</option>
-                        <option value="alert">Alert (Red/Important)</option>
-                        <option value="maintenance">Maintenance (Amber)</option>
-                      </select>
-                    </div>
-
-                    <div className="form-group">
-                      <label>Target Audience / Scope</label>
-                      <select
-                        className="form-control"
-                        value={scope}
-                        onChange={(e) => setScope(e.target.value as any)}
-                      >
-                        <option value="all">All Registered Users</option>
-                        <option value="tenants_only">Tenant Space Admins Only</option>
-                        <option value="staff_only">Clinical Staff / Roles Only</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Display UI Format</label>
-                    <select
-                      className="form-control"
-                      value={displayFormat}
-                      onChange={(e) => setDisplayFormat(e.target.value as any)}
-                    >
-                      <option value="banner">Global Header Banner Warning</option>
-                      <option value="modal">On-Login Modal Pop-up</option>
-                      <option value="toast">Ephemeral Toast Notification</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setIsCreateOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={submitting}
-                >
-                  {submitting ? 'Broadcasting...' : 'Broadcast Notice'}
-                </button>
-              </div>
-            </form>
+      {/* Announcements Table Block */}
+      <div className="bg-surface-container-lowest border border-solid border-outline-variant rounded-lg overflow-hidden flex flex-col">
+        {/* Filters and Search toolbar */}
+        <div className="p-md border-0 border-b border-solid border-outline-variant flex flex-col sm:flex-row gap-md items-center justify-between bg-surface-bright">
+          <div className="relative grid items-center w-full sm:w-72">
+  <span className="material-symbols-outlined absolute left-sm text-outline text-[18px] h-full flex items-center">
+    search
+  </span>
+  <input 
+    className="w-full pl-xl pr-sm py-sm rounded border border-solid border-outline-variant focus:border-primary-container focus:ring-1 focus:ring-primary-container font-body-sm text-body-sm bg-surface-container-lowest" 
+    placeholder="Search announcements..." 
+    type="text"
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+  />
+</div>
+          <div className="flex gap-sm w-full sm:w-auto">
+            <select 
+              className="border border-solid border-outline-variant rounded px-sm py-sm font-body-sm text-body-sm bg-surface-container-lowest focus:border-primary-container focus:ring-1 focus:ring-primary-container w-full sm:w-auto cursor-pointer"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active Now</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="expired">Expired</option>
+            </select>
           </div>
         </div>
-      )}
+
+        {/* Table Body */}
+        <AnnouncementTable 
+          announcements={filteredAnnouncements}
+          loading={loading}
+          getAnnouncementStatus={getAnnouncementStatus}
+          getAudienceLabel={getAudienceLabel}
+          formatDateTime={formatDateTime}
+          onPreview={setPreviewAnnouncement}
+          onEdit={handleOpenEdit}
+          onDeactivate={handleDeactivate}
+          onActivate={handleActivate}
+          onDelete={(id) => setAnnouncementToDelete(id)}
+        />
+      </div>
+
+      <AnnouncementDrawer 
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSubmit={handleSubmit}
+        submitting={submitting}
+        editingId={editingId}
+        title={title}
+        setTitle={setTitle}
+        body={body}
+        setBody={setBody}
+        audience={audience}
+        setAudience={setAudience}
+        tenants={tenants}
+        targetTenantIds={targetTenantIds}
+        setTargetTenantIds={setTargetTenantIds}
+        publishAt={publishAt}
+        setPublishAt={setPublishAt}
+        expiresAt={expiresAt}
+        setExpiresAt={setExpiresAt}
+      />
+
+      <AnnouncementPreview 
+        announcement={previewAnnouncement}
+        onClose={() => setPreviewAnnouncement(null)}
+        getAudienceLabel={getAudienceLabel}
+        formatDateTime={formatDateTime}
+      />
+
+      <DeleteConfirmationModal
+        isOpen={!!announcementToDelete}
+        onClose={() => setAnnouncementToDelete(null)}
+        onConfirm={confirmDelete}
+      />
     </>
   )
 }

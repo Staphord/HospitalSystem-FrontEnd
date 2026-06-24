@@ -479,13 +479,16 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/me') ||
     url.includes('/superadmin/') ||
     url.includes('/tenants') ||
-    url.includes('/master-admins')
+    url.includes('/master-admins') ||
+    url.includes('/announcements')
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url.startsWith('/tenants')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/master-admins')) {
       config.url = `/superadmin/users`
+    } else if (url.startsWith('/announcements')) {
+      config.url = `/superadmin${url}`
     }
     if (defaultAdapter) return defaultAdapter(config)
   }
