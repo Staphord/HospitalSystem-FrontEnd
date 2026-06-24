@@ -5,7 +5,7 @@ import { masterService } from '@/api/services/master'
 interface CreateAdminDrawerProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (username: string, mfaSecret: string) => void
+  onSuccess: (username: string) => void
 }
 
 export function CreateAdminDrawer({ isOpen, onClose, onSuccess }: CreateAdminDrawerProps) {
@@ -21,27 +21,15 @@ export function CreateAdminDrawer({ isOpen, onClose, onSuccess }: CreateAdminDra
     e.preventDefault()
     setSubmitting(true)
 
-    // Generate a secure 32-character Base32 secret for TOTP
-    const generateBase32Secret = () => {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-      let secret = ''
-      for (let i = 0; i < 32; i++) {
-        secret += chars.charAt(Math.floor(Math.random() * chars.length))
-      }
-      return secret
-    }
-    const newMfaSecret = generateBase32Secret()
-
     try {
       await masterService.createMasterAdmin({
         username,
         password,
         email,
-        full_name: fullName || undefined,
-        mfa_secret: newMfaSecret
+        full_name: fullName || undefined
       })
       toast.success(`Platform administrator "${username}" created!`)
-      onSuccess(username, newMfaSecret)
+      onSuccess(username)
 
       // Reset form
       setUsername('')
