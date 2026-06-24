@@ -113,11 +113,14 @@ export interface Invoice {
 }
 
 export interface MasterAdminUser {
-  keycloak_sub: string
+  super_admin_id: string
+  keycloak_sub?: string
   username: string
   email: string
   full_name?: string | null
   role: string
+  is_active: boolean
+  last_login_at?: string | null
 }
 
 export interface MasterAdminUserCreate {
@@ -125,4 +128,15 @@ export interface MasterAdminUserCreate {
   password: string
   email: string
   full_name?: string
+  mfa_secret?: string
+}
+
+export interface MasterAdminUserUpdate {
+  username?: string
+  password?: string
+  email?: string
+  full_name?: string
+  role?: string
+  mfa_secret?: string
+  is_active?: boolean
 }

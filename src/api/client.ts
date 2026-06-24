@@ -549,7 +549,8 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/invoices') ||
     url.includes('/plans') ||
     url.includes('/finance') ||
-    url.includes('/master-admins')
+    url.includes('/master-admins') ||
+    url.includes('/announcements')
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url.startsWith('/tenants')) {
@@ -573,6 +574,7 @@ apiClient.defaults.adapter = async (config) => {
     } else if (url.startsWith('/plans')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/finance')) {
+    } else if (url.startsWith('/announcements')) {
       config.url = `/superadmin${url}`
     }
     if (defaultAdapter) return defaultAdapter(config)
