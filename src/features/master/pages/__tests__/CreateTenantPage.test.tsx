@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { CreateTenantPage } from '../CreateTenantPage'
 import { masterService } from '@/api/services/master'
+import type { Tenant } from '@/api/types/master'
 
 // Mock toast notification library
 vi.mock('sonner', () => ({
@@ -76,7 +77,7 @@ describe('CreateTenantPage', () => {
   })
 
   it('submits correctly when inputs are populated and contingency check is completed', async () => {
-    vi.mocked(masterService.createTenant).mockResolvedValue({ tenant_id: 'new-hosp-id' } as any)
+    vi.mocked(masterService.createTenant).mockResolvedValue({ tenant_id: 'new-hosp-id', hospital_name: 'Test General Hospital', status: 'active' } as unknown as Tenant)
 
     const { container } = render(
       <MemoryRouter>
@@ -129,4 +130,31 @@ describe('CreateTenantPage', () => {
       })
     )
   })
+
+  it('prefills city, timezone, and currency when country is changed', async () => {
+    render(
+      <MemoryRouter>
+        <CreateTenantPage />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Basic Plan')).toBeInTheDocument()
+    })
+
+    // Check defaults
+    expect(screen.getByLabelText('Country')).toHaveValue('Tanzania')
+    expect(screen.getByLabelText('City')).toHaveValue('Dar es Salaam')
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Africa/Dar_es_Salaam')
+    expect(screen.getByLabelText('Billing Currency')).toHaveValue('TZS')
+
+    // Change country to Kenya
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'Kenya' } })
+
+    // Verify prefilled updates
+    expect(screen.getByLabelText('City')).toHaveValue('Nairobi')
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Africa/Nairobi')
+    expect(screen.getByLabelText('Billing Currency')).toHaveValue('KES')
+  })
 })
+

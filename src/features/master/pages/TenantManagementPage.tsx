@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
+import { SuspendTenantModal } from '@/features/master/components/SuspendTenantModal'
 import type { Tenant } from '@/api/types/master'
 
 export function TenantManagementPage() {
@@ -23,6 +25,10 @@ export function TenantManagementPage() {
   
   // Action dropdown state
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; right: number } | null>(null)
+  
+  // Suspend Modal states
+  const [selectedTenantForSuspend, setSelectedTenantForSuspend] = useState<Tenant | null>(null)
 
   const fetchTenants = async () => {
     try {
@@ -52,6 +58,7 @@ export function TenantManagementPage() {
     }
   }
 
+
   const handleImpersonate = (tenant: Tenant) => {
     navigate(`/impersonation/switching?tenant_id=${tenant.tenant_id}&return_to=/admin/dashboard`, { replace: true })
   }
@@ -78,9 +85,11 @@ export function TenantManagementPage() {
   const endIndex = Math.min(startIndex + pageSize, totalItems)
   const paginatedTenants = filteredTenants.slice(startIndex, endIndex)
 
-  // Reset page on filters change
+  // Reset page and active dropdown on filters change
   useEffect(() => {
     setCurrentPage(1)
+    setActiveDropdown(null)
+    setDropdownCoords(null)
   }, [search, statusFilter, regionFilter, pageSize])
 
   const getStatusBadgeClass = (status: string) => {
@@ -295,13 +304,26 @@ export function TenantManagementPage() {
                           }}
                           onClick={(e) => {
                             e.stopPropagation()
-                            setActiveDropdown(activeDropdown === t.tenant_id ? null : t.tenant_id)
+                            if (activeDropdown === t.tenant_id) {
+                              setActiveDropdown(null)
+                              setDropdownCoords(null)
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              const dropdownHeight = 160 // approximate height of the dropdown
+                              const goesOffBottom = rect.bottom + dropdownHeight > window.innerHeight
+                              
+                              setActiveDropdown(t.tenant_id)
+                              setDropdownCoords({
+                                top: goesOffBottom ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
+                                right: window.innerWidth - rect.right,
+                              })
+                            }
                           }}
                         >
                           ⋮
                         </button>
 
-                        {activeDropdown === t.tenant_id && (
+                        {activeDropdown === t.tenant_id && dropdownCoords && createPortal(
                           <>
                             <div
                               style={{
@@ -310,15 +332,24 @@ export function TenantManagementPage() {
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                zIndex: 99,
+                                zIndex: 999,
+                                background: 'transparent',
                               }}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setActiveDropdown(null)
+                                setDropdownCoords(null)
                               }}
                             />
                             <div
-                              className={`dropdown-menu-wrapper ${isLastVisibleRow ? 'dropdown-menu-up' : ''}`}
+                              className="dropdown-menu-wrapper"
+                              style={{
+                                position: 'fixed',
+                                top: `${dropdownCoords.top}px`,
+                                right: `${dropdownCoords.right}px`,
+                                zIndex: 1000,
+                                margin: 0,
+                              }}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <button
@@ -327,6 +358,7 @@ export function TenantManagementPage() {
                                   e.stopPropagation()
                                   navigate(`/master/tenants/${t.tenant_id}`)
                                   setActiveDropdown(null)
+                                  setDropdownCoords(null)
                                 }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                               >
@@ -342,6 +374,7 @@ export function TenantManagementPage() {
                                     e.stopPropagation()
                                     handleImpersonate(t)
                                     setActiveDropdown(null)
+                                    setDropdownCoords(null)
                                   }}
                                   style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                 >
@@ -353,8 +386,10 @@ export function TenantManagementPage() {
                                   className="dropdown-item-btn"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    handleUpdateStatus(t.tenant_id, 'suspended')
+                                    setSelectedTenantForSuspend(t)
+                                    setSuspensionReason('')
                                     setActiveDropdown(null)
+                                    setDropdownCoords(null)
                                   }}
                                   style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                 >
@@ -368,6 +403,7 @@ export function TenantManagementPage() {
                                     e.stopPropagation()
                                     handleUpdateStatus(t.tenant_id, 'active')
                                     setActiveDropdown(null)
+                                    setDropdownCoords(null)
                                   }}
                                   style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                 >
@@ -375,9 +411,9 @@ export function TenantManagementPage() {
                                 </button>
                               )}
                             </div>
-                          </>
-                        )}
-                      </td>
+                          </>,
+                          document.body
+                        )}</td>
                     </tr>
                     )
                   })}
@@ -431,6 +467,15 @@ export function TenantManagementPage() {
           </>
         )}
       </div>
+
+      {/* SUSPEND TENANT MODAL */}
+      <SuspendTenantModal
+        isOpen={selectedTenantForSuspend !== null}
+        onClose={() => setSelectedTenantForSuspend(null)}
+        tenantId={selectedTenantForSuspend?.tenant_id || ''}
+        tenantName={selectedTenantForSuspend?.hospital_name || ''}
+        onSuccess={fetchTenants}
+      />
     </>
   )
 }
