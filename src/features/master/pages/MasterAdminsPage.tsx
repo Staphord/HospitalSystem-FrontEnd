@@ -5,7 +5,6 @@ import { masterService } from '@/api/services/master'
 import type { MasterAdminUser } from '@/api/types/master'
 import { CreateAdminDrawer } from '../components/admins/CreateAdminDrawer'
 import { EditAdminDrawer } from '../components/admins/EditAdminDrawer'
-import { MfaSetupModal } from '../components/admins/MfaSetupModal'
 
 export function MasterAdminsPage() {
   const [admins, setAdmins] = useState<MasterAdminUser[]>([])
@@ -13,8 +12,6 @@ export function MasterAdminsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [adminToEdit, setAdminToEdit] = useState<MasterAdminUser | null>(null)
-  const [mfaQrCode, setMfaQrCode] = useState<string | null>(null) // State to show QR Code modal
-  const [mfaUsername, setMfaUsername] = useState('')
 
   // Delete Confirmation State
   const [adminToDelete, setAdminToDelete] = useState<string | null>(null)
@@ -61,10 +58,8 @@ export function MasterAdminsPage() {
     }
   }, [activeTab])
 
-  const handleCreateSuccess = (newUsername: string, newMfaSecret: string) => {
+  const handleCreateSuccess = (newUsername: string) => {
     setIsCreateOpen(false)
-    setMfaUsername(newUsername)
-    setMfaQrCode(`otpauth://totp/HospitalSystem:${newUsername}?secret=${newMfaSecret}&issuer=HospitalSystem`)
     fetchAdmins()
   }
 
@@ -409,12 +404,6 @@ export function MasterAdminsPage() {
         admin={adminToEdit}
       />
 
-      {/* MFA Setup Modal */}
-      <MfaSetupModal 
-        mfaQrCode={mfaQrCode}
-        mfaUsername={mfaUsername}
-        onClose={() => setMfaQrCode(null)}
-      />
 
       {/* Delete Confirmation Modal */}
       {adminToDelete && (
