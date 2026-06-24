@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { authService } from '@/api/services/auth'
 import { getReceptionNavIcon, getReceptionNavLabel } from '@/app/layout/receptionNavUtils'
 import { getTriageNavIcon, getTriageNavLabel, isTriageNavItemActive } from '@/app/layout/triageNavUtils'
+import { getConsultationNavIcon, getConsultationNavLabel, isConsultationNavItemActive } from '@/app/layout/consultationNavUtils'
+import { getLaboratoryNavIcon, isLaboratoryNavItemActive } from '@/app/layout/laboratoryNavUtils'
 import { toast } from 'sonner'
 
 export function Sidebar() {
@@ -150,6 +152,25 @@ export function Sidebar() {
         {
           title: 'Patients',
           items: visibleItems.filter((item) => item.path === '/triage/history'),
+        },
+      ]
+    } else if (hasRole(ROLES.labTechnician)) {
+      return [
+        {
+          title: 'Overview',
+          items: visibleItems.filter((item) => item.path === '/dashboard'),
+        },
+        {
+          title: 'Laboratory',
+          items: visibleItems.filter(
+            (item) =>
+              item.path === '/laboratory/requests' ||
+              item.path === '/laboratory/results'
+          ),
+        },
+        {
+          title: 'Specimens',
+          items: visibleItems.filter((item) => item.path === '/laboratory/specimens'),
         },
       ]
     } else {
@@ -318,7 +339,7 @@ export function Sidebar() {
     );
   }
 
-  if (hasRole(ROLES.receptionist) && !isHospitalAdmin()) {
+  if ((hasRole(ROLES.receptionist) || user?.role === ROLES.receptionist) && !isHospitalAdmin()) {
     const displayName = user?.full_name || user?.username || 'User'
 
     return (
@@ -392,7 +413,7 @@ export function Sidebar() {
     )
   }
 
-  if (hasRole(ROLES.triageNurse) && !isHospitalAdmin()) {
+  if ((hasRole(ROLES.triageNurse) || user?.role === ROLES.triageNurse) && !isHospitalAdmin()) {
     const displayName = user?.full_name || user?.username || 'User'
 
     return (
@@ -468,132 +489,202 @@ export function Sidebar() {
     )
   }
 
-  return (
-    <aside className="sidebar">
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto', marginBottom: '1rem' }}>
-        <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--color-primary)' }}>
-            local_hospital
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.05rem', lineHeight: 1.1 }}>
-            <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-primary)', letterSpacing: '-0.02em' }}>Hospital PMS</span>
-            {isSuperAdmin() && (
-              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--color-text-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Super Admin Portal
-              </span>
-            )}
-          </div>
-        </div>
-        <nav className="sidebar-nav">
-          {groupedNav.map((group) => {
-            if (group.items.length === 0) return null
-            return (
-              <div key={group.title} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                <div className="sidebar-group-title">{group.title}</div>
-                {group.items.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      isActive ? 'nav-link active' : 'nav-link'
-                    }
-                  >
-                    <span
-                      className="material-symbols-outlined nav-icon"
-                      style={{
-                        marginRight: '0.75rem',
-                        fontSize: '1.25rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {item.label === 'Tenants' ? 'domain' :
-                       item.label === 'Subscriptions' ? 'card_membership' :
-                       item.label === 'Invoices' ? 'receipt_long' :
-                       item.label === 'Payments' ? 'payments' :
-                       item.label === 'Platform Admins' ? 'admin_panel_settings' :
-                       item.label === 'System Health' ? 'monitor_heart' :
-                       item.label === 'Announcements' ? 'campaign' :
-                       (item.label === 'Audit Logs' || item.label === 'Active Sessions' || item.label === 'Sessions') ? 'history' :
-                       item.label === 'Dashboard' ? 'dashboard' :
-                       item.label === 'Reports' ? 'bar_chart' :
-                       (item.label === 'All Staff' || item.label === 'Users') ? 'group' :
-                       (item.label === 'Departments & Wards' || item.label === 'Departments') ? 'domain' :
-                       (item.label === 'Fee Schedules' || item.label === 'Fees') ? 'receipt_long' :
-                       (item.label === 'Insurance Providers' || item.label === 'Insurance') ? 'health_and_safety' :
-                       item.label === 'Hospital Settings' ? 'settings_heart' :
-                       item.label === 'Settings' ? 'settings' :
-                       item.label === 'Data Backup' ? 'cloud_upload' :
-                       (item.label === 'My Subscription' || item.label === 'Subscription') ? 'card_membership' :
-                       item.label === 'Patient Reports' ? 'assignment' :
-                       item.label === 'Revenue Reports' ? 'monetization_on' :
-                       item.label === 'Operational Reports' ? 'analytics' :
-                       item.label === 'Reception' ? 'how_to_reg' :
-                       item.label === 'Register Patient' ? 'person_add' :
-                       item.label === 'Patient Search' ? 'search' :
-                       item.label === 'Queue' ? 'hourglass_empty' :
-                       item.label === 'Queue Management' ? 'group' :
-                       item.label === 'Triage' ? 'medical_services' :
-                       item.label === 'Consultation' ? 'chat' :
-                       item.label === 'Laboratory' ? 'biotech' :
-                       item.label === 'Radiology' ? 'settings_accessibility' :
-                       item.label === 'Pharmacy' ? 'medication' :
-                       item.label === 'Billing' ? 'payments' :
-                       item.label === 'Ward' ? 'bed' :
-                       item.label === 'Notifications' ? 'notifications' : 'description'}
-                    </span>
-                    {item.label === 'Billing' && hasRole(ROLES.receptionist) ? 'Payment & Insurance' : item.label}
-                  </NavLink>
-                ))}
-              </div>
-            )
-          })}
-        </nav>
-      </div>
+  if ((hasRole(ROLES.labTechnician) || user?.role === ROLES.labTechnician) && !isHospitalAdmin()) {
+    const displayName = user?.full_name || user?.username || 'User'
 
-      <div className="sidebar-footer">
-        <div className="sidebar-profile">
-          <div className="avatar-circle">
-            {(user?.full_name || user?.username || 'U')[0].toUpperCase()}
-          </div>
-          <div className="profile-info">
-            <div className="profile-name" title={user?.full_name || user?.username || 'User'}>
-              {user?.full_name || user?.username || 'User'}
+    const LABORATORY_NAV = [
+      {
+        section: 'Overview',
+        items: [{ label: 'My Dashboard', path: '/dashboard' }],
+      },
+      {
+        section: 'Laboratory',
+        items: [
+          { label: 'Test Requests', path: '/laboratory/requests' },
+          { label: 'Results Entry', path: '/laboratory/results' },
+        ],
+      },
+      {
+        section: 'Specimens',
+        items: [{ label: 'Specimen Tracking', path: '/laboratory/specimens' }],
+      },
+    ]
+
+    return (
+      <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
+        <div className="flex flex-col py-lg px-md gap-xs">
+          <div className="flex items-center gap-sm">
+            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+              <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <div className="profile-role" title={getRoleLabel(user?.role || '')}>
-              {getRoleLabel(user?.role || '')}
-            </div>
+            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
+              Muhimbili National Hospital
+            </span>
           </div>
+          <span className="text-secondary font-body-sm pl-[40px]">Laboratory</span>
         </div>
-        <button
-          className="btn-logout"
-          title="Sign out"
-          onClick={handleLogout}
-          style={{
-            color: '#dc3545',
-            transition: 'transform 0.2s',
-          }}
-          onMouseOver={(e) => (e.currentTarget.style.transform = 'translateX(2px)')}
-          onMouseOut={(e) => (e.currentTarget.style.transform = 'none')}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+
+        <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm space-y-lg">
+          {LABORATORY_NAV.map((group) => (
+            <div key={group.section} className="mb-xs">
+              <h3 className="px-md mb-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider opacity-60">
+                {group.section}
+              </h3>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={() =>
+                    `reception-nav-link flex items-center gap-3 px-md py-sm cursor-pointer transition-all duration-200 ease-in-out ${
+                      isLaboratoryNavItemActive(item.path, location.pathname)
+                        ? 'reception-nav-link--active'
+                        : ''
+                    }`
+                  }
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {getLaboratoryNavIcon(item.label)}
+                  </span>
+                  <span className="font-body-sm">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t border-border-subtle p-md flex flex-col gap-sm bg-surface-container-low">
+          <div className="flex items-center gap-sm min-w-0">
+            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary font-semibold text-sm shrink-0 border border-border-subtle">
+              {displayName
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-body-sm font-semibold text-on-surface truncate">{displayName}</span>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+                <span className="text-label-sm text-warning">Lab Technician</span>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-sm text-secondary hover:text-error transition-colors font-body-sm w-full py-xs bg-transparent border-0 cursor-pointer"
           >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </button>
-      </div>
-    </aside>
-  )
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+    )
+  }
+
+  if ((hasRole(ROLES.doctor) || user?.role === ROLES.doctor) && !isHospitalAdmin()) {
+    const displayName = user?.full_name || user?.username || 'User'
+    const roleLabel = user?.role ? getRoleLabel(user.role) : 'Medical Officer'
+
+    const CONSULTATION_NAV = [
+      {
+        section: 'OVERVIEW',
+        items: [{ label: 'Dashboard', path: '/dashboard' }],
+      },
+      {
+        section: 'CONSULTATIONS',
+        items: [
+          { label: 'Consultation', path: '/consultation/queue' },
+          { label: 'Inpatient', path: '/consultation/inpatient' },
+        ],
+      },
+      {
+        section: 'RESULTS',
+        items: [{ label: 'Investigation Results', path: '/consultation/results' }],
+      },
+      {
+        section: 'RECORDS',
+        items: [{ label: 'Patient History', path: '/consultation/history' }],
+      },
+      {
+        section: 'REFERRALS',
+        items: [{ label: 'My Referrals', path: '/consultation/referrals' }],
+      },
+    ]
+
+    return (
+      <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
+        {/* Brand header */}
+        <div className="flex flex-col py-lg px-md gap-xs">
+          <div className="flex items-center gap-sm">
+            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+              <span className="material-symbols-outlined text-[20px]">local_hospital</span>
+            </div>
+            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
+              Muhimbili National Hospital
+            </span>
+          </div>
+          <span className="text-secondary font-body-sm pl-[40px]">Consultation Portal</span>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm space-y-lg">
+          {CONSULTATION_NAV.map((group) => (
+            <div key={group.section} className="mb-xs">
+              <h3 className="px-md mb-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider opacity-60">
+                {group.section}
+              </h3>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={() =>
+                    `reception-nav-link flex items-center gap-3 px-md py-sm cursor-pointer transition-all duration-200 ease-in-out ${
+                      isConsultationNavItemActive(item.path, location.pathname)
+                        ? 'reception-nav-link--active'
+                        : ''
+                    }`
+                  }
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {getConsultationNavIcon(item.label)}
+                  </span>
+                  <span className="font-body-sm">{getConsultationNavLabel(item.label)}</span>
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        {/* User footer */}
+        <div className="border-t border-border-subtle p-md flex flex-col gap-sm bg-surface-container-low">
+          <div className="flex items-center gap-sm min-w-0">
+            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary font-semibold text-sm shrink-0 border border-border-subtle">
+              {displayName
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-body-sm font-semibold text-on-surface truncate">{displayName}</span>
+              <span className="text-label-sm text-secondary">{roleLabel}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-sm text-secondary hover:text-error transition-colors font-body-sm w-full py-xs bg-transparent border-0 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+    )
+  }
+
+  return null
 }

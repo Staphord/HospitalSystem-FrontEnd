@@ -3,8 +3,8 @@ import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
 export function LabRequestsPage() {
   return (
     <ComingSoonPage
-      title="Laboratory requests"
-      description="Waiting on /api/v1/laboratory endpoints."
+      title="Test Requests"
+      description="Waiting on /api/v1/laboratory/requests endpoints."
     />
   )
 }

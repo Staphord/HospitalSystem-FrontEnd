@@ -135,9 +135,39 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
-    label: 'Laboratory',
+    label: 'Inpatient',
+    path: '/consultation/inpatient',
+    roles: [ROLES.doctor],
+  },
+  {
+    label: 'Investigation Results',
+    path: '/consultation/results',
+    roles: [ROLES.doctor],
+  },
+  {
+    label: 'Patient History',
+    path: '/consultation/history',
+    roles: [ROLES.doctor],
+  },
+  {
+    label: 'My Referrals',
+    path: '/consultation/referrals',
+    roles: [ROLES.doctor],
+  },
+  {
+    label: 'Test Requests',
     path: '/laboratory/requests',
     roles: [ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Results Entry',
+    path: '/laboratory/results',
+    roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Specimen Tracking',
+    path: '/laboratory/specimens',
+    roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
   },
   {
     label: 'Radiology',
@@ -190,10 +220,10 @@ export const MASTER_NAV: NavItem[] = [
 export function getDefaultRoute(roles: string[]): string {
   if (roles.includes(ROLES.superAdmin)) return '/master/dashboard'
   if (roles.includes(ROLES.hospitalAdmin)) return '/admin/dashboard'
-  if (roles.includes(ROLES.doctor)) return '/consultation/queue'
+  if (roles.includes(ROLES.doctor)) return '/dashboard'
   if (roles.includes(ROLES.triageNurse)) return '/dashboard'
   if (roles.includes(ROLES.receptionist)) return '/dashboard'
-  if (roles.includes(ROLES.labTechnician)) return '/laboratory/requests'
+  if (roles.includes(ROLES.labTechnician)) return '/dashboard'
   if (roles.includes(ROLES.radiographer)) return '/radiology/schedule'
   if (roles.includes(ROLES.pharmacist)) return '/pharmacy/dispense'
   if (roles.includes(ROLES.cashier)) return '/billing'
