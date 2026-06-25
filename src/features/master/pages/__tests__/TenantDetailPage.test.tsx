@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { TenantDetailPage } from '../TenantDetailPage'
 import { masterService } from '@/api/services/master'
+import type { Tenant, Subscription, Invoice } from '@/api/types/master'
 
 // Mock toast notification library
 vi.mock('sonner', () => ({
@@ -28,6 +29,20 @@ vi.mock('@/api/services/master', () => ({
     listInvoices: vi.fn().mockResolvedValue([]),
     getTenantStats: vi.fn().mockResolvedValue({ user_count: 10 }),
     updateTenant: vi.fn(),
+  },
+}))
+
+// Mock monitoring service
+vi.mock('@/api/services/monitoring', () => ({
+  monitoringService: {
+    getAuditLogs: vi.fn().mockResolvedValue([]),
+    getTenantAnalytics: vi.fn().mockResolvedValue({
+      uptime_trend: [],
+      active_users_peak: [],
+      storage_growth: [],
+      module_usage: [],
+      activity_logs: [],
+    }),
   },
 }))
 
@@ -93,7 +108,7 @@ describe('TenantDetailPage', () => {
   })
 
   it('opens suspension modal, accepts reason, and executes API update', async () => {
-    vi.mocked(masterService.updateTenant).mockResolvedValue({ tenant_id: 'aga-khan', status: 'suspended' } as any)
+    vi.mocked(masterService.updateTenant).mockResolvedValue({ tenant_id: 'aga-khan', status: 'suspended' } as unknown as Tenant)
 
     renderComponent()
 
@@ -129,7 +144,7 @@ describe('TenantDetailPage', () => {
   })
 
   it('navigates through the 3-step termination wizard correctly', async () => {
-    vi.mocked(masterService.updateTenant).mockResolvedValue({ tenant_id: 'aga-khan', status: 'terminated' } as any)
+    vi.mocked(masterService.updateTenant).mockResolvedValue({ tenant_id: 'aga-khan', status: 'terminated' } as unknown as Tenant)
 
     const { container } = renderComponent()
 
@@ -240,4 +255,76 @@ describe('TenantDetailPage', () => {
     expect(invoiceLink).toBeInTheDocument()
     expect(invoiceLink.getAttribute('href')).toBe('/master/invoices?tenant_id=aga-khan')
   })
+
+  it('renders "-" when tenant fields are empty', async () => {
+    vi.mocked(masterService.getTenant).mockResolvedValueOnce({
+      id: 1,
+      tenant_id: 'aga-khan',
+      hospital_name: 'Aga Khan Hospital',
+      status: 'active',
+      is_active: true,
+      city: '',
+      country: '',
+      address: '',
+      contact_name: '',
+      contact_email: '',
+      contact_phone: '',
+      billing_email: '',
+      data_region: '',
+    })
+    vi.mocked(masterService.listSubscriptions).mockResolvedValueOnce([
+      {
+        id: 'sub-1',
+        tenant_id: 'aga-khan',
+        plan_name: 'Premium',
+        status: 'active',
+        subscription_id: 'sub-id-1',
+        start_date: '',
+        end_date: '',
+      } as unknown as Subscription,
+    ])
+    vi.mocked(masterService.listInvoices).mockResolvedValueOnce([
+      {
+        id: 'inv-1',
+        invoice_id: 'inv-num-1',
+        tenant_id: 'aga-khan',
+        description: 'Invoice 1',
+        amount: 100,
+        due_date: '',
+        status: 'paid',
+      } as unknown as Invoice,
+    ])
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Aga Khan Hospital')[0]).toBeInTheDocument()
+    })
+
+    // Validate header empty fields fallback
+    expect(screen.getByText(/-, -/)).toBeInTheDocument()
+
+    // Validate general info fields fallback
+    const dashes = screen.getAllByText('-')
+    expect(dashes.length).toBeGreaterThanOrEqual(5)
+
+    // Switch to subscription tab
+    const subTabBtn = screen.getByRole('button', { name: /subscription/i })
+    await act(async () => {
+      fireEvent.click(subTabBtn)
+    })
+
+    // Validate subscription start date fallback
+    expect(screen.getByRole('cell', { name: '-' })).toBeInTheDocument()
+
+    // Switch to invoices tab
+    const invoiceTabBtn = screen.getByRole('button', { name: /invoices/i })
+    await act(async () => {
+      fireEvent.click(invoiceTabBtn)
+    })
+
+    // Validate invoice due date fallback
+    expect(screen.getByRole('cell', { name: '-' })).toBeInTheDocument()
+  })
 })
+

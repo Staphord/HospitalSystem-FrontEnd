@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { CreateTenantPage } from '../CreateTenantPage'
 import { masterService } from '@/api/services/master'
+import type { Tenant } from '@/api/types/master'
 
 // Mock toast notification library
 vi.mock('sonner', () => ({
@@ -73,10 +74,12 @@ describe('CreateTenantPage', () => {
     expect(screen.getAllByText('Hospital Name is required.')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Admin Username is required.')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Admin Password is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Admin Full Name is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Primary Contact Phone Number is required.')[0]).toBeInTheDocument()
   })
 
   it('submits correctly when inputs are populated and contingency check is completed', async () => {
-    vi.mocked(masterService.createTenant).mockResolvedValue({ tenant_id: 'new-hosp-id' } as any)
+    vi.mocked(masterService.createTenant).mockResolvedValue({ tenant_id: 'new-hosp-id', hospital_name: 'Test General Hospital', status: 'active' } as unknown as Tenant)
 
     const { container } = render(
       <MemoryRouter>
@@ -100,6 +103,12 @@ describe('CreateTenantPage', () => {
     })
     fireEvent.change(screen.getByPlaceholderText(/e.g. contact@dargeneral.go.tz/i), {
       target: { value: 'admin@testhospital.org' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/e.g. Dr. Jane Mwenye/i), {
+      target: { value: 'Dr. Test Admin' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/e.g. \+255 22 2123456/i), {
+      target: { value: '+255 22 2123456' },
     })
 
     // Tick the contingency checking checkbox
@@ -126,7 +135,37 @@ describe('CreateTenantPage', () => {
         admin_username: 'admin_test',
         admin_password: 'password123',
         admin_email: 'admin@testhospital.org',
+        admin_full_name: 'Dr. Test Admin',
+        primary_contact_name: 'Dr. Test Admin',
+        primary_contact_phone: '+255 22 2123456',
       })
     )
   })
+
+  it('prefills city, timezone, and currency when country is changed', async () => {
+    render(
+      <MemoryRouter>
+        <CreateTenantPage />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Basic Plan')).toBeInTheDocument()
+    })
+
+    // Check defaults
+    expect(screen.getByLabelText('Country')).toHaveValue('Tanzania')
+    expect(screen.getByLabelText('City')).toHaveValue('Dar es Salaam')
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Africa/Dar_es_Salaam')
+    expect(screen.getByLabelText('Billing Currency')).toHaveValue('TZS')
+
+    // Change country to Kenya
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'Kenya' } })
+
+    // Verify prefilled updates
+    expect(screen.getByLabelText('City')).toHaveValue('Nairobi')
+    expect(screen.getByLabelText('Timezone')).toHaveValue('Africa/Nairobi')
+    expect(screen.getByLabelText('Billing Currency')).toHaveValue('KES')
+  })
 })
+

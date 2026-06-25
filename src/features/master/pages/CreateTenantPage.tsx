@@ -32,7 +32,7 @@ export function CreateTenantPage() {
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [mfaEnforced, setMfaEnforced] = useState(true)
   const [rateLimit, setRateLimit] = useState('1000')
-  const [storageQuota, setStorageQuota] = useState('50')
+  const [storageQuota, setStorageQuota] = useState('')
   
   // Section 5: Subscription Setup
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
@@ -57,16 +57,38 @@ export function CreateTenantPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    // Fetch available plans for radio cards
     masterService.listPlans().then((data) => {
       setPlans(data)
-      setSelectedPlanId((currentPlanId) =>
-        data.some((plan) => plan.plan_id === currentPlanId) ? currentPlanId : (data[0]?.plan_id || '')
-      )
+      const defaultPlan = data.find((plan) => plan.plan_id === 'standard') || data[0]
+      if (defaultPlan) {
+        setSelectedPlanId(defaultPlan.plan_id)
+        setStorageQuota(defaultPlan.storage_gb.toString())
+      }
     }).catch(() => {
    
     })
   }, [])
+
+  const handleCountryChange = (selectedCountry: string) => {
+    setCountry(selectedCountry)
+    if (selectedCountry === 'Tanzania') {
+      setCity('Dar es Salaam')
+      setTimezone('Africa/Dar_es_Salaam')
+      setCurrency('TZS')
+    } else if (selectedCountry === 'Kenya') {
+      setCity('Nairobi')
+      setTimezone('Africa/Nairobi')
+      setCurrency('KES')
+    } else if (selectedCountry === 'Uganda') {
+      setCity('Kampala')
+      setTimezone('Africa/Kampala')
+      setCurrency('UGX')
+    } else if (selectedCountry === 'Rwanda') {
+      setCity('Kigali')
+      setTimezone('Africa/Kigali')
+      setCurrency('RWF')
+    }
+  }
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
@@ -78,6 +100,9 @@ export function CreateTenantPage() {
     
     if (!adminEmail.trim()) newErrors.adminEmail = 'Admin Email is required.'
     else if (!/\S+@\S+\.\S+/.test(adminEmail)) newErrors.adminEmail = 'Admin Email is invalid.'
+    
+    if (!adminFullName.trim()) newErrors.adminFullName = 'Admin Full Name is required.'
+    if (!contactPhone.trim()) newErrors.contactPhone = 'Primary Contact Phone Number is required.'
     
     if (billingEmail && !/\S+@\S+\.\S+/.test(billingEmail)) newErrors.billingEmail = 'Billing Email is invalid.'
     
@@ -96,7 +121,7 @@ export function CreateTenantPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) {
-      toast.error('Please resolve validation errors before submitting.')
+      toast.error('Fill all required fields.')
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -117,7 +142,7 @@ export function CreateTenantPage() {
       date_format: dateFormat || undefined,
       logo_url: logoUrl || undefined,
       logo: logoUrl || undefined,
-      data_region: country === 'Tanzania' ? 'AF-East' : 'AF-South',
+      data_region: ['Tanzania', 'Kenya', 'Uganda', 'Rwanda'].includes(country) ? 'AF-East' : 'AF-South',
       primary_contact_name: adminFullName || undefined,
       primary_contact_email: adminEmail || undefined,
       primary_contact_phone: contactPhone || undefined,
@@ -199,8 +224,8 @@ export function CreateTenantPage() {
             </div>
 
             <div className="form-group">
-              <label>Country</label>
-              <select className="form-control" value={country} onChange={(e) => setCountry(e.target.value)}>
+              <label htmlFor="country_select">Country</label>
+              <select id="country_select" className="form-control" value={country} onChange={(e) => handleCountryChange(e.target.value)}>
                 <option value="Tanzania">Tanzania</option>
                 <option value="Kenya">Kenya</option>
                 <option value="Uganda">Uganda</option>
@@ -209,8 +234,9 @@ export function CreateTenantPage() {
             </div>
 
             <div className="form-group">
-              <label>City</label>
+              <label htmlFor="city_input">City</label>
               <input
+                id="city_input"
                 type="text"
                 className="form-control"
                 value={city}
@@ -230,19 +256,22 @@ export function CreateTenantPage() {
             </div>
 
             <div className="form-group">
-              <label>Timezone</label>
-              <select className="form-control" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              <label htmlFor="timezone_select">Timezone</label>
+              <select id="timezone_select" className="form-control" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
                 <option value="Africa/Dar_es_Salaam">Africa/Dar_es_Salaam (EAT)</option>
                 <option value="Africa/Nairobi">Africa/Nairobi (EAT)</option>
+                <option value="Africa/Kampala">Africa/Kampala (EAT)</option>
                 <option value="Africa/Kigali">Africa/Kigali (CAT)</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label>Billing Currency</label>
-              <select className="form-control" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <label htmlFor="currency_select">Billing Currency</label>
+              <select id="currency_select" className="form-control" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                 <option value="TZS">TZS (Tanzanian Shilling)</option>
                 <option value="KES">KES (Kenyan Shilling)</option>
+                <option value="UGX">UGX (Ugandan Shilling)</option>
+                <option value="RWF">RWF (Rwandan Franc)</option>
                 <option value="USD">USD (United States Dollar)</option>
               </select>
             </div>
@@ -268,55 +297,60 @@ export function CreateTenantPage() {
               <label>Admin Username *</label>
               <input
                 type="text"
-                className="form-control"
+                className={`form-control ${errors.adminUsername ? 'is-invalid' : ''}`}
                 placeholder="e.g. admin_dar"
                 value={adminUsername}
                 onChange={(e) => setAdminUsername(e.target.value)}
               />
+              {errors.adminUsername && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminUsername}</span>}
             </div>
 
             <div className="form-group">
               <label>Admin Password *</label>
               <input
                 type="password"
-                className="form-control"
+                className={`form-control ${errors.adminPassword ? 'is-invalid' : ''}`}
                 placeholder="Minimum 8 characters"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
               />
+              {errors.adminPassword && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminPassword}</span>}
             </div>
 
             <div className="form-group">
-              <label>Admin Full Name</label>
+              <label>Admin Full Name *</label>
               <input
                 type="text"
-                className="form-control"
+                className={`form-control ${errors.adminFullName ? 'is-invalid' : ''}`}
                 placeholder="e.g. Dr. Jane Mwenye"
                 value={adminFullName}
                 onChange={(e) => setAdminFullName(e.target.value)}
               />
+              {errors.adminFullName && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminFullName}</span>}
             </div>
 
             <div className="form-group">
               <label>Primary Contact Email Address *</label>
               <input
                 type="email"
-                className="form-control"
+                className={`form-control ${errors.adminEmail ? 'is-invalid' : ''}`}
                 placeholder="e.g. contact@dargeneral.go.tz"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
               />
+              {errors.adminEmail && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminEmail}</span>}
             </div>
 
             <div className="form-group">
-              <label>Primary Contact Phone Number</label>
+              <label>Primary Contact Phone Number *</label>
               <input
                 type="text"
-                className="form-control"
+                className={`form-control ${errors.contactPhone ? 'is-invalid' : ''}`}
                 placeholder="e.g. +255 22 2123456"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
               />
+              {errors.contactPhone && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.contactPhone}</span>}
             </div>
           </div>
         </div>
@@ -331,12 +365,13 @@ export function CreateTenantPage() {
               <label>Billing Email Address</label>
               <input
                 type="email"
-                className="form-control"
+                className={`form-control ${errors.billingEmail ? 'is-invalid' : ''}`}
                 placeholder="e.g. finance@dargeneral.go.tz"
                 value={billingEmail}
                 onChange={(e) => setBillingEmail(e.target.value)}
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
+              {errors.billingEmail && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.billingEmail}</span>}
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'block' }}>
                 Defaults to Primary Contact Email if left empty.
               </span>
             </div>
@@ -395,20 +430,23 @@ export function CreateTenantPage() {
               <label>API Rate Limiting Cap (Requests / Minute)</label>
               <input
                 type="number"
-                className="form-control"
+                className={`form-control ${errors.rateLimit ? 'is-invalid' : ''}`}
                 value={rateLimit}
                 onChange={(e) => setRateLimit(e.target.value)}
               />
+              {errors.rateLimit && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.rateLimit}</span>}
             </div>
 
             <div className="form-group" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
               <label>Storage Quota Limit (GB)</label>
               <input
                 type="number"
-                className="form-control"
+                className={`form-control ${errors.storageQuota ? 'is-invalid' : ''}`}
                 value={storageQuota}
+                placeholder="0"
                 onChange={(e) => setStorageQuota(e.target.value)}
               />
+              {errors.storageQuota && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.storageQuota}</span>}
             </div>
 
           </div>
@@ -511,10 +549,11 @@ export function CreateTenantPage() {
               <label>Grace Period Configuration (Days)</label>
               <input
                 type="number"
-                className="form-control"
+                className={`form-control ${errors.graceDays ? 'is-invalid' : ''}`}
                 value={graceDays}
                 onChange={(e) => setGraceDays(e.target.value)}
               />
+              {errors.graceDays && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.graceDays}</span>}
             </div>
 
             <div className="form-group">
@@ -554,24 +593,27 @@ export function CreateTenantPage() {
             style={{
               padding: '1rem',
               backgroundColor: '#fafbfc',
-              border: '1px solid var(--color-border)',
+              border: errors.contingencyChecked ? '1px solid var(--color-error)' : '1px solid var(--color-border)',
               borderRadius: '8px',
               display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
+              flexDirection: 'column',
+              gap: '0.5rem',
               marginTop: '1.5rem'
             }}
           >
-            <input
-              type="checkbox"
-              id="contingency_chk"
-              checked={contingencyChecked}
-              onChange={(e) => setContingencyChecked(e.target.checked)}
-              style={{ marginTop: '0.2rem', cursor: 'pointer' }}
-            />
-            <label htmlFor="contingency_chk" style={{ fontSize: '0.8125rem', color: 'var(--color-text)', cursor: 'pointer', margin: 0, fontWeight: 500 }}>
-              I confirm that a minimum of 50 contingency physical form packets are currently printed and locked in the red folders in reception, triage, consultation, laboratory, pharmacy, and cashier workstations at this site. *
-            </label>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <input
+                type="checkbox"
+                id="contingency_chk"
+                checked={contingencyChecked}
+                onChange={(e) => setContingencyChecked(e.target.checked)}
+                style={{ marginTop: '0.2rem', cursor: 'pointer' }}
+              />
+              <label htmlFor="contingency_chk" style={{ fontSize: '0.8125rem', color: 'var(--color-text)', cursor: 'pointer', margin: 0, fontWeight: 500 }}>
+                I confirm that a minimum of 50 contingency physical form packets are currently printed and locked in the red folders in reception, triage, consultation, laboratory, pharmacy, and cashier workstations at this site. *
+              </label>
+            </div>
+            {errors.contingencyChecked && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block' }}>{errors.contingencyChecked}</span>}
           </div>
         </div>
 

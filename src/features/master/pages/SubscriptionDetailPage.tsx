@@ -26,7 +26,7 @@ export function SubscriptionDetailPage() {
       try {
         const allSubs = await masterService.listSubscriptions()
         const sub = allSubs.find((s) => s.id === id)
-        
+
         if (!sub) {
           toast.error('Subscription not found.')
           navigate('/master/subscriptions')
@@ -100,15 +100,15 @@ export function SubscriptionDetailPage() {
 
     try {
       if (subscription.status.toLowerCase() === 'trial') {
-        await masterService.upgradeSubscriptionEndpoint(subscription.id, {
+        await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
           plan_id: targetPlan.plan_id
         })
       } else if (targetRank > currentRank) {
-        await masterService.upgradeSubscriptionEndpoint(subscription.id, {
+        await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
           plan_id: targetPlan.plan_id
         })
       } else {
-        await masterService.downgradeSubscriptionEndpoint(subscription.id, {
+        await masterService.downgradeSubscriptionEndpoint(subscription.tenant_id, {
           plan_id: targetPlan.plan_id
         })
       }
@@ -215,12 +215,12 @@ export function SubscriptionDetailPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
-        
+
         {/* Left Column: Plan Information Card */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card" style={{ padding: '1.5rem' }}>
             <h3 style={{ margin: '0 0 1.25rem 0', fontSize: '1.125rem', fontWeight: 600 }}>Subscription Status & Terms</h3>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
               <div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)', marginBottom: '0.25rem' }}>Plan Tier</div>
@@ -247,7 +247,7 @@ export function SubscriptionDetailPage() {
 
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <strong style={{ fontSize: '0.875rem', display: 'block' }}>Auto-Renew Active</strong>
+                <strong style={{ fontSize: '0.875rem', display: 'block' }}>Auto-Renew</strong>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>Automatically generates invoice renewals upon expiration.</span>
               </div>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
@@ -266,7 +266,7 @@ export function SubscriptionDetailPage() {
           {activePlanDetails && (
             <div className="card" style={{ padding: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1.25rem 0', fontSize: '1.125rem', fontWeight: 600 }}>Provisioned Plan Limits</h3>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                 <div style={{ padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '8px' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>Staff Accounts</div>
@@ -311,7 +311,7 @@ export function SubscriptionDetailPage() {
 
         {/* Right Column: Expiry & Quick Links Cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
+
           {/* Expiration Countdown Chip Card */}
           <div
             className="card"

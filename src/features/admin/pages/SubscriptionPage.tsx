@@ -91,7 +91,7 @@ export const SubscriptionPage: React.FC = () => {
     if (!subscription || !selectedPlanForChange) return;
     setIsProcessingPayment(true);
     try {
-      const response = await masterService.upgradeSubscriptionEndpoint(subscription.id, {
+      const response = await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
         plan_id: selectedPlanForChange.plan_id
       });
 
@@ -141,7 +141,7 @@ export const SubscriptionPage: React.FC = () => {
     if (!subscription || !selectedPlanForChange) return;
     setSubmitting(true);
     try {
-      await masterService.downgradeSubscriptionEndpoint(subscription.id, {
+      await masterService.downgradeSubscriptionEndpoint(subscription.tenant_id, {
         plan_id: selectedPlanForChange.plan_id
       });
 
