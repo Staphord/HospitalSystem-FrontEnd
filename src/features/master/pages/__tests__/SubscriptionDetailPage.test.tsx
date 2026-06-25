@@ -241,7 +241,7 @@ describe('SubscriptionDetailPage', () => {
 
     // Verify upgrade plan and invoice calls are made
     await waitFor(() => {
-      expect(mockUpgrade).toHaveBeenCalledWith('sub-1', {
+      expect(mockUpgrade).toHaveBeenCalledWith('aga-khan', {
         plan_id: 'premium',
       })
       expect(masterService.createInvoice).toHaveBeenCalledWith(

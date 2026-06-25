@@ -231,7 +231,7 @@ describe('SubscriptionPage', () => {
     })
 
     await waitFor(() => {
-      expect(mockUpgradeEndpoint).toHaveBeenCalledWith('sub-gilgal', {
+      expect(mockUpgradeEndpoint).toHaveBeenCalledWith('gilgal', {
         plan_id: 'premium',
       })
     })

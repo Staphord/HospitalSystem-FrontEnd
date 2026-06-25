@@ -13,7 +13,15 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase()
+  const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim()
+
+  const isPlanMatch = (pName1: string, pName2: string) => {
+    const n1 = safeLower(pName1)
+    const n2 = safeLower(pName2)
+    if (n1 === n2) return true
+    if ((n1.includes('free') || n1 === 'trial') && (n2.includes('free') || n2 === 'trial')) return true
+    return false
+  }
 
   useEffect(() => {
     let active = true
@@ -38,7 +46,7 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
   }, [])
 
   // Find price of current plan
-  const currentPlan = plans.find((p) => safeLower(p.plan_name) === safeLower(currentPlanName))
+  const currentPlan = plans.find((p) => isPlanMatch(p.plan_name, currentPlanName))
   const currentPrice = currentPlan ? currentPlan.monthly_price : 0
 
   const handleSelect = async (planName: string) => {
@@ -55,9 +63,11 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
   }
 
   // Calculate pricing difference relative to current plan
-  const getPriceDifferenceText = (price: number) => {
-    const diff = price - currentPrice
-    if (diff === 0) return 'Current Plan'
+  const getPriceDifferenceText = (plan: SubscriptionPlan) => {
+    const isCurrentPlan = isPlanMatch(plan.plan_name, currentPlanName)
+    if (isCurrentPlan) return 'Current Plan'
+    const diff = plan.monthly_price - currentPrice
+    if (diff === 0) return 'Same Cost'
     if (diff > 0) return `+$${diff}/month (Upgrade)`
     return `-$${Math.abs(diff)}/month (Downgrade)`
   }
@@ -82,9 +92,9 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                 {plans.map((plan) => {
-                  const isCurrent = safeLower(plan.plan_name) === safeLower(currentPlanName)
+                  const isCurrent = isPlanMatch(plan.plan_name, currentPlanName)
                   const priceDiff = plan.monthly_price - currentPrice
-                  
+
                   return (
                     <div
                       key={plan.plan_id}
@@ -137,7 +147,7 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
                             marginBottom: '1rem'
                           }}
                         >
-                          {getPriceDifferenceText(plan.monthly_price)}
+                          {getPriceDifferenceText(plan)}
                         </div>
 
                         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem 0', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--color-text-light)' }}>
