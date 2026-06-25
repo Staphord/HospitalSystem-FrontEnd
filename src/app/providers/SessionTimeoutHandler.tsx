@@ -4,10 +4,11 @@ import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { isTokenExpired } from '@/lib/token'
+import { authService } from '@/api/services/auth'
 
 export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const { isAuthenticated, clearAuth } = useAuth()
+  const { isAuthenticated, clearAuth, refreshToken } = useAuth()
   
   const [showModal, setShowModal] = useState(false)
   const [countdown, setCountdown] = useState(60)
@@ -92,12 +93,20 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
   }, [showModal])
 
-  const handleTimeout = () => {
+  const handleTimeout = async () => {
     setShowModal(false)
-    clearAuth()
-    localStorage.removeItem('hf_last_activity')
-    toast.error('Session expired due to inactivity.')
-    navigate('/login')
+    try {
+      if (refreshToken) {
+        await authService.logout(refreshToken)
+      }
+    } catch (err) {
+      console.warn('Inactivity logout API failed:', err)
+    } finally {
+      clearAuth()
+      localStorage.removeItem('hf_last_activity')
+      toast.error('Session expired due to inactivity.')
+      navigate('/login')
+    }
   }
 
   const handleKeepAlive = () => {
@@ -106,11 +115,19 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     toast.success('Session extended.')
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setShowModal(false)
-    clearAuth()
-    localStorage.removeItem('hf_last_activity')
-    navigate('/login')
+    try {
+      if (refreshToken) {
+        await authService.logout(refreshToken)
+      }
+    } catch (err) {
+      console.warn('Logout API failed:', err)
+    } finally {
+      clearAuth()
+      localStorage.removeItem('hf_last_activity')
+      navigate('/login')
+    }
   }
 
   const handleActivity = () => {

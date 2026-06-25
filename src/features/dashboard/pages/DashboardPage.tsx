@@ -6,7 +6,9 @@ import { StatCard } from '../components/StatCard'
 import { DepartmentCard } from '../components/DepartmentCard'
 import { AlertFeedItem } from '../components/AlertFeedItem'
 import { TriageDashboardContent } from '@/features/triage/components/TriageDashboardContent'
-import { ROLES } from '@/lib/roles'
+import { DoctorDashboardContent } from '@/features/consultation/components/DoctorDashboardContent'
+import { LabDashboardContent } from '@/features/laboratory/components/LabDashboardContent'
+import { ROLES, hasEffectiveRole } from '@/lib/roles'
 import { useNavigate } from 'react-router-dom'
 
 interface ReceptionQueuePreviewItem {
@@ -188,9 +190,19 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [queueViewItem, setQueueViewItem] = useState<ReceptionQueuePreviewItem | null>(null)
 
-  const isHospitalAdmin = roles.includes(ROLES.hospitalAdmin)
-  const isReceptionist = roles.includes(ROLES.receptionist)
-  const isTriageNurse = roles.includes(ROLES.triageNurse) && !isHospitalAdmin
+  const isHospitalAdmin = hasEffectiveRole(roles, user?.role, ROLES.hospitalAdmin)
+  const isReceptionist = hasEffectiveRole(roles, user?.role, ROLES.receptionist)
+  const isTriageNurse = hasEffectiveRole(roles, user?.role, ROLES.triageNurse) && !isHospitalAdmin
+  const isDoctor = hasEffectiveRole(roles, user?.role, ROLES.doctor) && !isHospitalAdmin
+  const isLabTechnician = hasEffectiveRole(roles, user?.role, ROLES.labTechnician) && !isHospitalAdmin
+
+  if (isLabTechnician) {
+    return <LabDashboardContent />
+  }
+
+  if (isDoctor) {
+    return <DoctorDashboardContent />
+  }
 
   if (isTriageNurse) {
     return <TriageDashboardContent />

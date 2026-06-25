@@ -581,6 +581,7 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/master-admins') ||
     url.includes('/monitoring') ||
     url.includes('/incidents')
+    url.includes('/announcements')
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url.startsWith('/tenants')) {
@@ -604,6 +605,7 @@ apiClient.defaults.adapter = async (config) => {
     } else if (url.startsWith('/plans')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/finance')) {
+    } else if (url.startsWith('/announcements')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/monitoring/health')) {
       const methodLower = config.method?.toLowerCase()
@@ -664,6 +666,8 @@ apiClient.defaults.adapter = async (config) => {
       roles = ['receptionist']
     } else if (username === 'nurse') {
       roles = ['triage_nurse']
+    } else if (username === 'lab' || username === 'labtech' || username === 'labtechnician') {
+      roles = ['lab_technician']
     } else if (username === 'pharmacist') {
       roles = ['pharmacist']
     } else if (username === 'cashier') {

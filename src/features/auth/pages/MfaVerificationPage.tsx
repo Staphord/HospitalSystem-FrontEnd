@@ -179,7 +179,10 @@ export function MfaVerificationPage() {
         setLoading(false)
       } else {
         const token = useAuthStore.getState().accessToken
-        const route = token ? getDefaultRoute(getRolesFromToken(token)) : '/dashboard'
+        const user = useAuthStore.getState().user
+        const route = token
+          ? getDefaultRoute(getRolesFromToken(token), user?.role)
+          : '/dashboard'
         navigate(route)
       }
     } catch {
@@ -363,7 +366,10 @@ export function MfaVerificationPage() {
           className="btn btn-primary"
           onClick={() => {
             const token = useAuthStore.getState().accessToken
-            const route = token ? getDefaultRoute(getRolesFromToken(token)) : '/dashboard'
+            const user = useAuthStore.getState().user
+            const route = token
+              ? getDefaultRoute(getRolesFromToken(token), user?.role)
+              : '/dashboard'
             navigate(route)
           }}
           style={{ width: '100%', padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
