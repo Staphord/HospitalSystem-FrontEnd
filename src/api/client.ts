@@ -60,6 +60,22 @@ apiClient.interceptors.response.use(
       if ('payment_id' in newObj && !('id' in newObj)) {
         newObj.id = newObj.payment_id
       }
+      if ('incident_id' in newObj) {
+        if (!('id' in newObj)) {
+          newObj.id = newObj.incident_id
+        }
+        if (newObj.status === 'open' || newObj.status === 'acknowledged') {
+          newObj.status = 'active'
+        } else if (newObj.status === 'closed') {
+          newObj.status = 'resolved'
+        }
+        if ('description' in newObj && !('message' in newObj)) {
+          newObj.message = newObj.description
+        }
+        if ('resolution_notes' in newObj && !('resolved_notes' in newObj)) {
+          newObj.resolved_notes = newObj.resolution_notes
+        }
+      }
       
       for (const key in newObj) {
         if (typeof newObj[key] === 'object' && newObj[key] !== null) {
@@ -73,6 +89,19 @@ apiClient.interceptors.response.use(
     return response
   },
   (error: AxiosError) => {
+    if (error.response && error.response.data && typeof error.response.data === 'object') {
+      const data = error.response.data as any
+      if (Array.isArray(data.detail)) {
+        const messages = data.detail.map((err: any) => {
+          const field = Array.isArray(err.loc) ? err.loc.filter(l => l !== 'body').join('.') : (err.loc || '')
+          const fieldPrefix = field ? `${field}: ` : ''
+          return `${fieldPrefix}${err.msg || 'invalid value'}`
+        })
+        data.detail = messages.join(', ')
+      } else if (typeof data.detail === 'object' && data.detail !== null) {
+        data.detail = JSON.stringify(data.detail)
+      }
+    }
     return Promise.reject(error)
   }
 )
@@ -549,7 +578,9 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/invoices') ||
     url.includes('/plans') ||
     url.includes('/finance') ||
-    url.includes('/master-admins')
+    url.includes('/master-admins') ||
+    url.includes('/monitoring') ||
+    url.includes('/incidents')
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url.startsWith('/tenants')) {
@@ -573,6 +604,21 @@ apiClient.defaults.adapter = async (config) => {
     } else if (url.startsWith('/plans')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/finance')) {
+      config.url = `/superadmin${url}`
+    } else if (url.startsWith('/monitoring/health')) {
+      const methodLower = config.method?.toLowerCase()
+      if (methodLower === 'post') {
+        config.url = `/superadmin/incidents`
+      } else if (methodLower === 'patch') {
+        const incId = url.split('/').pop()
+        config.url = `/superadmin/incidents/${incId}`
+      } else {
+        config.url = `/superadmin/health`
+      }
+    } else if (url.startsWith('/monitoring/tenants/')) {
+      const tenantId = url.split('/monitoring/tenants/')[1].split('/')[0]
+      config.url = `/superadmin/tenants/${tenantId}/analytics`
+    } else if (url.startsWith('/incidents')) {
       config.url = `/superadmin${url}`
     }
     if (defaultAdapter) return defaultAdapter(config)

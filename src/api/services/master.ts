@@ -12,6 +12,7 @@ import type {
 export interface InvoiceCreate {
   tenant_id: string
   subscription_id: string
+  invoice_number?: string
   plan_name: string
   billing_period_start: string
   billing_period_end: string
@@ -23,9 +24,13 @@ export interface InvoiceCreate {
 }
 
 function normalizeTenant(data: Tenant): Tenant {
+  const raw = data as unknown as Record<string, unknown>
   return {
     ...data,
     hospital_name: data.hospital_name || data.name || data.tenant_id,
+    contact_name: data.contact_name || (raw.primary_contact_name as string | undefined),
+    contact_email: data.contact_email || (raw.primary_contact_email as string | undefined),
+    contact_phone: data.contact_phone || (raw.primary_contact_phone as string | undefined),
   }
 }
 
@@ -42,7 +47,7 @@ export const masterService = {
     apiClient.get<Tenant>(`/tenants/${tenantId}`).then((r) => normalizeTenant(r.data)),
 
   getTenantStats: (tenantId: string) =>
-    apiClient.get<any>(`/tenants/${tenantId}/stats`).then((r) => r.data),
+    apiClient.get<unknown>(`/tenants/${tenantId}/stats`).then((r) => r.data),
 
   createTenant: (data: TenantCreate) =>
     apiClient.post<Tenant>('/tenants', data).then((r) => normalizeTenant(r.data)),
@@ -62,27 +67,34 @@ export const masterService = {
 
   subscribeTenant: (tenantId: string, data: { plan: string; billing_cycle?: string; start_trial?: boolean; payment_provider_id?: string }) =>
     apiClient
-      .post<any>(`/tenants/${tenantId}/subscribe`, data)
+      .post<unknown>(`/tenants/${tenantId}/subscribe`, data)
       .then((r) => r.data),
 
   upgradeTenantSubscription: (tenantId: string, data: { plan: string; billing_cycle?: string }) =>
     apiClient
-      .post<any>(`/tenants/${tenantId}/upgrade`, data)
+      .post<unknown>(`/tenants/${tenantId}/upgrade`, data)
       .then((r) => r.data),
 
   downgradeTenantSubscription: (tenantId: string, data: { plan: string; billing_cycle?: string; effective_at_end?: boolean }) =>
     apiClient
-      .post<any>(`/tenants/${tenantId}/downgrade`, data)
+      .post<unknown>(`/tenants/${tenantId}/downgrade`, data)
       .then((r) => r.data),
 
-  upgradeSubscriptionEndpoint: (subscriptionId: string, data: { plan_id: string }) =>
+  upgradeSubscriptionEndpoint: (tenantId: string, data: { plan_id: string; billing_cycle?: string }) =>
     apiClient
-      .post<any>(`/subscriptions/${subscriptionId}/upgrade`, data)
+      .post<unknown>(`/tenants/${tenantId}/upgrade`, {
+        plan: data.plan_id,
+        billing_cycle: data.billing_cycle || 'monthly'
+      })
       .then((r) => r.data),
 
-  downgradeSubscriptionEndpoint: (subscriptionId: string, data: { plan_id: string }) =>
+  downgradeSubscriptionEndpoint: (tenantId: string, data: { plan_id: string; billing_cycle?: string; effective_at_end?: boolean }) =>
     apiClient
-      .post<any>(`/subscriptions/${subscriptionId}/downgrade`, data)
+      .post<unknown>(`/tenants/${tenantId}/downgrade`, {
+        plan: data.plan_id,
+        billing_cycle: data.billing_cycle || 'monthly',
+        effective_at_end: data.effective_at_end || false
+      })
       .then((r) => r.data),
 
   listInvoices: (tenantId?: string) =>
