@@ -145,10 +145,13 @@ export function InvoiceManagementPage() {
       ? `${description} (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
       : `Subscription renewal (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
 
+    const invoiceNumber = 'INV-' + tenantId.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) + '-' + Date.now().toString().slice(-6)
+
     try {
       await masterService.createInvoice({
         tenant_id: tenantId,
         subscription_id: subId,
+        invoice_number: invoiceNumber,
         plan_name: planName,
         billing_period_start: billingPeriodStart,
         billing_period_end: billingPeriodEnd,

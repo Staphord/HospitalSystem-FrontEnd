@@ -17,6 +17,7 @@ vi.mock('@/api/services/master', () => ({
   masterService: {
     listInvoices: vi.fn(),
     listTenants: vi.fn(),
+    getRevenueHistory: vi.fn(),
   },
 }))
 
@@ -76,6 +77,7 @@ describe('PaymentsPage', () => {
   it('renders payments page and lists processed payments only', async () => {
     vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices as any)
     vi.mocked(masterService.listTenants).mockResolvedValue(mockTenants as any)
+    vi.mocked(masterService.getRevenueHistory).mockResolvedValue({ months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], revenue: [12500, 14200, 11800, 16500, 18200, 24000] })
 
     render(
       <MemoryRouter>
@@ -137,6 +139,7 @@ describe('PaymentsPage', () => {
       },
     ] as any)
     vi.mocked(masterService.listTenants).mockResolvedValue(mockTenants as any)
+    vi.mocked(masterService.getRevenueHistory).mockResolvedValue({ months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], revenue: [12500, 14200, 11800, 16500, 18200, 24000] })
 
     render(
       <MemoryRouter>
@@ -158,6 +161,7 @@ describe('PaymentsPage', () => {
   it('renders revenue chart and metric values', async () => {
     vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices as any)
     vi.mocked(masterService.listTenants).mockResolvedValue(mockTenants as any)
+    vi.mocked(masterService.getRevenueHistory).mockResolvedValue({ months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], revenue: [12500, 14200, 11800, 16500, 18200, 24000] })
 
     render(
       <MemoryRouter>
@@ -178,6 +182,7 @@ describe('PaymentsPage', () => {
   it('filters payments lists by search query', async () => {
     vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices as any)
     vi.mocked(masterService.listTenants).mockResolvedValue(mockTenants as any)
+    vi.mocked(masterService.getRevenueHistory).mockResolvedValue({ months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], revenue: [12500, 14200, 11800, 16500, 18200, 24000] })
 
     render(
       <MemoryRouter>
@@ -203,6 +208,7 @@ describe('PaymentsPage', () => {
   it('filters payments list by dropdowns', async () => {
     vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices as any)
     vi.mocked(masterService.listTenants).mockResolvedValue(mockTenants as any)
+    vi.mocked(masterService.getRevenueHistory).mockResolvedValue({ months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], revenue: [12500, 14200, 11800, 16500, 18200, 24000] })
 
     render(
       <MemoryRouter>
@@ -241,6 +247,7 @@ describe('PaymentsPage', () => {
   it('downloads audit ledger when clicking export button', async () => {
     vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices as any)
     vi.mocked(masterService.listTenants).mockResolvedValue(mockTenants as any)
+    vi.mocked(masterService.getRevenueHistory).mockResolvedValue({ months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], revenue: [12500, 14200, 11800, 16500, 18200, 24000] })
 
     const appendChildSpy = vi.spyOn(document.body, 'appendChild')
     const removeChildSpy = vi.spyOn(document.body, 'removeChild')

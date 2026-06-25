@@ -9,6 +9,7 @@ export function PaymentsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
+  const [revenueHistory, setRevenueHistory] = useState<{ months: string[]; revenue: number[] } | null>(null)
 
   // Filter Form State
   const [search, setSearch] = useState('')
@@ -18,12 +19,14 @@ export function PaymentsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [invoicesData, tenantsData] = await Promise.all([
+      const [invoicesData, tenantsData, revenueData] = await Promise.all([
         masterService.listInvoices(),
-        masterService.listTenants()
+        masterService.listTenants(),
+        masterService.getRevenueHistory()
       ])
       setInvoices(invoicesData)
       setTenants(tenantsData)
+      setRevenueHistory(revenueData)
       setLoading(false)
     } catch {
       toast.error('Failed to load financial transaction records.')
@@ -111,8 +114,8 @@ export function PaymentsPage() {
 
   // Render monthly revenue trends chart using responsive SVG coordinates
   const renderRevenueChart = () => {
-    const monthlyRevenue = [12500, 14200, 11800, 16500, 18200, mtdTotal || 24000]
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+    const monthlyRevenue = revenueHistory?.revenue || [12500, 14200, 11800, 16500, 18200, mtdTotal || 24000]
+    const months = revenueHistory?.months || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
     const maxVal = Math.max(...monthlyRevenue) + 5000
 
     const width = 600
