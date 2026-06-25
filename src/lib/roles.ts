@@ -206,11 +206,6 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.pharmacist, ROLES.hospitalAdmin],
   },
   {
-    label: 'Dispense',
-    path: '/pharmacy/dispense',
-    roles: [ROLES.pharmacist, ROLES.hospitalAdmin],
-  },
-  {
     label: 'Stock Management',
     path: '/pharmacy/stock',
     roles: [ROLES.pharmacist, ROLES.hospitalAdmin],

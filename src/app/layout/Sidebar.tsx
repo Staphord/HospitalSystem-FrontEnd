@@ -186,10 +186,7 @@ export function Sidebar() {
         },
         {
           title: 'Pharmacy',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/pharmacy/queue' || item.path === '/pharmacy/dispense',
-          ),
+          items: visibleItems.filter((item) => item.path === '/pharmacy/queue'),
         },
         {
           title: 'Inventory',

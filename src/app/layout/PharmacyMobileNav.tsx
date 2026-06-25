@@ -4,7 +4,6 @@ import { isPharmacyNavItemActive } from '@/app/layout/pharmacyNavUtils'
 const MOBILE_NAV = [
   { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/pharmacy/queue', label: 'Queue', icon: 'clinical_notes' },
-  { path: '/pharmacy/dispense', label: 'Dispense', icon: 'medication' },
   { path: '/pharmacy/stock', label: 'Stock', icon: 'inventory_2' },
 ] as const
 

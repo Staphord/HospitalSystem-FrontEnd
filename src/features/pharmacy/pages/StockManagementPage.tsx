@@ -1,10 +1,5 @@
-import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
+import { StockManagementContent } from '@/features/pharmacy/components/StockManagementContent'
 
 export function StockManagementPage() {
-  return (
-    <ComingSoonPage
-      title="Stock Management"
-      description="Waiting on /api/v1/pharmacy endpoints."
-    />
-  )
+  return <StockManagementContent />
 }
