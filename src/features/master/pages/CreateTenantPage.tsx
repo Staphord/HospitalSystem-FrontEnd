@@ -32,7 +32,7 @@ export function CreateTenantPage() {
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [mfaEnforced, setMfaEnforced] = useState(true)
   const [rateLimit, setRateLimit] = useState('1000')
-  const [storageQuota, setStorageQuota] = useState('50')
+  const [storageQuota, setStorageQuota] = useState('')
   
   // Section 5: Subscription Setup
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
@@ -57,12 +57,13 @@ export function CreateTenantPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    // Fetch available plans for radio cards
     masterService.listPlans().then((data) => {
       setPlans(data)
-      setSelectedPlanId((currentPlanId) =>
-        data.some((plan) => plan.plan_id === currentPlanId) ? currentPlanId : (data[0]?.plan_id || '')
-      )
+      const defaultPlan = data.find((plan) => plan.plan_id === 'standard') || data[0]
+      if (defaultPlan) {
+        setSelectedPlanId(defaultPlan.plan_id)
+        setStorageQuota(defaultPlan.storage_gb.toString())
+      }
     }).catch(() => {
    
     })
@@ -99,6 +100,9 @@ export function CreateTenantPage() {
     
     if (!adminEmail.trim()) newErrors.adminEmail = 'Admin Email is required.'
     else if (!/\S+@\S+\.\S+/.test(adminEmail)) newErrors.adminEmail = 'Admin Email is invalid.'
+    
+    if (!adminFullName.trim()) newErrors.adminFullName = 'Admin Full Name is required.'
+    if (!contactPhone.trim()) newErrors.contactPhone = 'Primary Contact Phone Number is required.'
     
     if (billingEmail && !/\S+@\S+\.\S+/.test(billingEmail)) newErrors.billingEmail = 'Billing Email is invalid.'
     
@@ -314,14 +318,15 @@ export function CreateTenantPage() {
             </div>
 
             <div className="form-group">
-              <label>Admin Full Name</label>
+              <label>Admin Full Name *</label>
               <input
                 type="text"
-                className="form-control"
+                className={`form-control ${errors.adminFullName ? 'is-invalid' : ''}`}
                 placeholder="e.g. Dr. Jane Mwenye"
                 value={adminFullName}
                 onChange={(e) => setAdminFullName(e.target.value)}
               />
+              {errors.adminFullName && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminFullName}</span>}
             </div>
 
             <div className="form-group">
@@ -337,14 +342,15 @@ export function CreateTenantPage() {
             </div>
 
             <div className="form-group">
-              <label>Primary Contact Phone Number</label>
+              <label>Primary Contact Phone Number *</label>
               <input
                 type="text"
-                className="form-control"
+                className={`form-control ${errors.contactPhone ? 'is-invalid' : ''}`}
                 placeholder="e.g. +255 22 2123456"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
               />
+              {errors.contactPhone && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.contactPhone}</span>}
             </div>
           </div>
         </div>
@@ -437,6 +443,7 @@ export function CreateTenantPage() {
                 type="number"
                 className={`form-control ${errors.storageQuota ? 'is-invalid' : ''}`}
                 value={storageQuota}
+                placeholder="0"
                 onChange={(e) => setStorageQuota(e.target.value)}
               />
               {errors.storageQuota && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.storageQuota}</span>}

@@ -74,6 +74,8 @@ describe('CreateTenantPage', () => {
     expect(screen.getAllByText('Hospital Name is required.')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Admin Username is required.')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Admin Password is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Admin Full Name is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Primary Contact Phone Number is required.')[0]).toBeInTheDocument()
   })
 
   it('submits correctly when inputs are populated and contingency check is completed', async () => {
@@ -102,6 +104,12 @@ describe('CreateTenantPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/e.g. contact@dargeneral.go.tz/i), {
       target: { value: 'admin@testhospital.org' },
     })
+    fireEvent.change(screen.getByPlaceholderText(/e.g. Dr. Jane Mwenye/i), {
+      target: { value: 'Dr. Test Admin' },
+    })
+    fireEvent.change(screen.getByPlaceholderText(/e.g. \+255 22 2123456/i), {
+      target: { value: '+255 22 2123456' },
+    })
 
     // Tick the contingency checking checkbox
     const checkbox = container.querySelector('#contingency_chk')
@@ -127,6 +135,9 @@ describe('CreateTenantPage', () => {
         admin_username: 'admin_test',
         admin_password: 'password123',
         admin_email: 'admin@testhospital.org',
+        admin_full_name: 'Dr. Test Admin',
+        primary_contact_name: 'Dr. Test Admin',
+        primary_contact_phone: '+255 22 2123456',
       })
     )
   })
