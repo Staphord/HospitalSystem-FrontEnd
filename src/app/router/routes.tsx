@@ -69,7 +69,9 @@ import { LabRequestDetailPage } from '@/features/laboratory/pages/LabRequestDeta
 import { LabResultsPage } from '@/features/laboratory/pages/LabResultsPage'
 import { SpecimenTrackingPage } from '@/features/laboratory/pages/SpecimenTrackingPage'
 import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
-import { DispensingPage } from '@/features/pharmacy/pages/DispensingPage'
+import { DispensePrescriptionPage } from '@/features/pharmacy/pages/DispensePrescriptionPage'
+import { PrescriptionQueuePage } from '@/features/pharmacy/pages/PrescriptionQueuePage'
+import { StockManagementPage } from '@/features/pharmacy/pages/StockManagementPage'
 import { BillsPage } from '@/features/billing/pages/BillsPage'
 import { AdmissionsPage } from '@/features/ward/pages/AdmissionsPage'
 import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage'
@@ -213,7 +215,12 @@ export const routes = [
           },
           {
             element: <RoleRoute allowed={[ROLES.pharmacist, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/pharmacy/dispense', element: <DispensingPage /> }],
+            children: [
+              { path: '/pharmacy/queue', element: <PrescriptionQueuePage /> },
+              { path: '/pharmacy/queue/:prescriptionId/dispense', element: <DispensePrescriptionPage /> },
+              { path: '/pharmacy/dispense', element: <Navigate to="/pharmacy/queue" replace /> },
+              { path: '/pharmacy/stock', element: <StockManagementPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist]} />,

@@ -8,6 +8,8 @@ import { ConsultationMobileNav } from '@/app/layout/ConsultationMobileNav'
 import { ConsultationTopbar } from '@/app/layout/ConsultationTopbar'
 import { LaboratoryTopbar } from '@/app/layout/LaboratoryTopbar'
 import { LaboratoryMobileNav } from '@/app/layout/LaboratoryMobileNav'
+import { PharmacyTopbar } from '@/app/layout/PharmacyTopbar'
+import { PharmacyMobileNav } from '@/app/layout/PharmacyMobileNav'
 import { ImpersonationBanner } from '@/app/layout/ImpersonationBanner'
 import { AppProvider } from '@/features/admin/context/AppContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -25,7 +27,10 @@ export function HospitalLayout() {
   const isDoctor = (hasRole(ROLES.doctor) || user?.role === ROLES.doctor) && !isAdmin
   const isLabTechnician =
     (hasRole(ROLES.labTechnician) || user?.role === ROLES.labTechnician) && !isAdmin
-  const useModernShell = isAdmin || isReceptionist || isTriageNurse || isDoctor || isLabTechnician
+  const isPharmacist =
+    (hasRole(ROLES.pharmacist) || user?.role === ROLES.pharmacist) && !isAdmin
+  const useModernShell =
+    isAdmin || isReceptionist || isTriageNurse || isDoctor || isLabTechnician || isPharmacist
 
   useEffect(() => {
     if (!isReadOnly) return
@@ -107,16 +112,21 @@ export function HospitalLayout() {
             <ConsultationTopbar />
           ) : isLabTechnician ? (
             <LaboratoryTopbar />
+          ) : isPharmacist ? (
+            <PharmacyTopbar />
           ) : (
             <Topbar />
           )}
           <ImpersonationBanner />
-          <Topbar />
           <main
             className={
               (isAdmin
                 ? 'flex-1 overflow-y-auto p-lg lg:p-xl pb-24 lg:pb-xl bg-background admin-portal-theme'
-                : isReceptionist || isTriageNurse || isDoctor || isLabTechnician
+                : isReceptionist ||
+                    isTriageNurse ||
+                    isDoctor ||
+                    isLabTechnician ||
+                    isPharmacist
                   ? 'flex-1 overflow-y-auto p-4 md:p-xl bg-background pb-20 lg:pb-xl'
                   : 'page-content') + (isReadOnly ? ' read-only-session' : '')
             }
@@ -128,6 +138,7 @@ export function HospitalLayout() {
         {isTriageNurse && <TriageMobileNav />}
         {isDoctor && <ConsultationMobileNav />}
         {isLabTechnician && <LaboratoryMobileNav />}
+        {isPharmacist && <PharmacyMobileNav />}
       </div>
     </AppProvider>
   )
