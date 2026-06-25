@@ -18,6 +18,10 @@ vi.mock('@/api/services/monitoring', () => ({
   monitoringService: {
     getSystemHealth: vi.fn(),
     getTenantAnalytics: vi.fn(),
+    getUsageTelemetry: vi.fn().mockResolvedValue([]),
+    getTenantStats: vi.fn().mockResolvedValue(null),
+    createIncident: vi.fn(),
+    updateIncident: vi.fn(),
   },
 }))
 
