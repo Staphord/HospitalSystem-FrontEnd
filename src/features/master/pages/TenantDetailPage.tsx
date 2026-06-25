@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
 import { monitoringService } from '@/api/services/monitoring'
+import { SuspendTenantModal } from '@/features/master/components/SuspendTenantModal'
+import { TerminateTenantModal } from '@/features/master/components/TerminateTenantModal'
 import type { Tenant, Subscription, Invoice } from '@/api/types/master'
 import type { AuditLog } from '@/api/services/monitoring'
 
@@ -10,12 +12,27 @@ export function TenantDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   
+  interface TenantStats {
+    user_count?: number
+    kc_user_count?: number
+    patient_count?: number
+    db_size_mb?: number
+  }
+
+  interface TenantAnalytics {
+    storage_growth?: number[]
+    uptime_trend?: number[]
+    active_users_peak?: number[]
+    module_usage?: Record<string, number>
+    activity_logs?: unknown[]
+  }
+
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
-  const [stats, setStats] = useState<any>(null)
-  const [analytics, setAnalytics] = useState<any>(null)
+  const [stats, setStats] = useState<TenantStats | null>(null)
+  const [analytics, setAnalytics] = useState<TenantAnalytics | null>(null)
   
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'subscription' | 'invoices' | 'audit' | 'config'>('overview')
@@ -24,21 +41,9 @@ export function TenantDetailPage() {
   const [isSuspendOpen, setIsSuspendOpen] = useState(false)
   const [isTerminateOpen, setIsTerminateOpen] = useState(false)
 
-  // Suspend Modal state
-  const [suspensionReason, setSuspensionReason] = useState('')
-  const [suspending, setSuspending] = useState(false)
-
-  // Terminate Modal states
-  const [terminateStep, setTerminateStep] = useState(1)
-  const [hospitalNameConfirm, setHospitalNameConfirm] = useState('')
-  const [hasDownloadedBackup, setHasDownloadedBackup] = useState(false)
-  const [backupVerified, setBackupVerified] = useState(false)
-  const [finalConsent1, setFinalConsent1] = useState(false)
-  const [finalConsent2, setFinalConsent2] = useState(false)
-  const [terminating, setTerminating] = useState(false)
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!id) return
+    await Promise.resolve()
     try {
       setLoading(true)
       const tData = await masterService.getTenant(id)
@@ -71,39 +76,27 @@ export function TenantDetailPage() {
           l.details.toLowerCase().includes(tData.hospital_name.toLowerCase())
       )
       setAuditLogs(filteredLogs)
-    } catch (err) {
+    } catch {
       toast.error('Failed to load tenant details.')
       navigate('/master/tenants')
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, navigate])
 
   useEffect(() => {
-    fetchData()
-  }, [id])
-
-  const handleSuspend = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!tenant || !id || !suspensionReason.trim()) return
-    setSuspending(true)
-
-    try {
-      await masterService.updateTenant(id, { 
-        status: 'suspended',
-        // Pass suspension reason to the mock client to register it in audit logs
-        ...({ suspension_reason: suspensionReason } as any)
-      })
-      toast.success(`Tenant "${tenant.hospital_name}" suspended successfully.`)
-      setIsSuspendOpen(false)
-      setSuspensionReason('')
+    let active = true
+    const load = async () => {
+      await Promise.resolve()
+      if (!active) return
       fetchData()
-    } catch (err) {
-      toast.error('Failed to suspend tenant.')
-    } finally {
-      setSuspending(false)
     }
-  }
+    load()
+    return () => {
+      active = false
+    }
+  }, [id, fetchData])
+
 
   const handleUnsuspend = async () => {
     if (!tenant || !id) return
@@ -111,57 +104,12 @@ export function TenantDetailPage() {
       await masterService.updateTenant(id, { status: 'active' })
       toast.success(`Tenant "${tenant.hospital_name}" reactivated successfully.`)
       fetchData()
-    } catch (err) {
+    } catch {
       toast.error('Failed to reactivate tenant.')
     }
   }
 
-  const handleDownloadBackup = () => {
-    if (!tenant) return
-    const currentStorage = analytics && analytics.storage_growth ? analytics.storage_growth[analytics.storage_growth.length - 1] : 0
-    const backupData = {
-      tenant_id: tenant.tenant_id,
-      hospital_name: tenant.hospital_name,
-      exported_at: new Date().toISOString(),
-      statistics: { 
-        active_staff_users: stats ? (stats.user_count || stats.kc_user_count || 0) : 0, 
-        total_patients: stats ? (stats.patient_count || 0) : 0, 
-        storage_gb: currentStorage, 
-        db_size_mb: stats ? (stats.db_size_mb || 0) : 0 
-      },
-      profile: tenant,
-      subscriptions: subscriptions,
-      invoices: invoices,
-      audit_logs: auditLogs
-    }
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${tenant.tenant_id}_clinical_data_export.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    setHasDownloadedBackup(true)
-    toast.success('Backup export file generated and downloaded successfully!')
-  }
 
-  const handleTerminate = async () => {
-    if (!tenant || !id) return
-    setTerminating(true)
-
-    try {
-      await masterService.updateTenant(id, { status: 'terminated' })
-      toast.success(`Tenant organization "${tenant.hospital_name}" has been permanently terminated.`)
-      setIsTerminateOpen(false)
-      navigate('/master/tenants')
-    } catch (err) {
-      toast.error('Failed to terminate organization.')
-    } finally {
-      setTerminating(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -241,7 +189,7 @@ export function TenantDetailPage() {
                 <p style={{ margin: '0.35rem 0 0 0', color: 'var(--color-text-light)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <code>{tenant.tenant_id}</code>
                   <span>•</span>
-                  <span>{tenant.city || 'N/A'}, {tenant.country || 'N/A'}</span>
+                  <span>{tenant.city || '-'}, {tenant.country || '-'}</span>
                   <span>•</span>
                   <span>Status:</span>
                   <span className={getStatusBadgeClass(tenant.status)}>{tenant.status.toUpperCase()}</span>
@@ -310,12 +258,6 @@ export function TenantDetailPage() {
                     alignItems: 'center',
                   }}
                   onClick={() => {
-                    setTerminateStep(1)
-                    setHospitalNameConfirm('')
-                    setHasDownloadedBackup(false)
-                    setBackupVerified(false)
-                    setFinalConsent1(false)
-                    setFinalConsent2(false)
                     setIsTerminateOpen(true)
                   }}
                 >
@@ -384,26 +326,36 @@ export function TenantDetailPage() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Country</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.country || 'N/A'}</div>
+                <div style={{ fontSize: '0.9375rem' }}>{tenant.country || '-'}</div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>City</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.city || 'N/A'}</div>
+                <div style={{ fontSize: '0.9375rem' }}>{tenant.city || '-'}</div>
               </div>
               <div style={{ gridColumn: 'span 2' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Address</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.address || 'N/A'}</div>
+                <div style={{ fontSize: '0.9375rem' }}>{tenant.address || '-'}</div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Primary Contact</label>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 500 }}>{tenant.contact_name || 'N/A'}</div>
-                <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                  {tenant.contact_email} • {tenant.contact_phone || 'No phone'}
+                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Primary Contact</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text-light)' }}>Name: </span>
+                    {tenant.contact_name || '-'}
+                  </div>
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text-light)' }}>Email: </span>
+                    {tenant.contact_email || '-'}
+                  </div>
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text-light)' }}>Phone: </span>
+                    {tenant.contact_phone || '-'}
+                  </div>
                 </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Billing Email</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.billing_email || tenant.contact_email || 'N/A'}</div>
+                <div style={{ fontSize: '0.9375rem' }}>{tenant.billing_email || tenant.contact_email || '-'}</div>
               </div>
             </div>
           </div>
@@ -428,7 +380,7 @@ export function TenantDetailPage() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Data Region</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.data_region || 'N/A'}</div>
+                <div style={{ fontSize: '0.9375rem' }}>{tenant.data_region || '-'}</div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Database Status</label>
@@ -479,12 +431,6 @@ export function TenantDetailPage() {
                     className="btn" 
                     style={{ backgroundColor: '#ffebe6', color: '#ff5630', border: '1px solid #f5c6cb' }} 
                     onClick={() => {
-                      setTerminateStep(1)
-                      setHospitalNameConfirm('')
-                      setHasDownloadedBackup(false)
-                      setBackupVerified(false)
-                      setFinalConsent1(false)
-                      setFinalConsent2(false)
                       setIsTerminateOpen(true)
                     }}
                   >
@@ -533,7 +479,7 @@ export function TenantDetailPage() {
                       <td>
                         <span className={getStatusBadgeClass(sub.status)}>{sub.status}</span>
                       </td>
-                      <td>{sub.start_date ? new Date(sub.start_date).toLocaleDateString() : 'N/A'}</td>
+                      <td>{sub.start_date ? new Date(sub.start_date).toLocaleDateString() : '-'}</td>
                       <td>{sub.end_date ? new Date(sub.end_date).toLocaleDateString() : 'Continuous'}</td>
                     </tr>
                   ))}
@@ -579,7 +525,7 @@ export function TenantDetailPage() {
                       <td><code>#{inv.id}</code></td>
                       <td>{inv.description || 'Subscription invoice'}</td>
                       <td><strong>{tenant.currency || 'TSH'} {inv.amount.toLocaleString()}</strong></td>
-                      <td>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}</td>
+                      <td>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '-'}</td>
                       <td>
                         <span className={`status-badge ${inv.status === 'paid' ? 'status-active' : inv.status === 'overdue' ? 'status-terminated' : 'status-suspended'}`}>
                           {inv.status}
@@ -715,214 +661,32 @@ export function TenantDetailPage() {
       )}
 
       {/* SUSPEND TENANT MODAL */}
-      {isSuspendOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '450px', width: '100%' }}>
-            <div className="modal-header">
-              <h3>Confirm Hospital Suspension</h3>
-              <button className="modal-close" onClick={() => setIsSuspendOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleSuspend}>
-              <div className="modal-body">
-                <p style={{ fontSize: '0.875rem', color: 'var(--color-text)', marginBottom: '1rem' }}>
-                  You are about to suspend access for <strong>{tenant.hospital_name}</strong>. All <strong>{stats ? (stats.user_count || stats.kc_user_count || 0) : '0'}</strong> staff users will be locked out immediately.
-                </p>
-                <div className="form-group">
-                  <label>Suspension Reason *</label>
-                  <textarea
-                    className="form-control"
-                    required
-                    rows={3}
-                    placeholder="Enter reason for suspending this tenant account..."
-                    value={suspensionReason}
-                    onChange={(e) => setSuspensionReason(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsSuspendOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-danger" disabled={suspending || !suspensionReason.trim()}>
-                  {suspending ? 'Suspending...' : 'Confirm Suspend'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SuspendTenantModal
+        isOpen={isSuspendOpen}
+        onClose={() => setIsSuspendOpen(false)}
+        tenantId={id || ''}
+        tenantName={tenant?.hospital_name || ''}
+        onSuccess={fetchData}
+      />
 
       {/* 3-STEP TERMINATE TENANT MODAL */}
       {isTerminateOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px', width: '100%' }}>
-            <div className="modal-header" style={{ borderBottom: '1px solid #f5c6cb' }}>
-              <h3 style={{ color: '#ff5630' }}>Terminate Hospital Account - Step {terminateStep} of 3</h3>
-              <button className="modal-close" onClick={() => setIsTerminateOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>
-                &times;
-              </button>
-            </div>
-            
-            {/* Step 1: Warning with statistics & lock */}
-            {terminateStep === 1 && (
-              <div className="modal-body">
-                <div style={{ backgroundColor: '#ffebe6', color: '#ff5630', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.8125rem', border: '1px solid #f5c6cb', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>warning</span>
-                  <div>
-                    <strong>CRITICAL WARNING:</strong> This action is permanent and completely irreversible. Proceeding will permanently delete all records associated with this hospital.
-                  </div>
-                </div>
-                
-                <h4 style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Data Loss Statistics Summary:</h4>
-                <div style={{ padding: '0.75rem', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid var(--color-border)' }}>
-                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.8125rem', lineHeight: '1.5' }}>
-                    <li>Active Hospital Staff Accounts: <strong>{stats ? (stats.user_count || stats.kc_user_count || 0) : '0'} accounts</strong></li>
-                    <li>Stored Patient Demographic Profiles: <strong>{stats ? (stats.patient_count || 0).toLocaleString() : '0'} records</strong></li>
-                    <li>Document Storage attachments: <strong>{analytics && analytics.storage_growth ? analytics.storage_growth[analytics.storage_growth.length - 1] : '0'} GB</strong></li>
-                    <li>Provisioned Database Space: <strong>{stats ? (stats.db_size_mb || 0) : '0'} MB</strong></li>
-                  </ul>
-                </div>
-
-                <div className="form-group">
-                  <label>Type the hospital name (<strong>{tenant.hospital_name}</strong>) to unlock Next:</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Enter hospital name exactly..."
-                    value={hospitalNameConfirm}
-                    onChange={(e) => setHospitalNameConfirm(e.target.value)}
-                  />
-                </div>
-                
-                <div className="modal-footer" style={{ padding: '1rem 0 0 0', borderTop: 'none', backgroundColor: 'transparent' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setIsTerminateOpen(false)}>
-                    Cancel
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-primary"
-                    disabled={hospitalNameConfirm !== tenant.hospital_name}
-                    onClick={() => setTerminateStep(2)}
-                  >
-                    Next Step
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Backup Export */}
-            {terminateStep === 2 && (
-              <div className="modal-body">
-                <p style={{ fontSize: '0.875rem', marginBottom: '1.25rem' }}>
-                  A compliance backup of the organization database must be downloaded before termination can proceed.
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                  <button 
-                    type="button" 
-                    className="btn btn-primary" 
-                    onClick={handleDownloadBackup}
-                    style={{ padding: '0.75rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                  >
-                    <span className="material-symbols-outlined">download</span>
-                    Generate & Download Backup Export (JSON)
-                  </button>
-                </div>
-
-                {hasDownloadedBackup && (
-                  <div
-                    style={{
-                      padding: '1rem',
-                      backgroundColor: '#e3fcef',
-                      border: '1px solid #c3e6cb',
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '0.75rem',
-                      marginBottom: '1rem'
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      id="chk_verify_backup"
-                      checked={backupVerified}
-                      onChange={(e) => setBackupVerified(e.target.checked)}
-                      style={{ marginTop: '0.2rem', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="chk_verify_backup" style={{ fontSize: '0.8125rem', color: '#155724', cursor: 'pointer', margin: 0, fontWeight: 500 }}>
-                      I confirm that the database backup has been successfully downloaded, archived, and verified as readable.
-                    </label>
-                  </div>
-                )}
-
-                <div className="modal-footer" style={{ padding: '1rem 0 0 0', borderTop: 'none', backgroundColor: 'transparent' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setTerminateStep(1)}>
-                    Back
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-primary"
-                    disabled={!backupVerified}
-                    onClick={() => setTerminateStep(3)}
-                  >
-                    Next Step
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Final confirmation */}
-            {terminateStep === 3 && (
-              <div className="modal-body">
-                <div style={{ backgroundColor: '#ffebe6', color: '#ff5630', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.8125rem', border: '1px solid #f5c6cb', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
-                  <div>
-                    <strong>FINAL WARNING:</strong> Pressing "Terminate Organization" will execute a hard delete of the tenant database. This operation cannot be canceled or recovered.
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={finalConsent1}
-                      onChange={(e) => setFinalConsent1(e.target.checked)}
-                      style={{ marginTop: '0.2rem' }}
-                    />
-                    <span>I understand that this will delete all clinical records, staff accounts, invoices, and payment audits.</span>
-                  </label>
-
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8125rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={finalConsent2}
-                      onChange={(e) => setFinalConsent2(e.target.checked)}
-                      style={{ marginTop: '0.2rem' }}
-                    />
-                    <span>I understand that this action is permanent and completely irreversible.</span>
-                  </label>
-                </div>
-
-                <div className="modal-footer" style={{ padding: '1rem 0 0 0', borderTop: 'none', backgroundColor: 'transparent' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setTerminateStep(2)}>
-                    Back
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-danger"
-                    disabled={!finalConsent1 || !finalConsent2 || terminating}
-                    onClick={handleTerminate}
-                  >
-                    {terminating ? 'Terminating...' : 'Terminate Organization'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
+        <TerminateTenantModal
+          isOpen={isTerminateOpen}
+          onClose={() => setIsTerminateOpen(false)}
+          tenantId={id || ''}
+          tenantName={tenant?.hospital_name || ''}
+          stats={stats}
+          storageGb={analytics && analytics.storage_growth ? analytics.storage_growth[analytics.storage_growth.length - 1] : 0}
+          tenantProfile={tenant}
+          subscriptions={subscriptions}
+          invoices={invoices}
+          auditLogs={auditLogs}
+          onSuccess={() => {
+            setIsTerminateOpen(false)
+            navigate('/master/tenants')
+          }}
+        />
       )}
 
     </div>
