@@ -201,8 +201,18 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
-    label: 'Pharmacy',
+    label: 'Prescription Queue',
+    path: '/pharmacy/queue',
+    roles: [ROLES.pharmacist, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Dispense',
     path: '/pharmacy/dispense',
+    roles: [ROLES.pharmacist, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Stock Management',
+    path: '/pharmacy/stock',
     roles: [ROLES.pharmacist, ROLES.hospitalAdmin],
   },
   {
@@ -252,7 +262,7 @@ export function getDefaultRoute(roles: string[], userRole?: string | null): stri
   if (effective.includes(ROLES.receptionist)) return '/dashboard'
   if (effective.includes(ROLES.labTechnician)) return '/dashboard'
   if (effective.includes(ROLES.radiographer)) return '/radiology/schedule'
-  if (effective.includes(ROLES.pharmacist)) return '/pharmacy/dispense'
+  if (effective.includes(ROLES.pharmacist)) return '/dashboard'
   if (effective.includes(ROLES.cashier)) return '/billing'
   return '/dashboard'
 }

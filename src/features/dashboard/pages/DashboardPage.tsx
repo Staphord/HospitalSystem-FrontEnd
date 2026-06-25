@@ -8,6 +8,7 @@ import { AlertFeedItem } from '../components/AlertFeedItem'
 import { TriageDashboardContent } from '@/features/triage/components/TriageDashboardContent'
 import { DoctorDashboardContent } from '@/features/consultation/components/DoctorDashboardContent'
 import { LabDashboardContent } from '@/features/laboratory/components/LabDashboardContent'
+import { PharmacyDashboardContent } from '@/features/pharmacy/components/PharmacyDashboardContent'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
 import { useNavigate } from 'react-router-dom'
 
@@ -195,9 +196,14 @@ export function DashboardPage() {
   const isTriageNurse = hasEffectiveRole(roles, user?.role, ROLES.triageNurse) && !isHospitalAdmin
   const isDoctor = hasEffectiveRole(roles, user?.role, ROLES.doctor) && !isHospitalAdmin
   const isLabTechnician = hasEffectiveRole(roles, user?.role, ROLES.labTechnician) && !isHospitalAdmin
+  const isPharmacist = hasEffectiveRole(roles, user?.role, ROLES.pharmacist) && !isHospitalAdmin
 
   if (isLabTechnician) {
     return <LabDashboardContent />
+  }
+
+  if (isPharmacist) {
+    return <PharmacyDashboardContent />
   }
 
   if (isDoctor) {
