@@ -69,7 +69,11 @@ import { LabRequestDetailPage } from '@/features/laboratory/pages/LabRequestDeta
 import { LabResultsPage } from '@/features/laboratory/pages/LabResultsPage'
 import { SpecimenTrackingPage } from '@/features/laboratory/pages/SpecimenTrackingPage'
 import { ImagingSchedulePage } from '@/features/radiology/pages/ImagingSchedulePage'
-import { DispensingPage } from '@/features/pharmacy/pages/DispensingPage'
+import { ImagingRequestsPage } from '@/features/radiology/pages/ImagingRequestsPage'
+import { ImagingReportPage } from '@/features/radiology/pages/ImagingReportPage'
+import { DispensePrescriptionPage } from '@/features/pharmacy/pages/DispensePrescriptionPage'
+import { PrescriptionQueuePage } from '@/features/pharmacy/pages/PrescriptionQueuePage'
+import { StockManagementPage } from '@/features/pharmacy/pages/StockManagementPage'
 import { BillsPage } from '@/features/billing/pages/BillsPage'
 import { CashierDashboard } from '@/features/billing/pages/CashierDashboard'
 import { BillDetailsPage } from '@/features/billing/pages/BillDetailsPage'
@@ -233,11 +237,20 @@ export const routes = [
           },
           {
             element: <RoleRoute allowed={[ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/radiology/schedule', element: <ImagingSchedulePage /> }],
+            children: [
+              { path: '/radiology/requests', element: <ImagingRequestsPage /> },
+              { path: '/radiology/requests/:requestId/report', element: <ImagingReportPage /> },
+              { path: '/radiology/schedule', element: <ImagingSchedulePage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.pharmacist, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/pharmacy/dispense', element: <DispensingPage /> }],
+            children: [
+              { path: '/pharmacy/queue', element: <PrescriptionQueuePage /> },
+              { path: '/pharmacy/queue/:prescriptionId/dispense', element: <DispensePrescriptionPage /> },
+              { path: '/pharmacy/dispense', element: <Navigate to="/pharmacy/queue" replace /> },
+              { path: '/pharmacy/stock', element: <StockManagementPage /> },
+            ],
           },
           {
             element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist]} />,

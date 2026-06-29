@@ -1,10 +1,5 @@
-import { ComingSoonPage } from '@/components/ui/ComingSoonPage'
+import { ImagingScheduleContent } from '@/features/radiology/components/ImagingScheduleContent'
 
 export function ImagingSchedulePage() {
-  return (
-    <ComingSoonPage
-      title="Radiology schedule"
-      description="Waiting on /api/v1/radiology endpoints."
-    />
-  )
+  return <ImagingScheduleContent />
 }
