@@ -37,17 +37,17 @@ describe('CreateTenantPage', () => {
     )
 
     // Verify sections render correctly
-    expect(screen.getByText('1. Hospital Information')).toBeInTheDocument()
-    expect(screen.getByText('2. Primary Contact & Admin User')).toBeInTheDocument()
-    expect(screen.getByText('3. Billing Contact')).toBeInTheDocument()
-    expect(screen.getByText('4. System Configuration')).toBeInTheDocument()
-    expect(screen.getByText('5. Subscription Setup')).toBeInTheDocument()
-    expect(screen.getByText('6. Branding & Contingency Setup')).toBeInTheDocument()
+    expect(screen.getByText('Hospital Information')).toBeInTheDocument()
+    expect(screen.getByText('Primary Contact')).toBeInTheDocument()
+    expect(screen.getByText('Billing Contact')).toBeInTheDocument()
+    expect(screen.getByText('System Configuration')).toBeInTheDocument()
+    expect(screen.getByText('Subscription Setup')).toBeInTheDocument()
+    expect(screen.getByText('Branding')).toBeInTheDocument()
 
     // Wait for the mock plans list loading to populate options
     await waitFor(() => {
-      expect(screen.getByText('Basic Plan')).toBeInTheDocument()
-      expect(screen.getByText('Premium Plan')).toBeInTheDocument()
+      expect(screen.getByText('Basic')).toBeInTheDocument()
+      expect(screen.getByText('Premium')).toBeInTheDocument()
     })
   })
 
@@ -59,10 +59,10 @@ describe('CreateTenantPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Basic Plan')).toBeInTheDocument()
+      expect(screen.getByText('Basic')).toBeInTheDocument()
     })
 
-    const submitBtn = screen.getByRole('button', { name: /onboard hospital tenant/i })
+    const submitBtn = screen.getByRole('button', { name: /save and activate/i })
 
     // Trigger click on submit button
     await act(async () => {
@@ -72,53 +72,50 @@ describe('CreateTenantPage', () => {
     // Assert that validation warnings appear
     expect(screen.getByText('Please correct the following errors:')).toBeInTheDocument()
     expect(screen.getAllByText('Hospital Name is required.')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('Admin Username is required.')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('Admin Password is required.')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('Admin Full Name is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Primary Contact Full Name is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Primary Contact Email is required.')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Primary Contact Phone Number is required.')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Billing Email is required.')[0]).toBeInTheDocument()
   })
 
-  it('submits correctly when inputs are populated and contingency check is completed', async () => {
+  it('submits correctly when inputs are populated', async () => {
     vi.mocked(masterService.createTenant).mockResolvedValue({ tenant_id: 'new-hosp-id', hospital_name: 'Test General Hospital', status: 'active' } as unknown as Tenant)
 
-    const { container } = render(
+    render(
       <MemoryRouter>
         <CreateTenantPage />
       </MemoryRouter>
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Basic Plan')).toBeInTheDocument()
+      expect(screen.getByText('Basic')).toBeInTheDocument()
     })
 
     // Populate required fields
-    fireEvent.change(screen.getByPlaceholderText(/e.g. Dar es Salaam General Hospital/i), {
+    fireEvent.change(screen.getByPlaceholderText(/e.g. Dar City Medical Center/i), {
       target: { value: 'Test General Hospital' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/e.g. admin_dar/i), {
-      target: { value: 'admin_test' },
+    fireEvent.change(screen.getByLabelText(/country/i), {
+      target: { value: 'Tanzania' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/Minimum 8 characters/i), {
-      target: { value: 'password123' },
+    fireEvent.change(screen.getByPlaceholderText(/e.g. Dar es Salaam/i), {
+      target: { value: 'Dar es Salaam' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/e.g. contact@dargeneral.go.tz/i), {
-      target: { value: 'admin@testhospital.org' },
-    })
-    fireEvent.change(screen.getByPlaceholderText(/e.g. Dr. Jane Mwenye/i), {
+    fireEvent.change(screen.getByPlaceholderText(/Enter primary administrator name/i), {
       target: { value: 'Dr. Test Admin' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/e.g. \+255 22 2123456/i), {
+    fireEvent.change(screen.getByPlaceholderText(/name@hospital.com/i), {
+      target: { value: 'admin@testhospital.org' },
+    })
+    const phoneInputs = screen.getAllByPlaceholderText(/\+255 --- --- ---/i)
+    fireEvent.change(phoneInputs[0], {
       target: { value: '+255 22 2123456' },
     })
-
-    // Tick the contingency checking checkbox
-    const checkbox = container.querySelector('#contingency_chk')
-    expect(checkbox).not.toBeNull()
-    await act(async () => {
-      fireEvent.click(checkbox!)
+    fireEvent.change(screen.getByPlaceholderText(/accounts@hospital.com/i), {
+      target: { value: 'billing@testhospital.org' },
     })
 
-    const submitBtn = screen.getByRole('button', { name: /onboard hospital tenant/i })
+    const submitBtn = screen.getByRole('button', { name: /save and activate/i })
     await act(async () => {
       fireEvent.click(submitBtn)
     })
@@ -132,12 +129,11 @@ describe('CreateTenantPage', () => {
     expect(masterService.createTenant).toHaveBeenCalledWith(
       expect.objectContaining({
         hospital_name: 'Test General Hospital',
-        admin_username: 'admin_test',
-        admin_password: 'password123',
         admin_email: 'admin@testhospital.org',
         admin_full_name: 'Dr. Test Admin',
         primary_contact_name: 'Dr. Test Admin',
         primary_contact_phone: '+255 22 2123456',
+        billing_email: 'billing@testhospital.org',
       })
     )
   })
@@ -150,22 +146,15 @@ describe('CreateTenantPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Basic Plan')).toBeInTheDocument()
+      expect(screen.getByText('Basic')).toBeInTheDocument()
     })
 
-    // Check defaults
-    expect(screen.getByLabelText('Country')).toHaveValue('Tanzania')
-    expect(screen.getByLabelText('City')).toHaveValue('Dar es Salaam')
-    expect(screen.getByLabelText('Timezone')).toHaveValue('Africa/Dar_es_Salaam')
-    expect(screen.getByLabelText('Billing Currency')).toHaveValue('TZS')
-
     // Change country to Kenya
-    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'Kenya' } })
+    fireEvent.change(screen.getByLabelText(/country/i), { target: { value: 'Kenya' } })
 
     // Verify prefilled updates
-    expect(screen.getByLabelText('City')).toHaveValue('Nairobi')
-    expect(screen.getByLabelText('Timezone')).toHaveValue('Africa/Nairobi')
-    expect(screen.getByLabelText('Billing Currency')).toHaveValue('KES')
+    expect(screen.getByLabelText(/city/i)).toHaveValue('Nairobi')
+    expect(screen.getByLabelText(/timezone/i)).toHaveValue('Africa/Nairobi')
+    expect(screen.getByLabelText(/currency/i)).toHaveValue('KES')
   })
 })
-

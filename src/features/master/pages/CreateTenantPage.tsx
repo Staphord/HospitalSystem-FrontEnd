@@ -1,123 +1,125 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { masterService } from '@/api/services/master'
 import type { SubscriptionPlan } from '@/api/types/master'
 import { toast } from 'sonner'
 
 export function CreateTenantPage() {
   const navigate = useNavigate()
-  
-  // Section 1: Hospital Info
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Hospital Info states
   const [hospitalName, setHospitalName] = useState('')
-  const [country, setCountry] = useState('Tanzania')
-  const [city, setCity] = useState('Dar es Salaam')
+  const [registrationId, setRegistrationId] = useState('')
+  const [country, setCountry] = useState('')
+  const [city, setCity] = useState('')
+  const [postalCode, setPostalCode] = useState('')
   const [address, setAddress] = useState('')
+
+  // Primary Contact states
+  const [primaryName, setPrimaryName] = useState('')
+  const [primaryOccupation, setPrimaryOccupation] = useState('')
+  const [primaryEmail, setPrimaryEmail] = useState('')
+  const [primaryPhone, setPrimaryPhone] = useState('')
+
+  // Billing Contact states
+  const [billingEmail, setBillingEmail] = useState('')
+
+  // System Config states
   const [timezone, setTimezone] = useState('Africa/Dar_es_Salaam')
   const [currency, setCurrency] = useState('TZS')
   const [dateFormat, setDateFormat] = useState('DD/MM/YYYY')
-  
-  // Section 2: Primary Contact
-  const [adminUsername, setAdminUsername] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
-  const [adminEmail, setAdminEmail] = useState('')
-  const [adminFullName, setAdminFullName] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
+  const [dataRegion, setDataRegion] = useState('Africa-East')
 
-  // Section 3: Billing Details
-  const [billingEmail, setBillingEmail] = useState('')
-  const [taxId, setTaxId] = useState('')
-
-  // Section 4: System Config
-  const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [mfaEnforced, setMfaEnforced] = useState(true)
-  const [rateLimit, setRateLimit] = useState('1000')
-  const [storageQuota, setStorageQuota] = useState('')
-  
-  // Section 5: Subscription Setup
+  // Subscription Setup states
+  const [freeTrial, setFreeTrial] = useState(true)
+  const [isAnnual, setIsAnnual] = useState(false)
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState('standard')
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
-  const [subscriptionEnd, setSubscriptionEnd] = useState(() => {
-    const nextMonth = new Date()
-    nextMonth.setDate(nextMonth.getDate() + 30)
-    return nextMonth.toISOString().split('T')[0]
-  })
 
-  // Section 6: Branding & Contingency Settings
+  // Branding states
+  const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoUrl, setLogoUrl] = useState('')
-  const [graceDays, setGraceDays] = useState('14')
-  const [nasBackupPath, setNasBackupPath] = useState('/mnt/backup/nas')
-  const [secondaryContactName, setSecondaryContactName] = useState('')
-  const [secondaryContactPhone, setSecondaryContactPhone] = useState('')
-  const [contingencyChecked, setContingencyChecked] = useState(false)
 
-  // Validation & Submit UI states
+  // UI state
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Load plans on mount
   useEffect(() => {
-    masterService.listPlans().then((data) => {
-      setPlans(data)
-      const defaultPlan = data.find((plan) => plan.plan_id === 'standard') || data[0]
-      if (defaultPlan) {
-        setSelectedPlanId(defaultPlan.plan_id)
-        setStorageQuota(defaultPlan.storage_gb.toString())
-      }
-    }).catch(() => {
-   
-    })
+    masterService.listPlans()
+      .then((data) => {
+        setPlans(data)
+        const defaultPlan = data.find((plan) => plan.plan_id === 'standard') || data[0]
+        if (defaultPlan) {
+          setSelectedPlanId(defaultPlan.plan_id)
+        }
+      })
+      .catch(() => {})
   }, [])
 
+  // Update fields based on country selection
   const handleCountryChange = (selectedCountry: string) => {
     setCountry(selectedCountry)
     if (selectedCountry === 'Tanzania') {
       setCity('Dar es Salaam')
       setTimezone('Africa/Dar_es_Salaam')
       setCurrency('TZS')
+      setDataRegion('Africa-East')
     } else if (selectedCountry === 'Kenya') {
       setCity('Nairobi')
       setTimezone('Africa/Nairobi')
       setCurrency('KES')
+      setDataRegion('Africa-East')
     } else if (selectedCountry === 'Uganda') {
       setCity('Kampala')
       setTimezone('Africa/Kampala')
       setCurrency('UGX')
-    } else if (selectedCountry === 'Rwanda') {
-      setCity('Kigali')
-      setTimezone('Africa/Kigali')
-      setCurrency('RWF')
+      setDataRegion('Africa-East')
     }
   }
 
+  // Handle logo file selection
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setLogoFile(file)
+      setLogoUrl(URL.createObjectURL(file))
+    }
+  }
+
+  // Clear logo selection
+  const handleRemoveLogo = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setLogoFile(null)
+    setLogoUrl('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  // Validate form fields
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
     
     if (!hospitalName.trim()) newErrors.hospitalName = 'Hospital Name is required.'
-    if (!adminUsername.trim()) newErrors.adminUsername = 'Admin Username is required.'
-    if (!adminPassword.trim()) newErrors.adminPassword = 'Admin Password is required.'
-    else if (adminPassword.length < 8) newErrors.adminPassword = 'Password must be at least 8 characters.'
+    if (!country.trim()) newErrors.country = 'Country is required.'
+    if (!city.trim()) newErrors.city = 'City is required.'
     
-    if (!adminEmail.trim()) newErrors.adminEmail = 'Admin Email is required.'
-    else if (!/\S+@\S+\.\S+/.test(adminEmail)) newErrors.adminEmail = 'Admin Email is invalid.'
+    if (!primaryName.trim()) newErrors.primaryName = 'Primary Contact Full Name is required.'
+    if (!primaryEmail.trim()) newErrors.primaryEmail = 'Primary Contact Email is required.'
+    else if (!/\S+@\S+\.\S+/.test(primaryEmail)) newErrors.primaryEmail = 'Primary Contact Email is invalid.'
     
-    if (!adminFullName.trim()) newErrors.adminFullName = 'Admin Full Name is required.'
-    if (!contactPhone.trim()) newErrors.contactPhone = 'Primary Contact Phone Number is required.'
+    if (!primaryPhone.trim()) newErrors.primaryPhone = 'Primary Contact Phone Number is required.'
     
-    if (billingEmail && !/\S+@\S+\.\S+/.test(billingEmail)) newErrors.billingEmail = 'Billing Email is invalid.'
-    
-    if (!rateLimit || Number(rateLimit) <= 0) newErrors.rateLimit = 'Rate Limit must be positive number.'
-    if (!storageQuota || Number(storageQuota) <= 0) newErrors.storageQuota = 'Storage Quota must be positive number.'
-    if (!graceDays || Number(graceDays) < 0) newErrors.graceDays = 'Grace Period cannot be negative.'
-    
-    if (!contingencyChecked) {
-      newErrors.contingencyChecked = 'You must confirm that physical contingency folders are stocked.'
-    }
+    if (!billingEmail.trim()) newErrors.billingEmail = 'Billing Email is required.'
+    else if (!/\S+@\S+\.\S+/.test(billingEmail)) newErrors.billingEmail = 'Billing Email is invalid.'
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
+  // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) {
@@ -130,31 +132,26 @@ export function CreateTenantPage() {
 
     const payload = {
       hospital_name: hospitalName,
-      admin_username: adminUsername,
-      admin_password: adminPassword,
-      admin_email: adminEmail,
-      admin_full_name: adminFullName || undefined,
+      admin_username: `admin_${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'hosp'}`,
+      admin_password: 'ChangeMe123!',
+      admin_email: primaryEmail,
+      admin_full_name: primaryName,
       country,
       city,
       address,
       timezone,
       currency,
-      date_format: dateFormat || undefined,
+      date_format: dateFormat,
       logo_url: logoUrl || undefined,
       logo: logoUrl || undefined,
-      data_region: ['Tanzania', 'Kenya', 'Uganda', 'Rwanda'].includes(country) ? 'AF-East' : 'AF-South',
-      primary_contact_name: adminFullName || undefined,
-      primary_contact_email: adminEmail || undefined,
-      primary_contact_phone: contactPhone || undefined,
-      billing_email: billingEmail || adminEmail,
-      tax_id: taxId || undefined,
-      grace_days: Number(graceDays),
-      nas_backup_path: nasBackupPath || undefined,
-      secondary_contact_name: secondaryContactName || undefined,
-      secondary_contact_phone: secondaryContactPhone || undefined,
+      data_region: dataRegion,
+      primary_contact_name: primaryName,
+      primary_contact_email: primaryEmail,
+      primary_contact_phone: primaryPhone,
+      billing_email: billingEmail,
+      tax_id: registrationId || undefined,
       plan_id: selectedPlanId,
-      billing_cycle: billingCycle,
-      subscription_end: subscriptionEnd ? new Date(subscriptionEnd).toISOString() : undefined
+      billing_cycle: isAnnual ? 'annual' : 'monthly',
     }
 
     try {
@@ -170,463 +167,501 @@ export function CreateTenantPage() {
   }
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '3rem' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link to="/master/tenants" style={{ fontSize: '0.875rem', color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-          ← Back to Hospitals list
-        </Link>
+    <div className="pt-2">
+      {/* Page Header */}
+      <div className="px-xl py-md max-w-[720px] mx-auto">
+        <div className="flex items-center gap-sm text-secondary mb-2">
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          <Link to="/master/tenants" className="font-label-md text-label-md text-secondary hover:text-primary no-underline">
+            Back to Hospital List
+          </Link>
+        </div>
+        <h1 className="font-headline-lg text-headline-lg text-primary mb-2">Add New Hospital</h1>
+        <p className="font-body-md text-body-md text-secondary mb-0">
+          Register a new healthcare facility and configure their system preferences.
+        </p>
       </div>
 
-      <PageHeader
-        title="Onboard New Hospital"
-        description="Fill out all required fields in the configuration profile to register and provision a new hospital tenant."
-      />
-
+      {/* Error Display Banner */}
       {Object.keys(errors).length > 0 && (
-        <div
-          style={{
-            marginTop: '1.5rem',
-            padding: '1rem 1.5rem',
-            backgroundColor: 'var(--color-error-bg)',
-            border: '1px solid var(--color-error)',
-            borderRadius: '8px',
-            color: 'var(--color-error)',
-            fontSize: '0.875rem'
-          }}
-        >
-          <strong>Please correct the following errors:</strong>
-          <ul style={{ margin: '0.5rem 0 0 0', paddingLeft: '1.25rem' }}>
-            {Object.values(errors).map((err, idx) => (
-              <li key={idx}>{err}</li>
-            ))}
-          </ul>
+        <div className="max-w-[720px] mx-auto px-xl mb-md">
+          <div className="p-md border border-error bg-error-container rounded-lg text-on-error-container font-body-sm">
+            <strong className="block mb-xs">Please correct the following errors:</strong>
+            <ul className="list-disc pl-md space-y-xs">
+              {Object.values(errors).map((err, idx) => (
+                <li key={idx}>{err}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        
-        {/* Section 1: Hospital Info */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.15rem' }}>
-            1. Hospital Information
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label>Official Hospital Name *</label>
-              <input
-                type="text"
-                className={`form-control ${errors.hospitalName ? 'is-invalid' : ''}`}
-                placeholder="e.g. Dar es Salaam General Hospital"
-                value={hospitalName}
-                onChange={(e) => setHospitalName(e.target.value)}
-              />
-              {errors.hospitalName && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)' }}>{errors.hospitalName}</span>}
+      {/* Form Content */}
+      <div className="px-xl pb-[120px] max-w-[720px] mx-auto">
+        <form onSubmit={handleSubmit} className="space-y-xl">
+          
+          {/* Section 1: Hospital Information */}
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex items-center gap-2 mb-lg">
+              <span className="material-symbols-outlined text-primary">apartment</span>
+              <h2 className="font-headline-sm text-headline-sm m-0">Hospital Information</h2>
             </div>
+            <div className="space-y-md">
+              <div className="grid grid-cols-2 gap-md">
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Hospital Name <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="e.g. Dar City Medical Center"
+                    value={hospitalName}
+                    onChange={(e) => setHospitalName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Registration ID
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="e.g. REG-123456"
+                    value={registrationId}
+                    onChange={(e) => setRegistrationId(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            <div className="form-group">
-              <label htmlFor="country_select">Country</label>
-              <select id="country_select" className="form-control" value={country} onChange={(e) => handleCountryChange(e.target.value)}>
-                <option value="Tanzania">Tanzania</option>
-                <option value="Kenya">Kenya</option>
-                <option value="Uganda">Uganda</option>
-                <option value="Rwanda">Rwanda</option>
-              </select>
+              <div>
+                <label htmlFor="country_select" className="block font-label-md text-label-md text-on-surface mb-xs">
+                  Country <span className="text-error">*</span>
+                </label>
+                <select
+                  id="country_select"
+                  className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                  value={country}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                >
+                  <option value="" disabled>Select country</option>
+                  <option value="Tanzania">Tanzania</option>
+                  <option value="Kenya">Kenya</option>
+                  <option value="Uganda">Uganda</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-md">
+                <div>
+                  <label htmlFor="city_input" className="block font-label-md text-label-md text-on-surface mb-xs">
+                    City <span className="text-error">*</span>
+                  </label>
+                  <input
+                    id="city_input"
+                    type="text"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="e.g. Dar es Salaam"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Postal Code
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="e.g. 11101"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                  Full Address
+                </label>
+                <textarea
+                  className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                  placeholder="Enter physical location details..."
+                  rows={3}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </div>
             </div>
+          </section>
 
-            <div className="form-group">
-              <label htmlFor="city_input">City</label>
-              <input
-                id="city_input"
-                type="text"
-                className="form-control"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-              />
+          {/* Section 2: Primary Contact */}
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex items-center gap-2 mb-lg">
+              <span className="material-symbols-outlined text-primary">person</span>
+              <h2 className="font-headline-sm text-headline-sm m-0">Primary Contact</h2>
             </div>
+            <div className="space-y-md">
+              <div className="grid grid-cols-2 gap-md">
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Full Name <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="Enter primary administrator name"
+                    value={primaryName}
+                    onChange={(e) => setPrimaryName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Occupation
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="e.g. Medical Director"
+                    value={primaryOccupation}
+                    onChange={(e) => setPrimaryOccupation(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label>Physical Address</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. Ali Hassan Mwinyi Road, Oysterbay"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
+              <div className="grid grid-cols-2 gap-md">
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Email <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="name@hospital.com"
+                    value={primaryEmail}
+                    onChange={(e) => setPrimaryEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                    Phone <span className="text-error">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                    placeholder="+255 --- --- ---"
+                    value={primaryPhone}
+                    onChange={(e) => setPrimaryPhone(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
+          </section>
 
-            <div className="form-group">
-              <label htmlFor="timezone_select">Timezone</label>
-              <select id="timezone_select" className="form-control" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                <option value="Africa/Dar_es_Salaam">Africa/Dar_es_Salaam (EAT)</option>
-                <option value="Africa/Nairobi">Africa/Nairobi (EAT)</option>
-                <option value="Africa/Kampala">Africa/Kampala (EAT)</option>
-                <option value="Africa/Kigali">Africa/Kigali (CAT)</option>
-              </select>
+          {/* Section 3: Billing Contact */}
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex items-center gap-2 mb-lg">
+              <span className="material-symbols-outlined text-primary">payments</span>
+              <h2 className="font-headline-sm text-headline-sm m-0">Billing Contact</h2>
             </div>
-
-            <div className="form-group">
-              <label htmlFor="currency_select">Billing Currency</label>
-              <select id="currency_select" className="form-control" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                <option value="TZS">TZS (Tanzanian Shilling)</option>
-                <option value="KES">KES (Kenyan Shilling)</option>
-                <option value="UGX">UGX (Ugandan Shilling)</option>
-                <option value="RWF">RWF (Rwandan Franc)</option>
-                <option value="USD">USD (United States Dollar)</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Preferred Date Format</label>
-              <select className="form-control" value={dateFormat} onChange={(e) => setDateFormat(e.target.value)}>
-                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Primary Contact */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.15rem' }}>
-            2. Primary Contact & Admin User
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="form-group">
-              <label>Admin Username *</label>
-              <input
-                type="text"
-                className={`form-control ${errors.adminUsername ? 'is-invalid' : ''}`}
-                placeholder="e.g. admin_dar"
-                value={adminUsername}
-                onChange={(e) => setAdminUsername(e.target.value)}
-              />
-              {errors.adminUsername && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminUsername}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Admin Password *</label>
-              <input
-                type="password"
-                className={`form-control ${errors.adminPassword ? 'is-invalid' : ''}`}
-                placeholder="Minimum 8 characters"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-              />
-              {errors.adminPassword && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminPassword}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Admin Full Name *</label>
-              <input
-                type="text"
-                className={`form-control ${errors.adminFullName ? 'is-invalid' : ''}`}
-                placeholder="e.g. Dr. Jane Mwenye"
-                value={adminFullName}
-                onChange={(e) => setAdminFullName(e.target.value)}
-              />
-              {errors.adminFullName && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminFullName}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Primary Contact Email Address *</label>
+            <div>
+              <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                Billing Email <span className="text-error">*</span>
+              </label>
               <input
                 type="email"
-                className={`form-control ${errors.adminEmail ? 'is-invalid' : ''}`}
-                placeholder="e.g. contact@dargeneral.go.tz"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-              />
-              {errors.adminEmail && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.adminEmail}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Primary Contact Phone Number *</label>
-              <input
-                type="text"
-                className={`form-control ${errors.contactPhone ? 'is-invalid' : ''}`}
-                placeholder="e.g. +255 22 2123456"
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-              />
-              {errors.contactPhone && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.contactPhone}</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Billing Contact */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.15rem' }}>
-            3. Billing Contact
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="form-group">
-              <label>Billing Email Address</label>
-              <input
-                type="email"
-                className={`form-control ${errors.billingEmail ? 'is-invalid' : ''}`}
-                placeholder="e.g. finance@dargeneral.go.tz"
+                className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                placeholder="accounts@hospital.com"
                 value={billingEmail}
                 onChange={(e) => setBillingEmail(e.target.value)}
               />
-              {errors.billingEmail && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.billingEmail}</span>}
-              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'block' }}>
-                Defaults to Primary Contact Email if left empty.
+              <p className="font-label-sm text-label-sm text-secondary mt-xs mb-0">
+                Subscription invoices will be sent here
+              </p>
+            </div>
+          </section>
+
+          {/* Section 4: System Configuration */}
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex items-center gap-2 mb-lg">
+              <span className="material-symbols-outlined text-primary">settings_suggest</span>
+              <h2 className="font-headline-sm text-headline-sm m-0">System Configuration</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-md">
+              <div>
+                <label htmlFor="timezone_select" className="block font-label-md text-label-md text-on-surface mb-xs">
+                  Timezone
+                </label>
+                <select
+                  id="timezone_select"
+                  className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                >
+                  <option value="Africa/Dar_es_Salaam">Africa/Dar_es_Salaam</option>
+                  <option value="Africa/Nairobi">Africa/Nairobi</option>
+                  <option value="Africa/Kampala">Africa/Kampala</option>
+                  <option value="Africa/Kigali">Africa/Kigali</option>
+                  <option value="Europe/London">Europe/London</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="currency_select" className="block font-label-md text-label-md text-on-surface mb-xs">
+                  Currency
+                </label>
+                <select
+                  id="currency_select"
+                  className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                >
+                  <option value="TZS">TZS</option>
+                  <option value="KES">KES</option>
+                  <option value="UGX">UGX</option>
+                  <option value="RWF">RWF</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                  Date Format
+                </label>
+                <select
+                  className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                  value={dateFormat}
+                  onChange={(e) => setDateFormat(e.target.value)}
+                >
+                  <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                  <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                  <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs">
+                  Data Region
+                </label>
+                <select
+                  className="w-full border border-outline-variant rounded px-md py-sm font-body-md bg-white"
+                  value={dataRegion}
+                  onChange={(e) => setDataRegion(e.target.value)}
+                >
+                  <option value="Africa-East">Africa-East</option>
+                  <option value="Europe-West">Europe-West</option>
+                  <option value="US-East">US-East</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* Section 5: Subscription Setup */}
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex items-center justify-between mb-lg">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">card_membership</span>
+                <h2 className="font-headline-sm text-headline-sm m-0">Subscription Setup</h2>
+              </div>
+              <div className="flex items-center gap-sm">
+                <span className="font-label-sm text-label-sm text-secondary">Free Trial</span>
+                <div 
+                  onClick={() => setFreeTrial(!freeTrial)}
+                  className={`w-10 h-5 rounded-full relative cursor-pointer transition-all duration-200 ${freeTrial ? 'bg-primary' : 'bg-surface-container-highest'}`}
+                >
+                  <div className={`absolute bg-white w-4 h-4 rounded-full transition-all duration-200 top-[2px] ${freeTrial ? 'left-[22px]' : 'left-[2px]'}`} />
+                </div>
+                {freeTrial && (
+                  <span className="bg-[#e7f5ed] text-[#00875a] px-2 py-0.5 rounded-full font-label-sm text-label-sm font-bold">
+                    30-day trial
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Monthly / Annual Toggle Switch */}
+            <div className="flex justify-center gap-md mb-xl">
+              <span className={`font-label-md text-label-md transition-colors ${!isAnnual ? 'text-on-surface font-semibold' : 'text-secondary'}`}>
+                Monthly
+              </span>
+              <div
+                onClick={() => setIsAnnual(!isAnnual)}
+                className="w-10 h-5 bg-primary rounded-full relative cursor-pointer flex items-center"
+              >
+                <div className={`absolute bg-white w-4 h-4 rounded-full transition-all duration-200 top-[2px] ${isAnnual ? 'left-[22px]' : 'left-[2px]'}`} />
+              </div>
+              <span className={`font-label-md text-label-md transition-colors ${isAnnual ? 'text-on-surface font-semibold' : 'text-secondary'}`}>
+                Annual
               </span>
             </div>
 
-            <div className="form-group">
-              <label>Tax ID / Business Registration Number</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. TIN-102-998-374"
-                value={taxId}
-                onChange={(e) => setTaxId(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 4: System Config */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.15rem' }}>
-            4. System Configuration
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-            
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gridColumn: 'span 2' }}>
-              <div>
-                <strong style={{ display: 'block', fontSize: '0.875rem' }}>MFA Enforcement</strong>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
-                  Require multi-factor authentication (MFA) setup for all hospital administrators.
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                checked={mfaEnforced}
-                onChange={(e) => setMfaEnforced(e.target.checked)}
-                style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gridColumn: 'span 2', borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
-              <div>
-                <strong style={{ display: 'block', fontSize: '0.875rem' }}>Maintenance Mode</strong>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
-                  Temporarily lock the tenant site to display a maintenance banner screen.
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                checked={maintenanceMode}
-                onChange={(e) => setMaintenanceMode(e.target.checked)}
-                style={{ width: '1.25rem', height: '1.25rem', cursor: 'pointer' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
-              <label>API Rate Limiting Cap (Requests / Minute)</label>
-              <input
-                type="number"
-                className={`form-control ${errors.rateLimit ? 'is-invalid' : ''}`}
-                value={rateLimit}
-                onChange={(e) => setRateLimit(e.target.value)}
-              />
-              {errors.rateLimit && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.rateLimit}</span>}
-            </div>
-
-            <div className="form-group" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
-              <label>Storage Quota Limit (GB)</label>
-              <input
-                type="number"
-                className={`form-control ${errors.storageQuota ? 'is-invalid' : ''}`}
-                value={storageQuota}
-                placeholder="0"
-                onChange={(e) => setStorageQuota(e.target.value)}
-              />
-              {errors.storageQuota && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.storageQuota}</span>}
-            </div>
-
-          </div>
-        </div>
-
-        {/* Section 5: Subscription Setup */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.15rem' }}>
-            5. Subscription Setup
-          </h3>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '0.75rem' }}>
-              Select Subscription Plan Tier *
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {plans.map((p) => (
-                <label
-                  key={p.plan_id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '1rem',
-                    padding: '1rem',
-                    border: selectedPlanId === p.plan_id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    backgroundColor: selectedPlanId === p.plan_id ? 'var(--color-primary-light)' : 'transparent',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="plan_selection"
-                    checked={selectedPlanId === p.plan_id}
-                    onChange={() => {
-                      setSelectedPlanId(p.plan_id)
-                      setStorageQuota(p.storage_gb.toString())
-                    }}
-                    style={{ marginTop: '0.25rem' }}
-                  />
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <strong style={{ fontSize: '0.9375rem', color: 'var(--color-text)' }}>{p.plan_name} Plan</strong>
-                      <span className="badge badge-info">${p.monthly_price}/mo</span>
+            {/* Plan Cards Grid */}
+            <div className="grid grid-cols-3 gap-md">
+              {plans.map((p) => {
+                const isSelected = selectedPlanId === p.plan_id
+                const price = isAnnual ? p.annual_price : p.monthly_price
+                const priceSuffix = isAnnual ? '/yr' : '/mo'
+                
+                return (
+                  <label key={p.plan_id} className="cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="plan"
+                      className="hidden peer"
+                      checked={isSelected}
+                      onChange={() => setSelectedPlanId(p.plan_id)}
+                    />
+                    <div className={`h-full p-md rounded-lg flex flex-col items-center text-center transition-all ${
+                      isSelected
+                        ? 'border-2 border-solid border-primary bg-surface-container-low'
+                        : 'border border-solid border-outline-variant hover:bg-surface-container-low bg-white'
+                    }`}>
+                      {p.plan_id === 'standard' && (
+                        <div className="bg-primary text-white font-label-sm text-label-sm px-2 py-0.5 rounded-full mb-2">
+                          Most Popular
+                        </div>
+                      )}
+                      <span className="font-label-md text-label-md text-secondary mb-1 capitalize font-semibold">
+                        {p.plan_name}
+                      </span>
+                      <span className="font-headline-sm text-headline-sm font-bold text-on-surface mb-2">
+                        {currency} {price}{typeof price === 'number' && price <= 1000 ? 'k' : ''}{priceSuffix}
+                      </span>
+                      {p.description && (
+                        <p className="font-label-sm text-label-sm text-secondary mb-3 mt-0">
+                          {p.description}
+                        </p>
+                      )}
+                      
+                      <div className="w-full border-t border-solid border-outline-variant my-2"></div>
+                      
+                      <ul className="text-left space-y-2 font-label-sm text-label-sm text-on-surface-variant p-0 m-0 list-none w-full">
+                        <li className="flex items-start gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#00875a]">check</span>
+                          {p.max_patients ? `Up to ${p.max_patients} Patients` : 'Unlimited Patients'}
+                        </li>
+                        <li className="flex items-start gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#00875a]">check</span>
+                          {p.max_users ? `Up to ${p.max_users} Users` : 'Unlimited Users'}
+                        </li>
+                        <li className="flex items-start gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#00875a]">check</span>
+                          {p.storage_gb} GB Storage
+                        </li>
+                        <li className="flex items-start gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#00875a]">check</span>
+                          {p.uptime_sla_pct}% Uptime SLA
+                        </li>
+                        <li className="flex items-start gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-[#00875a]">check</span>
+                          Backups every {p.backup_frequency_hours}h
+                        </li>
+                        {p.modules_included && p.modules_included.length > 0 && (
+                          <li className="flex flex-col gap-1 pt-1">
+                            <span className="font-semibold text-secondary">Modules:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {p.modules_included.map((mod, mIdx) => (
+                                <span key={mIdx} className="bg-surface-container-high text-on-surface px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold">
+                                  {mod}
+                                </span>
+                              ))}
+                            </div>
+                          </li>
+                        )}
+                      </ul>
                     </div>
-                    <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-light)', display: 'block', marginTop: '0.25rem' }}>
-                      {p.description || 'Access standard modules and configurations.'}
-                    </span>
-                  </div>
-                </label>
-              ))}
+                  </label>
+                )
+              })}
             </div>
-          </div>
+          </section>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="form-group">
-              <label>Billing Cycle</label>
-              <select
-                className="form-control"
-                value={billingCycle}
-                onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'annual')}
-              >
-                <option value="monthly">Monthly billing</option>
-                <option value="annual">Annual billing (discounted)</option>
-              </select>
+          {/* Section 6: Branding */}
+          <section className="bg-surface-container-lowest border border-outline-variant rounded-lg p-lg">
+            <div className="flex items-center gap-2 mb-lg">
+              <span className="material-symbols-outlined text-primary">branding_watermark</span>
+              <h2 className="font-headline-sm text-headline-sm m-0">Branding</h2>
             </div>
-
-            <div className="form-group">
-              <label>Subscription Expiration Date</label>
-              <input
-                type="date"
-                className="form-control"
-                value={subscriptionEnd}
-                onChange={(e) => setSubscriptionEnd(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 6: Branding & Contingency Settings */}
-        <div className="card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', marginBottom: '1.25rem', fontSize: '1.15rem' }}>
-            6. Branding & Contingency Setup
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
             
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label>Hospital Brand Logo URL</label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-outline-variant rounded-lg p-xl flex flex-col items-center justify-center text-center bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer"
+            >
               <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. https://domain.com/assets/logo.png"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleLogoChange}
               />
+              {logoFile ? (
+                <div className="flex flex-col items-center">
+                  <img
+                    src={logoUrl}
+                    alt="Preview"
+                    className="w-20 h-20 object-contain mb-md rounded-lg border border-outline-variant"
+                  />
+                  <p className="font-body-md text-body-md font-semibold text-on-surface mb-0">
+                    {logoFile.name}
+                  </p>
+                  <button
+                    onClick={handleRemoveLogo}
+                    className="mt-sm text-error font-label-sm text-label-sm hover:underline bg-transparent border-none p-0 cursor-pointer"
+                    type="button"
+                  >
+                    Remove logo
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[48px] text-outline mb-md">cloud_upload</span>
+                  <p className="font-body-md text-body-md font-semibold text-on-surface mb-0">
+                    Drag and drop hospital logo
+                  </p>
+                  <p className="font-label-sm text-label-sm text-secondary mt-1 mb-0">
+                    SVG, PNG, or JPG (max 2MB). Recommended 512x512px.
+                  </p>
+                  <button
+                    className="mt-md text-primary font-label-md text-label-md hover:underline bg-transparent border-none p-0 cursor-pointer"
+                    type="button"
+                  >
+                    Or browse files
+                  </button>
+                </>
+              )}
             </div>
+          </section>
 
-            <div className="form-group">
-              <label>Grace Period Configuration (Days)</label>
-              <input
-                type="number"
-                className={`form-control ${errors.graceDays ? 'is-invalid' : ''}`}
-                value={graceDays}
-                onChange={(e) => setGraceDays(e.target.value)}
-              />
-              {errors.graceDays && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block', marginTop: '0.25rem' }}>{errors.graceDays}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Local Backup NAS Storage Directory Path</label>
-              <input
-                type="text"
-                className="form-control"
-                value={nasBackupPath}
-                onChange={(e) => setNasBackupPath(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Secondary Incident Lead Full Name</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. Richard Kimaro"
-                value={secondaryContactName}
-                onChange={(e) => setSecondaryContactName(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Secondary Incident Lead Phone</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. +255 754 987654"
-                value={secondaryContactPhone}
-                onChange={(e) => setSecondaryContactPhone(e.target.value)}
-              />
+          {/* Bottom Action Bar */}
+          <div className="fixed bottom-0 right-0 left-0 lg:left-[240px] bg-surface-container-lowest border-t border-outline-variant py-md z-50">
+            <div className="max-w-[720px] mx-auto px-xl flex justify-between items-center">
+              <div>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-md py-2 border border-solid border-outline-variant rounded-lg text-secondary font-label-md text-label-md hover:bg-surface-container bg-white cursor-pointer transition-all whitespace-nowrap"
+                  onClick={() => navigate('/master/tenants')}
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  className="px-md py-2 border border-solid border-primary text-primary rounded-lg font-label-md text-label-md hover:bg-primary-fixed bg-white cursor-pointer transition-all whitespace-nowrap"
+                  onClick={() => toast.success('Tenant settings saved as draft.')}
+                >
+                  Save as Draft
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-lg py-2 bg-[#00875a] text-white rounded-lg font-label-md text-label-md font-semibold hover:bg-[#006644] shadow-sm transition-all flex items-center gap-2 cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                  {isSubmitting ? 'Activating...' : 'Save and Activate'}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div
-            style={{
-              padding: '1rem',
-              backgroundColor: '#fafbfc',
-              border: errors.contingencyChecked ? '1px solid var(--color-error)' : '1px solid var(--color-border)',
-              borderRadius: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.5rem',
-              marginTop: '1.5rem'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-              <input
-                type="checkbox"
-                id="contingency_chk"
-                checked={contingencyChecked}
-                onChange={(e) => setContingencyChecked(e.target.checked)}
-                style={{ marginTop: '0.2rem', cursor: 'pointer' }}
-              />
-              <label htmlFor="contingency_chk" style={{ fontSize: '0.8125rem', color: 'var(--color-text)', cursor: 'pointer', margin: 0, fontWeight: 500 }}>
-                I confirm that a minimum of 50 contingency physical form packets are currently printed and locked in the red folders in reception, triage, consultation, laboratory, pharmacy, and cashier workstations at this site. *
-              </label>
-            </div>
-            {errors.contingencyChecked && <span style={{ fontSize: '0.75rem', color: 'var(--color-error)', display: 'block' }}>{errors.contingencyChecked}</span>}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-          <button type="button" className="btn btn-secondary" onClick={() => navigate('/master/tenants')}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Onboarding...' : 'Onboard Hospital Tenant'}
-          </button>
-        </div>
-
-      </form>
+        </form>
+      </div>
     </div>
   )
 }

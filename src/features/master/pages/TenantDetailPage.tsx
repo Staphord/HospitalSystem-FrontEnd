@@ -66,8 +66,8 @@ export function TenantDetailPage() {
       
       setSubscriptions(subs)
       setInvoices(invs)
-      setStats(statsData)
-      setAnalytics(analyticsData)
+      setStats(statsData as TenantStats)
+      setAnalytics(analyticsData as any)
       
       // Filter logs related to this tenant
       const filteredLogs = logs.filter(
@@ -162,286 +162,336 @@ export function TenantDetailPage() {
           Back to Tenants
         </Link>
 
-        <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <div className="bg-white border border-outline-variant rounded-xl p-lg mb-xl">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-              <div 
-                style={{ 
-                  width: '60px', 
-                  height: '60px', 
-                  borderRadius: '12px', 
-                  backgroundColor: 'rgba(26, 82, 118, 0.1)', 
-                  color: 'var(--color-primary)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  border: '1px solid var(--color-border)' 
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>
-                  local_hospital
-                </span>
+              <div className="w-20 h-20 rounded-full bg-white border border-outline-variant flex items-center justify-center overflow-hidden">
+                <img 
+                  className="w-14 h-14 object-contain" 
+                  alt="Hospital logo" 
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnyDKq2GekSnkqmmjmD0cl-m8HqCrfHt5-2qJJf0muZNvFrj8iVVhQqkPQ2QTdeH-TchFOL4a3e2mGpdWideoGjntHMnfMJzIt_NDuTtWG9agmRldID3Vx2ZUKQFq6LEVrlKgzJuGf1DZXyWgF3mDobpHddkWL5hc7ugyT23vsL8qgUfBlaj8FY4craQUBeuUqFVWu6Rk7Awc0HBuyY5CfkpuZUzlIPRBTqRuDoR6SAO30MdY6FDLYpwj2wT8Aj_U1vg7nj2hc9iDS" 
+                />
               </div>
               <div>
-                <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
-                  {tenant.hospital_name}
-                </h1>
-                <p style={{ margin: '0.35rem 0 0 0', color: 'var(--color-text-light)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <code>{tenant.tenant_id}</code>
-                  <span>•</span>
-                  <span>{tenant.city || '-'}, {tenant.country || '-'}</span>
-                  <span>•</span>
-                  <span>Status:</span>
-                  <span className={getStatusBadgeClass(tenant.status)}>{tenant.status.toUpperCase()}</span>
+                <div className="flex items-center gap-3 mb-1 flex-wrap">
+                  <h2 className="text-headline-lg font-headline-lg text-on-surface margin-0">{tenant.hospital_name}</h2>
+                  {tenant.status.toLowerCase() === 'active' && (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded border border-green-200 uppercase">ACTIVE</span>
+                  )}
+                  {tenant.status.toLowerCase() === 'suspended' && (
+                    <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded border border-red-200 uppercase">SUSPENDED</span>
+                  )}
+                  {tenant.status.toLowerCase() === 'trial' && (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded border border-amber-200 uppercase">TRIAL</span>
+                  )}
+                  {tenant.status.toLowerCase() === 'terminated' && (
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded border border-gray-200 uppercase">TERMINATED</span>
+                  )}
+                </div>
+                <p className="text-body-md text-secondary mb-3">
+                  <span>{tenant.tenant_id}</span> • <span>{tenant.city || '-'}, {tenant.country || '-'}</span>
                 </p>
+                {tenant.status.toLowerCase() !== 'terminated' && (
+                  <button className="flex items-center gap-2 px-3 py-1.5 text-secondary border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors font-label-md bg-transparent cursor-pointer">
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                    <span>Edit Profile</span>
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              {tenant.status === 'active' && (
+            
+            {tenant.status.toLowerCase() !== 'terminated' && (
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Suspend Button */}
+                {tenant.status.toLowerCase() === 'active' || tenant.status.toLowerCase() === 'trial' ? (
+                  <button 
+                    className="px-4 py-2 bg-[#FF9900] text-white rounded-lg hover:opacity-90 transition-colors font-label-md flex items-center gap-2 border-0 cursor-pointer"
+                    onClick={() => setIsSuspendOpen(true)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">pause_circle</span>
+                    <span>Suspend</span>
+                  </button>
+                ) : (
+                  <button 
+                    className="px-4 py-2 bg-surface-container-highest text-secondary border border-outline-variant rounded-lg cursor-not-allowed font-label-md flex items-center gap-2 bg-transparent"
+                    disabled
+                  >
+                    <span className="material-symbols-outlined text-[18px]">pause_circle</span>
+                    <span>Suspend</span>
+                  </button>
+                )}
+
+                {/* Reactivate Button */}
+                {tenant.status.toLowerCase() === 'suspended' ? (
+                  <button 
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:opacity-90 transition-colors font-label-md flex items-center gap-2 border-0 cursor-pointer"
+                    onClick={handleUnsuspend}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">play_circle</span>
+                    <span>Reactivate</span>
+                  </button>
+                ) : (
+                  <button 
+                    className="px-4 py-2 bg-surface-container-highest text-secondary border border-outline-variant rounded-lg cursor-not-allowed font-label-md flex items-center gap-2 bg-transparent"
+                    disabled
+                  >
+                    <span className="material-symbols-outlined text-[18px]">play_circle</span>
+                    <span>Reactivate</span>
+                  </button>
+                )}
+
+                {/* Impersonate Button */}
+                {tenant.status.toLowerCase() === 'active' || tenant.status.toLowerCase() === 'trial' ? (
+                  <button 
+                    className="px-4 py-2 text-primary border border-primary rounded-lg hover:bg-primary-container hover:bg-opacity-10 transition-colors font-label-md flex items-center gap-2 bg-transparent cursor-pointer" 
+                    onClick={() => {
+                      navigate(`/impersonation/switching?tenant_id=${tenant.tenant_id}&return_to=/admin/dashboard`, { replace: true })
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                    <span>Impersonate</span>
+                  </button>
+                ) : (
+                  <button 
+                    className="px-4 py-2 text-secondary border border-outline-variant rounded-lg font-label-md flex items-center gap-2 bg-transparent cursor-not-allowed" 
+                    disabled
+                  >
+                    <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                    <span>Impersonate</span>
+                  </button>
+                )}
+
+                {/* Terminate Button */}
                 <button 
-                  className="btn btn-secondary" 
-                  onClick={() => {
-                    navigate(`/impersonation/switching?tenant_id=${tenant.tenant_id}&return_to=/admin/dashboard`, { replace: true })
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  className="px-4 py-2 bg-[#BA1A1A] text-white rounded-lg hover:opacity-90 transition-colors font-label-md flex items-center gap-2 border-0 cursor-pointer"
+                  onClick={() => setIsTerminateOpen(true)}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>login</span>
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                    visibility
-                  </span>
-                  Impersonate
+                  <span className="material-symbols-outlined text-[18px]">delete_forever</span>
+                  <span>Terminate</span>
                 </button>
-              )}
-              {tenant.status === 'active' ? (
-                <button 
-                  className="btn" 
-                  style={{ 
-                    backgroundColor: '#fffae6', 
-                    color: '#b78103', 
-                    border: '1px solid #ffeeba',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                  }}
-                  onClick={() => setIsSuspendOpen(true)}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                    pause_circle
-                  </span>
-                  Suspend
-                </button>
-              ) : tenant.status === 'suspended' ? (
-                <button 
-                  className="btn" 
-                  style={{ 
-                    backgroundColor: '#e3fcef', 
-                    color: '#36b37e', 
-                    border: '1px solid #c3e6cb',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                  }}
-                  onClick={handleUnsuspend}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                    play_circle
-                  </span>
-                  Unsuspend
-                </button>
-              ) : null}
-              {tenant.status !== 'terminated' && (
-                <button 
-                  className="btn" 
-                  style={{ 
-                    backgroundColor: '#ffebe6', 
-                    color: '#ff5630', 
-                    border: '1px solid #f5c6cb',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                  }}
-                  onClick={() => {
-                    setIsTerminateOpen(true)
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                    delete
-                  </span>
-                  Terminate
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="nav-tabs">
-        <button 
-          className={`nav-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          Overview
-        </button>
-        <button 
-          className={`nav-tab-btn ${activeTab === 'subscription' ? 'active' : ''}`}
-          onClick={() => setActiveTab('subscription')}
-        >
-          Subscription
-        </button>
-        <button 
-          className={`nav-tab-btn ${activeTab === 'invoices' ? 'active' : ''}`}
-          onClick={() => setActiveTab('invoices')}
-        >
-          Invoices & Payments
-        </button>
-        <button 
-          className={`nav-tab-btn ${activeTab === 'audit' ? 'active' : ''}`}
-          onClick={() => setActiveTab('audit')}
-        >
-          Audit Log
-        </button>
-        <button 
-          className={`nav-tab-btn ${activeTab === 'config' ? 'active' : ''}`}
-          onClick={() => setActiveTab('config')}
-        >
-          System Config
-        </button>
+      <div className="border-b border-outline-variant mb-xl">
+        <nav className="flex gap-8 overflow-x-auto no-scrollbar">
+          <button 
+            className={`px-1 py-4 font-label-md whitespace-nowrap bg-transparent border-t-0 border-x-0 cursor-pointer ${
+              activeTab === 'overview' 
+                ? 'text-primary border-b-2 border-primary font-semibold' 
+                : 'text-on-surface-variant hover:text-primary transition-colors border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('overview')}
+          >
+            Overview
+          </button>
+          <button 
+            className={`px-1 py-4 font-label-md whitespace-nowrap bg-transparent border-t-0 border-x-0 cursor-pointer ${
+              activeTab === 'subscription' 
+                ? 'text-primary border-b-2 border-primary font-semibold' 
+                : 'text-on-surface-variant hover:text-primary transition-colors border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('subscription')}
+          >
+            Subscription
+          </button>
+          <button 
+            className={`px-1 py-4 font-label-md whitespace-nowrap bg-transparent border-t-0 border-x-0 cursor-pointer ${
+              activeTab === 'invoices' 
+                ? 'text-primary border-b-2 border-primary font-semibold' 
+                : 'text-on-surface-variant hover:text-primary transition-colors border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('invoices')}
+          >
+            <span>Invoices</span><span> and Payments</span>
+          </button>
+          <button 
+            className={`px-1 py-4 font-label-md whitespace-nowrap bg-transparent border-t-0 border-x-0 cursor-pointer ${
+              activeTab === 'audit' 
+                ? 'text-primary border-b-2 border-primary font-semibold' 
+                : 'text-on-surface-variant hover:text-primary transition-colors border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('audit')}
+          >
+            Audit Log
+          </button>
+          <button 
+            className={`px-1 py-4 font-label-md whitespace-nowrap bg-transparent border-t-0 border-x-0 cursor-pointer ${
+              activeTab === 'config' 
+                ? 'text-primary border-b-2 border-primary font-semibold' 
+                : 'text-on-surface-variant hover:text-primary transition-colors border-b-2 border-transparent'
+            }`}
+            onClick={() => setActiveTab('config')}
+          >
+            System Config
+          </button>
+        </nav>
       </div>
 
       {/* Tab Panels */}
       {activeTab === 'overview' && (
-        <div className="overview-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1rem' }}>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-lg mb-xl mt-md">
           
           {/* General Info Card */}
-          <div className="card" style={{ padding: '1.5rem' }}>
-            <h3 style={{ margin: '0 0 1.25rem 0', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', fontSize: '1.125rem' }}>
-              General Information
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Hospital Name</label>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 500 }}>{tenant.hospital_name}</div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Tenant ID</label>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 500 }}><code>{tenant.tenant_id}</code></div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Country</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.country || '-'}</div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>City</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.city || '-'}</div>
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Address</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.address || '-'}</div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.35rem' }}>Primary Contact</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                  <div>
-                    <span style={{ fontWeight: 600, color: 'var(--color-text-light)' }}>Name: </span>
-                    {tenant.contact_name || '-'}
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: 600, color: 'var(--color-text-light)' }}>Email: </span>
-                    {tenant.contact_email || '-'}
-                  </div>
-                  <div>
-                    <span style={{ fontWeight: 600, color: 'var(--color-text-light)' }}>Phone: </span>
-                    {tenant.contact_phone || '-'}
-                  </div>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg">
+            <div className="flex items-center gap-2 mb-xl">
+              <span className="material-symbols-outlined text-primary">info</span>
+              <h3 className="text-headline-sm font-headline-sm m-0">General Information</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-start border-b border-outline-variant pb-3">
+                <div>
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Hospital Name</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.hospital_name}</p>
                 </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Billing Email</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.billing_email || tenant.contact_email || '-'}</div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Country</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.country || '-'}</p>
+                </div>
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">City</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.city || '-'}</p>
+                </div>
+              </div>
+              
+              <div className="border-b border-outline-variant pb-3">
+                <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Address</p>
+                <p className="text-body-md font-medium text-on-surface m-0">{tenant.address || '-'}</p>
+              </div>
+              
+              <div className="border-b border-outline-variant pb-3">
+                <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Primary Contact</p>
+                <p className="text-body-md font-medium text-on-surface m-0">{tenant.contact_name || '-'}</p>
+                <p className="text-body-sm text-secondary m-0">
+                  {tenant.contact_email || '-'} • {tenant.contact_phone || '-'}
+                </p>
+              </div>
+              
+              <div className="border-b border-outline-variant pb-3">
+                <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Billing Email</p>
+                <p className="text-body-md font-medium text-on-surface m-0">{tenant.billing_email || tenant.contact_email || '-'}</p>
               </div>
             </div>
           </div>
 
           {/* System & Localization Card */}
-          <div className="card" style={{ padding: '1.5rem' }}>
-            <h3 style={{ margin: '0 0 1.25rem 0', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.75rem', fontSize: '1.125rem' }}>
-              System & Localization
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Timezone</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.timezone || 'UTC'}</div>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg">
+            <div className="flex items-center gap-2 mb-xl">
+              <span className="material-symbols-outlined text-primary">dns</span>
+              <h3 className="text-headline-sm font-headline-sm m-0">System & Localization</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Timezone</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.timezone || 'UTC'}</p>
+                </div>
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Currency</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.currency || 'USD'}</p>
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Currency</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.currency || 'USD'}</div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Date Format</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">DD/MM/YYYY</p>
+                </div>
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Data Region</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.data_region || '-'}</p>
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Date Format</label>
-                <div style={{ fontSize: '0.9375rem' }}>DD/MM/YYYY</div>
+
+              <div className="border-b border-outline-variant pb-3">
+                <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Database Status</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full" />
+                  <p className="text-body-md font-medium text-on-surface m-0">Provisioned</p>
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Data Region</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.data_region || '-'}</div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Database Status</label>
-                <div style={{ fontSize: '0.9375rem', color: 'var(--color-success)', fontWeight: 600 }}>PROVISIONED</div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-light)', fontWeight: 600, textTransform: 'uppercase' }}>Grace Period</label>
-                <div style={{ fontSize: '0.9375rem' }}>{tenant.grace_days ?? 14} days</div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Created Date</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">
+                    {tenant.created_at ? new Date(tenant.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                  </p>
+                </div>
+                <div className="border-b border-outline-variant pb-3">
+                  <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Trial End Date</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-body-md font-medium text-on-surface m-0">
+                      {tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Continuous'}
+                    </p>
+                    {tenant.subscription_plan && (
+                      <span className="px-1.5 py-0.5 bg-primary-container text-on-primary-container text-[10px] rounded font-bold uppercase">
+                        {tenant.subscription_plan}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+          </div>
 
-          {/* Danger Zone Card */}
-          <div className="card" style={{ padding: '1.5rem', border: '1px solid #ffc107', backgroundColor: '#fffae6', gridColumn: '1 / -1' }}>
-            <h3 style={{ margin: '0 0 1.25rem 0', color: '#b78103', borderBottom: '1px solid #ffeeba', paddingBottom: '0.75rem', fontSize: '1.125rem' }}>
-              Danger Zone
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        {/* Danger Zone Card */}
+        {tenant.status.toLowerCase() !== 'terminated' && (
+          <div className="border border-error rounded-xl overflow-hidden mt-xl">
+            <div className="bg-error bg-opacity-[0.03] p-lg border-b border-error">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-error">warning</span>
+                <h3 className="text-headline-sm font-headline-sm text-error m-0">Danger Zone</h3>
+              </div>
+            </div>
+            <div className="p-lg bg-surface-container-lowest">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-lg py-4 border-b border-outline-variant last:border-0">
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '0.9375rem' }}>Suspend Account</h4>
-                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                    Instantly revoke access for all users in this hospital. Recurring billing will continue until canceled.
-                  </p>
+                  <p className="text-body-md font-bold text-on-surface m-0">Suspend Account</p>
+                  <p className="text-body-sm text-secondary m-0">Instantly revoke access for all users in this hospital. Recurring billing will continue until canceled.</p>
                 </div>
                 {tenant.status === 'suspended' ? (
-                  <button className="btn btn-primary" onClick={handleUnsuspend}>
+                  <button 
+                    className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary-container hover:bg-opacity-10 transition-colors font-label-md whitespace-nowrap bg-transparent cursor-pointer"
+                    onClick={handleUnsuspend}
+                  >
                     Unsuspend Account
                   </button>
                 ) : (
-                  <button className="btn" style={{ backgroundColor: '#fffae6', color: '#b78103', border: '1px solid #ffeeba' }} onClick={() => setIsSuspendOpen(true)}>
+                  <button 
+                    className="px-4 py-2 border border-error text-error rounded-lg hover:bg-error-container hover:bg-opacity-20 transition-colors font-label-md whitespace-nowrap bg-transparent cursor-pointer"
+                    onClick={() => setIsSuspendOpen(true)}
+                  >
                     Suspend Account
                   </button>
                 )}
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid #ffeeba', paddingTop: '1.5rem' }}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-lg py-4 last:border-0">
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '0.9375rem' }}>Terminate Account</h4>
-                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                    Permanently delete the organization, all associated records, patient data, and clinical history. This action cannot be undone.
-                  </p>
+                  <p className="text-body-md font-bold text-on-surface m-0">Terminate Account</p>
+                  <p className="text-body-sm text-secondary m-0">Permanently delete the organization, all associated records, patient data, and clinical history. This action cannot be undone.</p>
                 </div>
-                {tenant.status === 'terminated' ? (
-                  <button className="btn btn-secondary" disabled>Terminated</button>
-                ) : (
-                  <button 
-                    className="btn" 
-                    style={{ backgroundColor: '#ffebe6', color: '#ff5630', border: '1px solid #f5c6cb' }} 
-                    onClick={() => {
-                      setIsTerminateOpen(true)
-                    }}
-                  >
-                    Terminate Account
-                  </button>
-                )}
+                <button 
+                  className="px-4 py-2 bg-error text-on-error rounded-lg hover:opacity-90 transition-colors font-label-md whitespace-nowrap border-0 cursor-pointer"
+                  onClick={() => setIsTerminateOpen(true)}
+                >
+                  Terminate Account
+                </button>
               </div>
             </div>
           </div>
-
-        </div>
+        )}
+      </>
       )}
 
       {activeTab === 'subscription' && (
@@ -450,6 +500,7 @@ export function TenantDetailPage() {
             <h3 style={{ margin: 0, fontSize: '1.125rem' }}>
               Subscription Plan Details
             </h3>
+
             <Link
               to={`/master/subscriptions?tenant_id=${tenant.tenant_id}`}
               className="btn btn-secondary btn-sm"

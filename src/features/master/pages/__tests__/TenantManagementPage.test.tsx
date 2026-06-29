@@ -78,7 +78,7 @@ describe('TenantManagementPage', () => {
       expect(screen.getByText('Aga Khan Hospital')).toBeInTheDocument()
     })
 
-    const searchInput = screen.getByPlaceholderText('Search hospitals...')
+    const searchInput = screen.getByPlaceholderText('Search by name, city or ID...')
     
     // Filter down to Nairobi
     await act(async () => {

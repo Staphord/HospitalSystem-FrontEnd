@@ -58,7 +58,7 @@ export function MasterAdminsPage() {
     }
   }, [activeTab])
 
-  const handleCreateSuccess = (newUsername: string) => {
+  const handleCreateSuccess = () => {
     setIsCreateOpen(false)
     fetchAdmins()
   }
