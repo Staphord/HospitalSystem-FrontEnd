@@ -4,6 +4,7 @@ import { Sidebar } from '@/app/layout/Sidebar'
 import { Topbar } from '@/app/layout/Topbar'
 import { ReceptionMobileNav } from '@/app/layout/ReceptionMobileNav'
 import { TriageMobileNav } from '@/app/layout/TriageMobileNav'
+import { WardMobileNav } from '@/app/layout/WardMobileNav'
 import { ConsultationMobileNav } from '@/app/layout/ConsultationMobileNav'
 import { ConsultationTopbar } from '@/app/layout/ConsultationTopbar'
 import { LaboratoryTopbar } from '@/app/layout/LaboratoryTopbar'
@@ -22,10 +23,13 @@ export function HospitalLayout() {
   const isAdmin = isHospitalAdmin()
   const isReceptionist = (hasRole(ROLES.receptionist) || user?.role === ROLES.receptionist) && !isAdmin
   const isTriageNurse = (hasRole(ROLES.triageNurse) || user?.role === ROLES.triageNurse) && !isAdmin
+  const isWardNurse = (hasRole(ROLES.wardNurse) || user?.role === ROLES.wardNurse) && !isAdmin
   const isDoctor = (hasRole(ROLES.doctor) || user?.role === ROLES.doctor) && !isAdmin
   const isLabTechnician =
     (hasRole(ROLES.labTechnician) || user?.role === ROLES.labTechnician) && !isAdmin
-  const useModernShell = isAdmin || isReceptionist || isTriageNurse || isDoctor || isLabTechnician
+  const isCashier =
+    (hasRole(ROLES.cashier) || user?.role === ROLES.cashier) && !isAdmin
+  const useModernShell = isAdmin || isReceptionist || isTriageNurse || isWardNurse || isDoctor || isLabTechnician || isCashier
 
   useEffect(() => {
     if (!isReadOnly) return
@@ -110,14 +114,13 @@ export function HospitalLayout() {
           ) : (
             <Topbar />
           )}
-          <ImpersonationBanner />
-          <Topbar />
+          <ImpersonationBanner />      
           <main
             className={
               (isAdmin
                 ? 'flex-1 overflow-y-auto p-lg lg:p-xl pb-24 lg:pb-xl bg-background admin-portal-theme'
-                : isReceptionist || isTriageNurse || isDoctor || isLabTechnician
-                  ? 'flex-1 overflow-y-auto p-4 md:p-xl bg-background pb-20 lg:pb-xl'
+                : isReceptionist || isTriageNurse || isWardNurse || isDoctor || isLabTechnician || isCashier
+                  ? 'flex-1 overflow-y-auto p-4 md:p-xl bg-[#f4f5f7] pb-20 lg:pb-xl'
                   : 'page-content') + (isReadOnly ? ' read-only-session' : '')
             }
           >
@@ -126,6 +129,7 @@ export function HospitalLayout() {
         </div>
         {isReceptionist && <ReceptionMobileNav />}
         {isTriageNurse && <TriageMobileNav />}
+        {isWardNurse && <WardMobileNav />}
         {isDoctor && <ConsultationMobileNav />}
         {isLabTechnician && <LaboratoryMobileNav />}
       </div>

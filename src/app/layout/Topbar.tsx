@@ -4,6 +4,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { ROLES } from '@/lib/roles'
 import { ReceptionTopbar } from '@/app/layout/ReceptionTopbar'
 import { TriageTopbar } from '@/app/layout/TriageTopbar'
+import { WardTopbar } from '@/app/layout/WardTopbar'
 
 export function Topbar() {
   const { user } = useAuth()
@@ -16,6 +17,14 @@ export function Topbar() {
 
   if (hasRole(ROLES.triageNurse) && !isHospitalAdmin()) {
     return <TriageTopbar />
+  }
+
+  if (hasRole(ROLES.wardNurse) && !isHospitalAdmin()) {
+    return <WardTopbar />
+  }
+
+  if (hasRole(ROLES.cashier) && !isHospitalAdmin()) {
+    return <BillingTopbar />
   }
 
   // Dynamic route page titles
@@ -90,6 +99,52 @@ export function Topbar() {
         >
           {(user?.full_name || user?.username || 'U')[0].toUpperCase()}
         </Link>
+      </div>
+    </header>
+  )
+}
+
+function BillingTopbar() {
+  const { user } = useAuth()
+  const location = useLocation()
+
+  const getPageTitle = (path: string) => {
+    const p = path.toLowerCase()
+    if (p.includes('/billing/dashboard')) return 'My Dashboard'
+    if (p.includes('/billing/bills')) return 'Patient Bills'
+    if (p.includes('/billing/summary')) return 'Daily Summary'
+    if (p.includes('/billing/payment')) return 'Process Payment'
+    return 'Billing Portal'
+  }
+
+  return (
+    <header className="h-16 bg-white border-b border-[#dfe1e6] flex items-center justify-between px-lg sticky top-0 z-40 w-full shrink-0">
+      <div className="flex items-center gap-md">
+        <h2 className="font-headline-md text-[20px] font-semibold text-[#1a1b21] m-0">
+          {getPageTitle(location.pathname)}
+        </h2>
+      </div>
+      <div className="flex items-center gap-lg">
+        <div className="flex items-center gap-sm">
+          <div className="relative cursor-pointer transition-all active:scale-95 w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f4f5f7]">
+            <span className="material-symbols-outlined text-[#4f5f7b] hover:text-[#0052cc] transition-colors" style={{ fontVariationSettings: "'FILL' 0" }}>
+              notifications
+            </span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#ff5630] rounded-full border-2 border-white"></span>
+          </div>
+          <div className="h-6 w-[1px] bg-[#dfe1e6] mx-sm"></div>
+          <div className="flex items-center border border-[#42526E] rounded-full px-3 py-[2px] gap-xs bg-white">
+            <span className="w-2 h-2 rounded-full bg-[#36b37e] animate-pulse"></span>
+            <span className="font-label-sm text-[11px] text-[#42526E] font-semibold">
+              Billing Active
+            </span>
+          </div>
+        </div>
+        <img
+          alt="User Profile"
+          className="w-8 h-8 rounded-full cursor-pointer border border-[#dfe1e6] object-cover"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuAK3BE-oj7w_BmPoHg0syBx8z1j688MH8uElGLF1n68RiA4I-jTxKmlcc-ndewfS430lDo5aCJNGZMaRbFdl0whSVz0-oLsPlwIxPkBxTMElUBXi0MJB2qg0OlhleWC-OlCEfYakiXMhOQjxWyekv_SXYsnb-DJ05Ur3cFgD8nDyWZg4Dsx92J5y65T_mPamuW6i8CPioZkSH9T-T3hbbVoKm2GSLCuW40zW1O5tCgf9junYpHETBA"
+        />
       </div>
     </header>
   )

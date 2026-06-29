@@ -171,7 +171,7 @@ export function LabSpecimensContent() {
   ) => {
     if (!modalSpecimen) return
 
-    const updated = updateSpecimenStatus(modalSpecimen.id, status, extras)
+    const updated = updateSpecimenStatus(modalSpecimen.id, status, extras as any)
     if (updated) {
       patchLabRequest(updated.requestId, {
         specimenStatus: deriveRequestSpecimenStatus(updated.status),

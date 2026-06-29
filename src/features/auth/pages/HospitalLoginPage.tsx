@@ -87,7 +87,7 @@ export function HospitalLoginPage() {
     setError('')
 
     try {
-      const tokens = await authService.login({ username, password })
+      const tokens = await authService.login({ username, password }) as any
       
       // Clear failed attempts upon successful login
       localStorage.removeItem('login_failed_attempts')

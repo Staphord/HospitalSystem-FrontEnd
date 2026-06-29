@@ -5,6 +5,7 @@ export const ROLES = {
   hospitalAdmin: 'hospital_admin',
   receptionist: 'receptionist',
   triageNurse: 'triage_nurse',
+  wardNurse: 'ward_nurse',
   doctor: 'doctor',
   labTechnician: 'lab_technician',
   radiographer: 'radiographer',
@@ -63,6 +64,7 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [
       ROLES.receptionist,
       ROLES.triageNurse,
+      ROLES.wardNurse,
       ROLES.doctor,
       ROLES.labTechnician,
       ROLES.radiographer,
@@ -206,14 +208,49 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.pharmacist, ROLES.hospitalAdmin],
   },
   {
-    label: 'Billing',
-    path: '/billing',
-    roles: [ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist],
+    label: 'Cashier Dashboard',
+    path: '/billing/dashboard',
+    roles: [ROLES.cashier, ROLES.hospitalAdmin],
   },
   {
-    label: 'Ward',
-    path: '/ward/admissions',
-    roles: [ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin],
+    label: 'Patient Bills',
+    path: '/billing/bills',
+    roles: [ROLES.cashier, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Daily Summary',
+    path: '/billing/summary',
+    roles: [ROLES.cashier, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Ward Dashboard',
+    path: '/ward/dashboard',
+    roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Bed Map',
+    path: '/ward/beds',
+    roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'My Patients',
+    path: '/ward/patients',
+    roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Inpatient Orders',
+    path: '/ward/orders',
+    roles: [ROLES.wardNurse, ROLES.doctor, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Visitor Log',
+    path: '/ward/visitors',
+    roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Shift Handover',
+    path: '/ward/handover',
+    roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
   },
   {
     label: 'Notifications',
@@ -222,6 +259,7 @@ export const HOSPITAL_NAV: NavItem[] = [
       ROLES.hospitalAdmin,
       ROLES.receptionist,
       ROLES.triageNurse,
+      ROLES.wardNurse,
       ROLES.doctor,
       ROLES.labTechnician,
       ROLES.radiographer,
@@ -249,6 +287,7 @@ export function getDefaultRoute(roles: string[], userRole?: string | null): stri
   if (effective.includes(ROLES.hospitalAdmin)) return '/admin/dashboard'
   if (effective.includes(ROLES.doctor)) return '/dashboard'
   if (effective.includes(ROLES.triageNurse)) return '/dashboard'
+  if (effective.includes(ROLES.wardNurse)) return '/ward/dashboard'
   if (effective.includes(ROLES.receptionist)) return '/dashboard'
   if (effective.includes(ROLES.labTechnician)) return '/dashboard'
   if (effective.includes(ROLES.radiographer)) return '/radiology/schedule'
