@@ -6,6 +6,7 @@ export interface PaymentRow {
   patientName: string
   patientNumber: string
   visitDate: string
+  department: string
   totalBill: number
   paid: number
   paymentMethod: BillPaymentMethod
@@ -21,6 +22,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Zuwena Salum',
     patientNumber: 'PT-3841',
     visitDate: '2026-06-11',
+    department: 'General Medicine',
     totalBill: 45000,
     paid: 0,
     paymentMethod: 'Insurance',
@@ -37,6 +39,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Fatuma Said',
     patientNumber: 'PT-4891',
     visitDate: '2026-06-11',
+    department: 'Outpatient',
     totalBill: 25000,
     paid: 0,
     paymentMethod: 'Cash',
@@ -53,6 +56,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Grace Kimaro',
     patientNumber: 'PT-4892',
     visitDate: '2026-06-11',
+    department: 'Pharmacy',
     totalBill: 30000,
     paid: 30000,
     paymentMethod: 'Cash',
@@ -69,6 +73,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Hassan Mwita',
     patientNumber: 'PT-4889',
     visitDate: '2026-06-11',
+    department: 'Radiology',
     totalBill: 60000,
     paid: 20000,
     paymentMethod: 'Insurance',
@@ -85,6 +90,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Amir Juma',
     patientNumber: 'PT-4903',
     visitDate: '2026-06-11',
+    department: 'General Medicine',
     totalBill: 55000,
     paid: 55000,
     paymentMethod: 'Insurance',
@@ -101,6 +107,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Joseph Mwinyi',
     patientNumber: 'PT-9201',
     visitDate: '2026-06-11',
+    department: 'Outpatient',
     totalBill: 18000,
     paid: 0,
     paymentMethod: 'Cash',
@@ -114,6 +121,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Mary Ngoma',
     patientNumber: 'PT-5501',
     visitDate: '2026-06-11',
+    department: 'Pediatrics',
     totalBill: 40000,
     paid: 0,
     paymentMethod: 'Insurance',
@@ -130,6 +138,7 @@ export const INITIAL_PAYMENT_ROWS: PaymentRow[] = [
     patientName: 'Linda Mtui',
     patientNumber: 'PT-4911',
     visitDate: '2026-06-11',
+    department: 'Emergency',
     totalBill: 0,
     paid: 0,
     paymentMethod: 'Exempt',
