@@ -29,6 +29,7 @@ vi.mock('@/api/services/master', () => ({
     listInvoices: vi.fn().mockResolvedValue([]),
     getTenantStats: vi.fn().mockResolvedValue({ user_count: 10 }),
     updateTenant: vi.fn(),
+    exportTenantData: vi.fn(),
   },
 }))
 
@@ -50,6 +51,12 @@ describe('TenantDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    vi.mocked(masterService.exportTenantData).mockResolvedValue({
+      tenant_id: 'aga-khan',
+      hospital_name: 'Aga Khan Hospital',
+      exported_at: '2026-06-29T12:00:00Z',
+      data: {}
+    })
 
     // Mock URL object methods for download simulations
     global.URL.createObjectURL = vi.fn().mockReturnValue('mock-download-url')
@@ -180,6 +187,9 @@ describe('TenantDetailPage', () => {
     await act(async () => {
       fireEvent.click(exportBtn)
     })
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Export Downloaded' })).toBeInTheDocument()
+    })
 
     // Tick the verification checkbox
     const chkVerify = container.querySelector('#chk_verify_backup')
@@ -204,7 +214,7 @@ describe('TenantDetailPage', () => {
       fireEvent.click(checkboxes[1])
     })
 
-    const finalTerminateBtn = screen.getByRole('button', { name: 'Terminate Organization' })
+    const finalTerminateBtn = screen.getByRole('button', { name: 'Terminate Hospital' })
     expect(finalTerminateBtn).not.toBeDisabled()
 
     await act(async () => {

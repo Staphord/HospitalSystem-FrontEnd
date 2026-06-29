@@ -148,4 +148,7 @@ export const masterService = {
 
   recordPayment: (tenantId: string, data: { invoice_id: string; amount: number; payment_method: string; reference_number?: string }) =>
     apiClient.post(`/tenants/${tenantId}/payments`, data).then((r) => r.data),
+
+  exportTenantData: (tenantId: string) =>
+    apiClient.get<any>(`/tenants/${tenantId}/export`).then((r) => r.data),
 }
