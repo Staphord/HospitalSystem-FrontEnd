@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ROLES } from '@/lib/roles'
@@ -450,7 +450,12 @@ function VerificationActionsMenu({
 }
 
 function InsuranceVerificationsTab({ canManage }: { canManage: boolean }) {
-  const [rows, setRows] = useState(INITIAL_ROWS)
+  const [rows, setRows] = useState<VerificationRow[]>(() =>
+    JSON.parse(localStorage.getItem('hf_mock_insurance_verifications') || JSON.stringify(INITIAL_ROWS))
+  )
+  useEffect(() => {
+    localStorage.setItem('hf_mock_insurance_verifications', JSON.stringify(rows))
+  }, [rows])
   const [currentPage, setCurrentPage] = useState(1)
   const [verifyTarget, setVerifyTarget] = useState<VerificationRow | null>(null)
   const [viewTarget, setViewTarget] = useState<VerificationRow | null>(null)
@@ -873,119 +878,38 @@ function ViewPaymentModal({ row, onClose }: { row: PaymentRow; onClose: () => vo
   )
 }
 
-function PaymentActionsMenu({
-  row,
-  openMenuId,
-  onOpenChange,
-  onRecordPayment,
-  onView,
-  onPrint,
-}: {
-  row: PaymentRow
-  openMenuId: string | null
-  onOpenChange: (id: string | null) => void
-  onRecordPayment: () => void
-  onView: () => void
-  onPrint: () => void
-}) {
-  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
-  const isOpen = openMenuId === row.id
-  const recordable = canRecordPayment(row)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onOpenChange(null)
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOpen, onOpenChange])
-
-  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (isOpen) {
-      onOpenChange(null)
-      return
-    }
-    const rect = e.currentTarget.getBoundingClientRect()
-    setAnchor({ top: rect.bottom + 4, left: rect.right - 180 })
-    onOpenChange(row.id)
-  }
-
-  const menuItemClass =
-    'w-full flex items-center gap-sm px-md py-sm font-body-sm text-body-sm text-left bg-transparent border-0 cursor-pointer hover:bg-surface-container-low transition-colors'
-
-  return (
-    <>
-      <button
-        type="button"
-        title="More actions"
-        onClick={handleToggle}
-        className="w-8 h-8 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container transition-colors border-0 bg-transparent cursor-pointer"
-      >
-        <span className="material-symbols-outlined">more_vert</span>
-      </button>
-
-      {isOpen && anchor && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default border-0 bg-transparent p-0"
-            aria-label="Close menu"
-            onClick={() => onOpenChange(null)}
-          />
-          <div
-            className="fixed z-50 min-w-[180px] py-xs bg-surface-white border border-border-subtle rounded shadow-lg"
-            style={{ top: anchor.top, left: Math.max(8, anchor.left) }}
-            role="menu"
-          >
-            {recordable && (
-              <>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={`${menuItemClass} text-primary-container`}
-                  onClick={onRecordPayment}
-                >
-                  <span className="material-symbols-outlined text-[18px]">payments</span>
-                  Record Payment
-                </button>
-                <div className="h-px bg-border-subtle my-xs" />
-              </>
-            )}
-            <button type="button" role="menuitem" className={`${menuItemClass} text-on-surface`} onClick={onView}>
-              <span className="material-symbols-outlined text-[18px]">visibility</span>
-              View
-            </button>
-            {(row.status === 'Paid' || row.status === 'Partial') && (
-              <button type="button" role="menuitem" className={`${menuItemClass} text-on-surface`} onClick={onPrint}>
-                <span className="material-symbols-outlined text-[18px]">print</span>
-                Print Receipt
-              </button>
-            )}
-          </div>
-        </>
-      )}
-    </>
-  )
-}
-
 type PaymentFilter = 'All' | 'Unpaid' | 'Partial' | 'Paid' | 'Insurance Pending'
 
 function PaymentStatusTab() {
-  const [rows, setRows] = useState(INITIAL_PAYMENT_ROWS)
+  const navigate = useNavigate()
+  const [rows, setRows] = useState<PaymentRow[]>(() =>
+    JSON.parse(localStorage.getItem('hf_mock_payment_rows') || JSON.stringify(INITIAL_PAYMENT_ROWS))
+  )
+  useEffect(() => {
+    localStorage.setItem('hf_mock_payment_rows', JSON.stringify(rows))
+  }, [rows])
+
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('All')
-  const [recordTarget, setRecordTarget] = useState<PaymentRow | null>(null)
-  const [viewTarget, setViewTarget] = useState<PaymentRow | null>(null)
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredRows =
-    statusFilter === 'All' ? rows : rows.filter((row) => row.status === statusFilter)
+  // Filter rows based on search, status, and payment method
+  const filteredRows = rows.filter((row) => {
+    const matchesStatus = statusFilter === 'All' ? true : row.status === statusFilter
+    const matchesMethod = paymentMethodFilter === 'All' ? true : row.paymentMethod === paymentMethodFilter
+    const matchesSearch = searchQuery === '' ? true :
+      row.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      row.patientNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      row.id.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesStatus && matchesMethod && matchesSearch
+  })
 
-  const unpaidCount = rows.filter((r) => r.status === 'Unpaid').length
+  // Calculate dynamic KPI metrics
+  const totalBillsCount = rows.length
+  const paidCount = rows.filter((r) => r.status === 'Paid').length
   const partialCount = rows.filter((r) => r.status === 'Partial').length
-  const collectedToday = rows.reduce((sum, r) => sum + r.paid, 0)
-  const insurancePendingCount = rows.filter((r) => r.status === 'Insurance Pending').length
+  const unpaidCount = rows.filter((r) => r.status === 'Unpaid').length
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAYMENT_PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -994,223 +918,292 @@ function PaymentStatusTab() {
   const showingFrom = filteredRows.length === 0 ? 0 : pageStart + 1
   const showingTo = Math.min(pageStart + PAYMENT_PAGE_SIZE, filteredRows.length)
 
-  const handleRecordPayment = (amount: number) => {
-    if (!recordTarget) return
-    setRows((prev) =>
-      prev.map((r) => {
-        if (r.id !== recordTarget.id) return r
-        const paid = r.paid + amount
-        const status = derivePaymentStatus(r.totalBill, paid, r.paymentMethod, r.status)
-        return {
-          ...r,
-          paid,
-          status,
-          lastPaymentAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        }
-      }),
-    )
-    toast.success(`Payment of ${formatTzs(amount)} recorded for ${recordTarget.patientName}.`)
-    setRecordTarget(null)
-  }
-
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md mb-lg">
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Unpaid Bills</p>
-              <h3 className={`${KPI_VALUE} text-error`}>{unpaidCount}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-error/10 flex items-center justify-center text-error">
-              <span className="material-symbols-outlined text-[24px]">money_off</span>
-            </div>
+    <div className="space-y-lg">
+      {/* Summary KPI Section */}
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-md">
+        {/* Total Bills */}
+        <div className="bg-white p-md border border-[#dfe1e6] rounded-xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-label-sm text-[#42526e] mb-1 font-semibold uppercase tracking-wider m-0">Total Bills</p>
+            <h3 className="text-2xl font-bold text-[#1a1b21] m-0 mt-xs">{totalBillsCount}</h3>
+          </div>
+          <div className="p-2 bg-[#dae2ff] rounded-lg text-[#0052cc] shrink-0">
+            <span className="material-symbols-outlined text-[24px]">receipt</span>
           </div>
         </div>
-
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Partial Payments</p>
-              <h3 className={KPI_VALUE}>{partialCount}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-warning/10 flex items-center justify-center text-warning">
-              <span className="material-symbols-outlined text-[24px]">pie_chart</span>
-            </div>
+        {/* Paid */}
+        <div className="bg-white p-md border border-[#dfe1e6] rounded-xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-label-sm text-[#42526e] mb-1 font-semibold uppercase tracking-wider m-0">Paid</p>
+            <h3 className="text-2xl font-bold text-[#36b37e] m-0 mt-xs">{paidCount}</h3>
+          </div>
+          <div className="p-2 bg-[#36b37e]/10 rounded-lg text-[#36b37e] shrink-0">
+            <span className="material-symbols-outlined text-[24px]">check_circle</span>
           </div>
         </div>
-
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Collected Today</p>
-              <h3 className={`${KPI_VALUE} text-[20px] leading-tight`}>{formatTzs(collectedToday)}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
-              <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
-            </div>
+        {/* Partial */}
+        <div className="bg-white p-md border border-[#dfe1e6] rounded-xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-label-sm text-[#42526e] mb-1 font-semibold uppercase tracking-wider m-0">Partial</p>
+            <h3 className="text-2xl font-bold text-[#ffab00] m-0 mt-xs">{partialCount}</h3>
+          </div>
+          <div className="p-2 bg-[#ffab00]/10 rounded-lg text-[#ffab00] shrink-0">
+            <span className="material-symbols-outlined text-[24px]">hourglass_top</span>
           </div>
         </div>
-
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Insurance Pending</p>
-              <h3 className={KPI_VALUE}>{insurancePendingCount}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-info/10 flex items-center justify-center text-info">
-              <span className="material-symbols-outlined text-[24px]">health_and_safety</span>
-            </div>
+        {/* Unpaid */}
+        <div className="bg-white p-md border border-[#dfe1e6] rounded-xl flex items-center justify-between shadow-sm">
+          <div>
+            <p className="text-label-sm text-[#42526e] mb-1 font-semibold uppercase tracking-wider m-0">Unpaid</p>
+            <h3 className="text-2xl font-bold text-[#ff5630] m-0 mt-xs">{unpaidCount}</h3>
+          </div>
+          <div className="p-2 bg-[#ff5630]/10 rounded-lg text-[#ff5630] shrink-0">
+            <span className="material-symbols-outlined text-[24px]">pending</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
-        <div className="p-md border-b border-border-subtle flex flex-wrap justify-between items-center gap-sm bg-surface-bright">
-          <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">Payment Status</h3>
-          <div className="flex gap-sm items-center">
-            <select
-              value={statusFilter}
+      {/* Main Table Section */}
+      <section className="bg-white border border-[#dfe1e6] rounded-[16px] flex flex-col overflow-hidden shadow-sm">
+        <div className="p-md flex items-center justify-between border-b border-[#dfe1e6]">
+          <h4 className="font-headline-sm text-sm text-[#1a1b21] font-bold uppercase tracking-wider m-0">
+            All Bills
+          </h4>
+        </div>
+
+        {/* Filters Toolbar */}
+        <div className="p-md grid grid-cols-1 md:grid-cols-4 gap-md bg-white border-b border-[#dfe1e6]">
+          <div className="relative flex items-center h-10">
+            <span
+              className="material-symbols-outlined absolute left-3 text-[#42526e] pointer-events-none select-none"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                marginTop: '-1px',
+                fontSize: '20px',
+                lineHeight: '1',
+              }}
+            >
+              search
+            </span>
+            <input
+              className="w-full h-full pl-10 pr-4 bg-white border border-[#dfe1e6] rounded-lg text-sm focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
+              placeholder="Search by name or ID..."
+              type="text"
+              value={searchQuery}
               onChange={(e) => {
-                setStatusFilter(e.target.value as PaymentFilter)
+                setSearchQuery(e.target.value)
                 setCurrentPage(1)
               }}
-              className="h-8 px-sm border border-border-subtle rounded font-body-sm text-body-sm text-secondary bg-white outline-none focus:border-primary cursor-pointer"
+            />
+          </div>
+          <select
+            className="w-full h-10 px-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as PaymentFilter)
+              setCurrentPage(1)
+            }}
+          >
+            <option value="All">Status: All</option>
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="Partial">Partial</option>
+            <option value="Insurance Pending">Insurance Pending</option>
+          </select>
+          <select
+            className="w-full h-10 px-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
+            value={paymentMethodFilter}
+            onChange={(e) => {
+              setPaymentMethodFilter(e.target.value)
+              setCurrentPage(1)
+            }}
+          >
+            <option value="All">Payment: All Types</option>
+            <option value="Cash">Cash</option>
+            <option value="Insurance">Insurance</option>
+            <option value="M-Pesa">M-Pesa</option>
+            <option value="Card">Credit Card</option>
+          </select>
+          <div className="relative flex items-center h-10">
+            <span
+              className="material-symbols-outlined absolute left-3 text-[#42526e] pointer-events-none select-none"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                marginTop: '-1px',
+                fontSize: '20px',
+                lineHeight: '1',
+              }}
             >
-              <option value="All">All statuses</option>
-              <option value="Unpaid">Unpaid</option>
-              <option value="Partial">Partial</option>
-              <option value="Paid">Paid</option>
-              <option value="Insurance Pending">Insurance Pending</option>
-            </select>
-            <button type="button" className={TOOLBAR_BTN} onClick={() => toast.info('Print preview coming soon.')}>
-              <span className="material-symbols-outlined text-[18px]">print</span>
-              Print List
-            </button>
+              calendar_today
+            </span>
+            <input
+              className="w-full h-full pl-10 pr-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
+              type="text"
+              readOnly
+              value="08 Jun - 09 Jun 2026"
+            />
           </div>
         </div>
 
+        {/* Table Area */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1100px]">
-            <thead className="bg-surface-container-low">
-              <tr>
-                <th className={TH_CLASS}>Patient Name</th>
-                <th className={TH_CLASS}>Patient #</th>
-                <th className={TH_CLASS}>Visit Date</th>
-                <th className={TH_CLASS}>Total Bill</th>
-                <th className={TH_CLASS}>Paid</th>
-                <th className={TH_CLASS}>Outstanding</th>
-                <th className={TH_CLASS}>Payment Method</th>
-                <th className={TH_CLASS}>Status</th>
-                <th className={`${TH_CLASS} text-right`}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {visibleRows.map((row) => {
-                const styles = paymentStatusStyles(row.status)
-                const outstanding = getOutstanding(row)
+          {filteredRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-md text-center bg-white">
+              <div className="w-32 h-32 bg-[#f3f3fb] rounded-full flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-5xl text-[#42526e] opacity-30">
+                  receipt_long
+                </span>
+              </div>
+              <h5 className="text-base font-bold text-[#1a1b21] mb-1">No Bills Found</h5>
+              <p className="text-sm text-[#42526e] max-w-xs m-0">
+                There are no records matching your current filter criteria. Try adjusting the search or status.
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse min-w-[1100px]">
+              <thead className="bg-[#f3f3fb]">
+                <tr>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Patient Name</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Patient #</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Visit Date</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Department</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Total Amount</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Paid</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Outstanding</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6] text-center">Payment Type</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6]">Bill Status</th>
+                  <th className="px-md py-3 font-semibold text-[11px] text-[#42526e] uppercase tracking-wider border-b border-[#dfe1e6] text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#dfe1e6]">
+                {visibleRows.map((row) => {
+                  const outstanding = getOutstanding(row)
+                  const statusStyle = row.status === 'Paid'
+                    ? 'bg-[#36b37e]/10 text-[#36b37e]'
+                    : row.status === 'Partial'
+                    ? 'bg-[#ffab00]/10 text-[#ffab00]'
+                    : row.status === 'Insurance Pending'
+                    ? 'bg-[#00b8d9]/10 text-[#00b8d9]'
+                    : 'bg-[#ff5630]/10 text-[#ff5630]'
 
-                return (
-                  <tr key={row.id} className="hover:bg-hover-tint transition-colors group">
-                    <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
-                      {row.patientName}
-                    </td>
-                    <td className={TD_MUTED}>{row.patientNumber}</td>
-                    <td className={TD_MUTED}>{row.visitDate}</td>
-                    <td className={TD_MUTED}>{formatTzs(row.totalBill)}</td>
-                    <td className="py-md px-md font-body-sm text-body-sm text-success">{formatTzs(row.paid)}</td>
-                    <td className={`py-md px-md font-body-sm text-body-sm font-semibold ${outstanding > 0 ? 'text-error' : 'text-on-surface-variant'}`}>
-                      {formatTzs(outstanding)}
-                    </td>
-                    <td className={TD_MUTED}>{row.paymentMethod}</td>
-                    <td className="py-md px-md">
-                      <span className={`${STATUS_BADGE} ${styles.bg} ${styles.text}`}>{row.status}</span>
-                    </td>
-                    <td className="py-md px-md text-right">
-                      <div className="flex justify-end">
-                        <PaymentActionsMenu
-                          row={row}
-                          openMenuId={openMenuId}
-                          onOpenChange={setOpenMenuId}
-                          onRecordPayment={() => {
-                            setOpenMenuId(null)
-                            setRecordTarget(row)
-                          }}
-                          onView={() => {
-                            setOpenMenuId(null)
-                            setViewTarget(row)
-                          }}
-                          onPrint={() => {
-                            setOpenMenuId(null)
-                            toast.success(`Receipt for ${row.patientName} sent to print.`)
-                          }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={row.id} className="hover:bg-[#dae2ff]/20 transition-colors group">
+                      <td className="px-md py-4 text-sm text-[#1a1b21] font-semibold">{row.patientName}</td>
+                      <td className="px-md py-4 text-sm text-[#42526e]">{row.patientNumber}</td>
+                      <td className="px-md py-4 text-sm text-[#42526e]">{row.visitDate}</td>
+                      <td className="px-md py-4 text-sm text-[#42526e]">{row.department}</td>
+                      <td className="px-md py-4 text-sm text-[#1a1b21] font-semibold">{formatTzs(row.totalBill)}</td>
+                      <td className="px-md py-4 text-sm text-[#36b37e] font-semibold">{formatTzs(row.paid)}</td>
+                      <td className={`px-md py-4 text-sm font-bold ${outstanding > 0 ? 'text-[#ff5630]' : 'text-[#42526e]'}`}>
+                        {formatTzs(outstanding)}
+                      </td>
+                      <td className="px-md py-4 text-center">
+                        <span className="px-2.5 py-1 bg-[#e2e2ea] text-[#42526e] rounded-full text-[10px] font-bold uppercase">
+                          {row.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="px-md py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${statusStyle}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-md py-4 text-right">
+                        <div className="flex justify-end items-center gap-2">
+                          {canRecordPayment(row) ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/billing/payment/${row.id}`)}
+                              className="h-8 px-3 bg-[#0052cc] text-white rounded-lg text-xs font-semibold hover:bg-[#003d9b] transition-all active:scale-95 cursor-pointer border-0"
+                            >
+                              Process Payment
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              className="h-8 px-3 bg-[#f4f5f7] text-[#42526e] opacity-50 rounded-lg text-xs font-semibold border-0 cursor-not-allowed"
+                            >
+                              Processed
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/billing/bills/${row.id}`)}
+                            className="h-8 px-3 border border-[#dfe1e6] bg-white text-[#42526e] rounded-lg text-xs font-semibold hover:bg-[#f4f5f7] transition-all cursor-pointer"
+                          >
+                            View Bill
+                          </button>
+                          <button
+                            type="button"
+                            title="Print Receipt"
+                            onClick={() => toast.success(`Receipt for ${row.patientName} sent to printer.`)}
+                            className="p-1 text-[#42526e] hover:text-[#0052cc] transition-colors bg-transparent border-0 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">print</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        <div className="p-md bg-surface-bright border-t border-border-subtle flex justify-between items-center">
-          <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-            {filteredRows.length === 0
-              ? 'No payments found'
-              : `Showing ${showingFrom} to ${showingTo} of ${filteredRows.length} payments`}
-          </p>
-          <div className="flex items-center gap-xs">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safePage === 1}
-              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+        {/* Footer / Pagination */}
+        {filteredRows.length > 0 && (
+          <div className="p-md border-t border-[#dfe1e6] flex items-center justify-between bg-[#faf8ff]">
+            <p className="text-xs text-[#42526e] m-0 font-medium">
+              Showing {showingFrom}-{showingTo} of {filteredRows.length} results
+            </p>
+            <div className="flex gap-1.5">
               <button
-                key={page}
                 type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${
-                  safePage === page
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-border-subtle hover:bg-surface-white text-on-surface'
-                }`}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="w-8 h-8 flex items-center justify-center border border-[#dfe1e6] rounded-lg hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
               >
-                {page}
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safePage === totalPages}
-              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 h-8 border rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                    safePage === page
+                      ? 'border-[#0052cc] bg-[#0052cc] text-white'
+                      : 'border-[#dfe1e6] hover:bg-white text-[#42526e] bg-transparent'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                className="w-8 h-8 flex items-center justify-center border border-[#dfe1e6] rounded-lg hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {recordTarget && (
-        <RecordPaymentModal
-          row={recordTarget}
-          onClose={() => setRecordTarget(null)}
-          onConfirm={(amount, _method, _ref, _notes) => handleRecordPayment(amount)}
-        />
-      )}
-      {viewTarget && <ViewPaymentModal row={viewTarget} onClose={() => setViewTarget(null)} />}
-    </>
+        )}
+      </section>
+    </div>
   )
 }
 
+// Get the default active tab based on user roles
 function getDefaultBillingTab(roles: string[]): PageTab {
-  const isCashier = roles.includes(ROLES.cashier)
-  const isReceptionist = roles.includes(ROLES.receptionist)
-  if (isCashier && !isReceptionist) return 'payment'
+  if (roles.includes(ROLES.cashier)) {
+    return 'payment'
+  }
   return 'insurance'
 }
 
@@ -1223,8 +1216,15 @@ export function BillsPage() {
   const canManageInsurance =
     hasRole(ROLES.receptionist) || isHospitalAdmin() || !hasRole(ROLES.cashier)
 
+  const isCashierOnly = hasRole(ROLES.cashier) && !hasRole(ROLES.receptionist) && !isHospitalAdmin()
+
+  // If the user is only a Cashier, render the redesigned tab-free bills page directly
+  if (isCashierOnly) {
+    return <PaymentStatusTab />
+  }
+
   return (
-    <div className="max-w-container-max mx-auto px-gutter">
+    <div className="max-w-container-max mx-auto px-gutter space-y-md">
       <ReceptionTabs activeTab={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'insurance' ? (

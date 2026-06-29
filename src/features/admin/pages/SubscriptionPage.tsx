@@ -93,7 +93,7 @@ export const SubscriptionPage: React.FC = () => {
     try {
       const response = await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
         plan_id: selectedPlanForChange.plan_id
-      });
+      }) as any;
 
       const invoiceAmount = response?.invoice?.amount ?? response?.amount ?? 0;
       const checkoutUrl = response?.payment_checkout_url;

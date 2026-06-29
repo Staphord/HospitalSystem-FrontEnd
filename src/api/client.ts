@@ -93,7 +93,7 @@ apiClient.interceptors.response.use(
       const data = error.response.data as any
       if (Array.isArray(data.detail)) {
         const messages = data.detail.map((err: any) => {
-          const field = Array.isArray(err.loc) ? err.loc.filter(l => l !== 'body').join('.') : (err.loc || '')
+          const field = Array.isArray(err.loc) ? err.loc.filter((l: any) => l !== 'body').join('.') : (err.loc || '')
           const fieldPrefix = field ? `${field}: ` : ''
           return `${fieldPrefix}${err.msg || 'invalid value'}`
         })
@@ -524,7 +524,280 @@ export const initLocalStorage = () => {
       { id: 'w3', name: 'Maternity Ward', occupiedBeds: 12, totalBeds: 20 }
     ]))
   }
+
+  // Ward: Admitted inpatient roster (shared by MyPatients, BedMap, NursingNotes, ShiftHandover)
+  if (!localStorage.getItem('hf_mock_admitted_patients')) {
+    localStorage.setItem('hf_mock_admitted_patients', JSON.stringify([
+      { id: 'p1', name: 'Juma Hamisi', patientNo: 'HN-9821', bed: 'Bed 301-A', admissionDate: '2026-06-20', lengthOfStay: '5 days', admittingDoctor: 'Dr. Joseph Lema', condition: 'Critical', lastNoteTime: '1 hour ago', activeVisitors: 2, diagnosis: 'Severe Malaria w/ Complications' },
+      { id: 'p2', name: 'Zuwena Said', patientNo: 'HN-4512', bed: 'Bed 301-B', admissionDate: '2026-06-22', lengthOfStay: '3 days', admittingDoctor: 'Dr. Sarah Mwangi', condition: 'Critical', lastNoteTime: '2 hours ago', activeVisitors: 1, diagnosis: 'Diabetic Ketoacidosis' },
+      { id: 'p3', name: 'Emmanuel John', patientNo: 'HN-8839', bed: 'Bed 303-A', admissionDate: '2026-06-18', lengthOfStay: '7 days', admittingDoctor: 'Dr. Frank Minja', condition: 'Critical', lastNoteTime: '30 mins ago', activeVisitors: 0, diagnosis: 'Post-Op Coronary Bypass' },
+      { id: 'p4', name: 'Mariam Athuman', patientNo: 'HN-3021', bed: 'Bed 302-A', admissionDate: '2026-06-24', lengthOfStay: '1 day', admittingDoctor: 'Dr. Frank Minja', condition: 'Monitoring', lastNoteTime: '4 hours ago', activeVisitors: 1, diagnosis: 'Hypertensive Crisis' },
+      { id: 'p5', name: 'Neema Kessy', patientNo: 'HN-7721', bed: 'Bed 304-C', admissionDate: '2026-06-15', lengthOfStay: '10 days', admittingDoctor: 'Dr. Sarah Mwangi', condition: 'Stable', lastNoteTime: '6 hours ago', activeVisitors: 1, diagnosis: 'Pneumonia Recovery' },
+      { id: 'p6', name: 'Ali Selemani', patientNo: 'HN-6614', bed: 'Bed 305-A', admissionDate: '2026-06-23', lengthOfStay: '2 days', admittingDoctor: 'Dr. Joseph Lema', condition: 'Stable', lastNoteTime: '3 hours ago', activeVisitors: 0, diagnosis: 'Appendicitis (Post-Op)' }
+    ]))
+  }
+
+  // Ward: Bed map grid (used by BedMapPage) — v2: 24 beds
+  if (localStorage.getItem('hf_mock_beds_v') !== '2') {
+    localStorage.removeItem('hf_mock_beds')
+    localStorage.setItem('hf_mock_beds_v', '2')
+    localStorage.setItem('hf_mock_beds', JSON.stringify([
+      { id: 'b1',  code: 'Bed 301-A', status: 'Critical',   patientId: 'p1', alert: 'SpO2 Alarm: 88%' },
+      { id: 'b2',  code: 'Bed 301-B', status: 'Monitoring', patientId: 'p2' },
+      { id: 'b3',  code: 'Bed 302-A', status: 'Stable',     patientId: 'p4' },
+      { id: 'b4',  code: 'Bed 302-B', status: 'Available' },
+      { id: 'b5',  code: 'Bed 303-A', status: 'Cleaning' },
+      { id: 'b6',  code: 'Bed 303-B', status: 'Reserved',   reservedFor: 'Alice Vance (Pending Transfer)', reservedEta: '14:30' },
+      { id: 'b7',  code: 'Bed 304-A', status: 'Stable',     patientId: 'p3' },
+      { id: 'b8',  code: 'Bed 304-B', status: 'Monitoring', patientId: 'p5' },
+      { id: 'b9',  code: 'Bed 304-C', status: 'Available' },
+      { id: 'b10', code: 'Bed 305-A', status: 'Available' },
+      { id: 'b11', code: 'Bed 305-B', status: 'Stable',     patientId: 'p6' },
+      { id: 'b12', code: 'Bed 305-C', status: 'Stable',
+        patientId: 'p-extra1',
+        _extraPatient: { id: 'p-extra1', name: 'Thomas B.',   patientNo: 'HN-2211', condition: 'Stable',     admittingDoctor: 'Dr. Frank Minja',   activeVisitors: 1, diagnosis: 'Hypertension Management', admissionDate: 'Jun 20, 2026', los: '6 Days' }
+      },
+      { id: 'b13', code: 'Bed 306-A', status: 'Stable',
+        patientId: 'p-extra2',
+        _extraPatient: { id: 'p-extra2', name: 'Nancy W.',    patientNo: 'HN-3342', condition: 'Stable',     admittingDoctor: 'Dr. Sarah Mwangi',  activeVisitors: 0, diagnosis: 'Pneumonia Recovery',        admissionDate: 'Jun 22, 2026', los: '4 Days' }
+      },
+      { id: 'b14', code: 'Bed 306-B', status: 'Stable',
+        patientId: 'p-extra3',
+        _extraPatient: { id: 'p-extra3', name: 'David L.',    patientNo: 'HN-4451', condition: 'Stable',     admittingDoctor: 'Dr. Joseph Lema',   activeVisitors: 2, diagnosis: 'Post-Op Appendectomy',      admissionDate: 'Jun 23, 2026', los: '3 Days' }
+      },
+      { id: 'b15', code: 'Bed 307-A', status: 'Monitoring',
+        patientId: 'p-extra4',
+        _extraPatient: { id: 'p-extra4', name: 'Emma R.',     patientNo: 'HN-5560', condition: 'Monitoring', admittingDoctor: 'Dr. Frank Minja',   activeVisitors: 1, diagnosis: 'Diabetic Ketoacidosis',     admissionDate: 'Jun 24, 2026', los: '2 Days' }
+      },
+      { id: 'b16', code: 'Bed 307-B', status: 'Available' },
+      { id: 'b17', code: 'Bed 308-A', status: 'Stable',
+        patientId: 'p-extra5',
+        _extraPatient: { id: 'p-extra5', name: 'Paul K.',     patientNo: 'HN-6671', condition: 'Stable',     admittingDoctor: 'Dr. Sarah Mwangi',  activeVisitors: 0, diagnosis: 'Urinary Tract Infection',   admissionDate: 'Jun 25, 2026', los: '1 Day'  }
+      },
+      { id: 'b18', code: 'Bed 308-B', status: 'Stable',
+        patientId: 'p-extra6',
+        _extraPatient: { id: 'p-extra6', name: 'Susan M.',    patientNo: 'HN-7782', condition: 'Stable',     admittingDoctor: 'Dr. Joseph Lema',   activeVisitors: 3, diagnosis: 'Malaria (Uncomplicated)',   admissionDate: 'Jun 24, 2026', los: '2 Days' }
+      },
+      { id: 'b19', code: 'Bed 309-A', status: 'Reserved', reservedFor: 'Incoming Transfer', reservedEta: '16:00' },
+      { id: 'b20', code: 'Bed 309-B', status: 'Stable',
+        patientId: 'p-extra7',
+        _extraPatient: { id: 'p-extra7', name: 'James W.',    patientNo: 'HN-8893', condition: 'Stable',     admittingDoctor: 'Dr. Frank Minja',   activeVisitors: 1, diagnosis: 'Asthma Exacerbation',      admissionDate: 'Jun 25, 2026', los: '1 Day'  }
+      },
+      { id: 'b21', code: 'Bed 310-A', status: 'Monitoring',
+        patientId: 'p-extra8',
+        _extraPatient: { id: 'p-extra8', name: 'Maria S.',    patientNo: 'HN-9904', condition: 'Monitoring', admittingDoctor: 'Dr. Sarah Mwangi',  activeVisitors: 0, diagnosis: 'Cardiac Monitoring',        admissionDate: 'Jun 23, 2026', los: '3 Days' }
+      },
+      { id: 'b22', code: 'Bed 310-B', status: 'Cleaning' },
+      { id: 'b23', code: 'Bed 311-A', status: 'Stable',
+        patientId: 'p-extra9',
+        _extraPatient: { id: 'p-extra9', name: 'Kevin O.',    patientNo: 'HN-1115', condition: 'Stable',     admittingDoctor: 'Dr. Joseph Lema',   activeVisitors: 2, diagnosis: 'Fracture (Post-reduction)', admissionDate: 'Jun 22, 2026', los: '4 Days' }
+      },
+      { id: 'b24', code: 'Bed 311-B', status: 'Available' }
+    ]))
+  }
+
+  // Ward: Pending admissions queue (used by BedMapPage assign flow)
+  if (!localStorage.getItem('hf_mock_pending_admissions')) {
+    localStorage.setItem('hf_mock_pending_admissions', JSON.stringify([
+      { id: 'pa1', name: 'Aisha Rashid', age: '34', diagnosis: 'Acute Appendicitis' },
+      { id: 'pa2', name: 'David Mchome', age: '45', diagnosis: 'Asthma Exacerbation' },
+      { id: 'pa3', name: 'Grace Masanja', age: '29', diagnosis: 'Gastroenteritis' }
+    ]))
+  }
+
+  // Ward: Active inpatient orders (used by InpatientOrdersPage, WardNurseDashboard)
+  if (!localStorage.getItem('hf_mock_inpatient_orders')) {
+    localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify([
+      { id: 'o1', patientId: 'p1', patientName: 'Juma Hamisi', bed: 'Bed 301-A', type: 'Medication', detail: 'IV Artesunate 120mg stat', issuedBy: 'Dr. Joseph Lema', dueTime: 'Overdue (15m)', overdue: true, done: false, orderedAt: '08:00 AM' },
+      { id: 'o2', patientId: 'p2', patientName: 'Zuwena Said', bed: 'Bed 301-B', type: 'Investigation', detail: 'Stat Blood Glucose check & electrolytes panel', issuedBy: 'Dr. Sarah Mwangi', dueTime: 'Overdue (5m)', overdue: true, done: false, orderedAt: '08:15 AM' },
+      { id: 'o3', patientId: 'p4', patientName: 'Mariam Athuman', bed: 'Bed 302-A', type: 'Nursing', detail: 'Turn patient and check pressure points every 2 hours', issuedBy: 'Dr. Frank Minja', dueTime: 'Due in 10m', overdue: false, done: false, orderedAt: '09:30 AM' },
+      { id: 'o4', patientId: 'p5', patientName: 'Neema Kessy', bed: 'Bed 304-C', type: 'Diet', detail: 'Soft diet restriction review with nutritionist', issuedBy: 'Dr. Sarah Mwangi', dueTime: 'Due in 45m', overdue: false, done: false, orderedAt: '10:00 AM' },
+      { id: 'o5', patientId: 'p1', patientName: 'Juma Hamisi', bed: 'Bed 301-A', type: 'Nursing', detail: 'Catheter care and output measurement', issuedBy: 'Dr. Joseph Lema', dueTime: 'Due in 1h', overdue: false, done: false, orderedAt: '10:15 AM' },
+      { id: 'o6', patientId: 'p2', patientName: 'Zuwena Said', bed: 'Bed 301-B', type: 'Medication', detail: 'Infuse Normal Saline 500ml over 4 hours', issuedBy: 'Dr. Sarah Mwangi', dueTime: 'Due in 2h', overdue: false, done: false, orderedAt: '10:30 AM' },
+      { id: 'o7', patientId: 'p5', patientName: 'Neema Kessy', bed: 'Bed 304-C', type: 'Medication', detail: 'Paracetamol 1g PO TDS', issuedBy: 'Dr. Sarah Mwangi', dueTime: 'Completed', overdue: false, done: true, orderedAt: '07:00 AM' }
+    ]))
+  }
+
+  // Ward: Visitor log ledger (used by VisitorLogPage)
+  if (!localStorage.getItem('hf_mock_visitor_records')) {
+    localStorage.setItem('hf_mock_visitor_records', JSON.stringify([
+      { id: 'vr1', patientName: 'Juma Hamisi', bed: 'Bed 301-A', visitorName: 'Hamisi Juma', relationship: 'Spouse', nationalId: 'ID-882190', checkIn: '2026-06-25 10:15 AM', checkOut: '—', approvedBy: 'Nurse Amina Masoud, RN', status: 'Active' },
+      { id: 'vr2', patientName: 'Juma Hamisi', bed: 'Bed 301-A', visitorName: 'Fatuma Hamisi', relationship: 'Child', nationalId: 'ID-772901', checkIn: '2026-06-25 10:20 AM', checkOut: '—', approvedBy: 'Nurse Amina Masoud, RN', status: 'Active' },
+      { id: 'vr3', patientName: 'Zuwena Said', bed: 'Bed 301-B', visitorName: 'Said Rashid', relationship: 'Sibling', nationalId: 'ID-442190', checkIn: '2026-06-25 10:45 AM', checkOut: '—', approvedBy: 'Nurse Amina Masoud, RN', status: 'Active' },
+      { id: 'vr4', patientName: 'Neema Kessy', bed: 'Bed 304-C', visitorName: 'Anna Kessy', relationship: 'Parent', nationalId: 'ID-331902', checkIn: '2026-06-25 09:00 AM', checkOut: '—', approvedBy: 'Nurse Thomas Lowassa, RN', status: 'Overstay' },
+      { id: 'vr5', patientName: 'Mariam Athuman', bed: 'Bed 302-A', visitorName: 'Salma Athuman', relationship: 'Relative', nationalId: 'ID-100291', checkIn: '2026-06-25 08:30 AM', checkOut: '2026-06-25 09:15 AM', approvedBy: 'Nurse Thomas Lowassa, RN', status: 'Departed' },
+      { id: 'vr6', patientName: 'Emmanuel John', bed: 'Bed 303-A', visitorName: 'Peter John', relationship: 'Friend', nationalId: 'ID-209122', checkIn: '—', checkOut: '—', approvedBy: 'Nurse Amina Masoud, RN', status: 'Denied' }
+    ]))
+  }
+
+  // Ward: Active visitors with real-time countdown data (used by ActiveVisitorsPage)
+  if (!localStorage.getItem('hf_mock_active_visitors')) {
+    localStorage.setItem('hf_mock_active_visitors', JSON.stringify([
+      { id: 'av1', name: 'Hamisi Juma', patientName: 'Juma Hamisi', bed: 'Bed 301-A', relationship: 'Spouse', checkIn: '10:15 AM', timeLeft: 720, totalDuration: 1800 },
+      { id: 'av2', name: 'Fatuma Hamisi', patientName: 'Juma Hamisi', bed: 'Bed 301-A', relationship: 'Child', checkIn: '10:20 AM', timeLeft: 480, totalDuration: 1800 },
+      { id: 'av3', name: 'Said Rashid', patientName: 'Zuwena Said', bed: 'Bed 301-B', relationship: 'Sibling', checkIn: '10:45 AM', timeLeft: 1200, totalDuration: 2700 },
+      { id: 'av4', name: 'Anna Kessy', patientName: 'Neema Kessy', bed: 'Bed 304-C', relationship: 'Parent', checkIn: '09:00 AM', timeLeft: 0, totalDuration: 3600 }
+    ]))
+  }
+
+  // Ward: Shift handover history (used by ShiftHandoverPage)
+  if (!localStorage.getItem('hf_mock_handover_history')) {
+    localStorage.setItem('hf_mock_handover_history', JSON.stringify([
+      {
+        id: 'h-1',
+        timestamp: 'Jun 25, 2026, 07:30 PM',
+        date: 'Jun 25, 2026',
+        shift: 'Night Shift',
+        submittedBy: 'Nurse John S.',
+        patientCount: 18,
+        incidents: '0 Reported',
+        overallSummary: 'All patients stable. No major incidents during the night shift. Handover completed smoothly.',
+        patientNotes: {
+          'Fatuma Said': 'Stable overnight, vital signs monitored hourly.',
+          'John Mwangi': 'NPO maintained for morning endoscopy.',
+          'Juma Hamisi': 'Vitals stable. SpO2 stable at 97% on room air.',
+          'Zuwena Said': 'Close monitoring of blood glucose levels. Insulin infusion ongoing.'
+        }
+      },
+      {
+        id: 'h-2',
+        timestamp: 'Jun 25, 2026, 07:30 AM',
+        date: 'Jun 25, 2026',
+        shift: 'Day Shift',
+        submittedBy: 'Nurse Thomas Lowassa, RN',
+        patientCount: 5,
+        incidents: '1 Incident',
+        overallSummary: 'One minor incident: Bed 301-B patient had temporary IV line displacement, re-sited by medical officer. All other care completed successfully.',
+        patientNotes: {
+          'Juma Hamisi': 'Monitor vitals every 2 hours. High malaria count, IV Artesunate ongoing.',
+          'Zuwena Said': 'Diabetic ketoacidosis. Check blood glucose levels every 4 hours.',
+          'Emmanuel John': 'Post-op coronary bypass. Critical monitoring. Chest drain output is normal.',
+          'Mariam Athuman': 'Stable. Blood pressure well controlled with current anti-hypertensive regimen.',
+          'Neema Kessy': 'Pneumonia recovery. Oxygenation stable at 96% room air.'
+        }
+      },
+      {
+        id: 'h-3',
+        timestamp: 'Jun 24, 2026, 07:30 PM',
+        date: 'Jun 24, 2026',
+        shift: 'Night Shift',
+        submittedBy: 'Nurse Esther M.',
+        patientCount: 5,
+        incidents: '0 Reported',
+        overallSummary: 'All patients stable. Routine checks performed. Morning labs drawn at 6:00 AM for all acute patients.',
+        patientNotes: {
+          'Juma Hamisi': 'Resting quietly. IV fluids running as scheduled.',
+          'Zuwena Said': 'Blood glucose monitored, stable between 7.8 and 9.2 mmol/L.',
+          'Emmanuel John': 'Resting comfortably, pain managed with analgesics.',
+          'Mariam Athuman': 'Asleep. Vital signs stable throughout the night.',
+          'Neema Kessy': 'Productive cough decreasing. Slept well.'
+        }
+      },
+      {
+        id: 'h-4',
+        timestamp: 'Jun 24, 2026, 07:30 AM',
+        date: 'Jun 24, 2026',
+        shift: 'Day Shift',
+        submittedBy: 'Nurse Amina Masoud, RN',
+        patientCount: 6,
+        incidents: '0 Reported',
+        overallSummary: 'Regular day shift. Patient admissions completed from triage. Rounding doctors adjusted care plans.',
+        patientNotes: {
+          'Juma Hamisi': 'Admitted today from Emergency Department. Initiated severe malaria protocol.',
+          'Zuwena Said': 'Transferred in for diabetic ketoacidosis management.',
+          'Emmanuel John': 'Post-op monitoring. Checked surgical site, clean and dry.',
+          'Mariam Athuman': 'Monitored for elevated blood pressure. Rest prescribed.',
+          'Neema Kessy': 'Initiated chest physiotherapy.',
+          'Ali Selemani': 'Admitted for scheduled appendectomy.'
+        }
+      },
+      {
+        id: 'h-5',
+        timestamp: 'Jun 23, 2026, 07:30 PM',
+        date: 'Jun 23, 2026',
+        shift: 'Night Shift',
+        submittedBy: 'Nurse Thomas Lowassa, RN',
+        patientCount: 4,
+        incidents: '1 Incident',
+        overallSummary: 'Incident: Bed 303-A patient had minor wound site ooze, dressing reinforced, surgical team notified. No active bleeding. Other patients stable.',
+        patientNotes: {
+          'Emmanuel John': 'Wound site ooze noted. Dressing changed and reinforced.',
+          'Mariam Athuman': 'Stable. Rested well with no complaints.',
+          'Neema Kessy': 'SpO2 maintained above 95% on room air.',
+          'Ali Selemani': 'Resting post-surgery, pain controlled.'
+        }
+      }
+    ]))
+  }
+
+  // Billing: Insurance verification rows (used by BillsPage — Insurance tab)
+  if (!localStorage.getItem('hf_mock_insurance_verifications')) {
+    localStorage.setItem('hf_mock_insurance_verifications', JSON.stringify([
+      { id: 'v1', patientName: 'Zuwena Salum', patientNumber: 'PT-3841', insurer: 'NHIF', policyNumber: 'NH-882910', memberName: 'Zuwena Salum', submittedAt: '09:18', status: 'Pending' },
+      { id: 'v2', patientName: 'Hassan Mwita', patientNumber: 'PT-4889', insurer: 'Jubilee Insurance', policyNumber: 'JUB-441205', memberName: 'Hassan Mwita', submittedAt: '08:55', status: 'Manual Review' },
+      { id: 'v3', patientName: 'Fatuma Said', patientNumber: 'PT-4891', insurer: 'AAR Healthcare', policyNumber: 'AAR-993014', memberName: 'Fatuma Said', submittedAt: '08:40', status: 'Pending' },
+      { id: 'v4', patientName: 'Grace Kimaro', patientNumber: 'PT-4892', insurer: 'NHIF', policyNumber: 'NH-771204', memberName: 'Grace Kimaro', submittedAt: '08:12', status: 'Verified' },
+      { id: 'v5', patientName: 'Mary Ngoma', patientNumber: 'PT-5501', insurer: 'AAR Healthcare', policyNumber: 'AAR-771102', memberName: 'Mary Ngoma', submittedAt: '07:58', status: 'Rejected' }
+    ]))
+  }
+
+  // Billing: Daily transaction ledger (used by DailySummaryPage)
+  if (!localStorage.getItem('hf_mock_daily_transactions')) {
+    localStorage.setItem('hf_mock_daily_transactions', JSON.stringify([
+      { id: 't1', time: '10:05 AM', patientName: 'Grace Kimaro', patientNo: 'PT-4892', method: 'Cash', amount: 30000, status: 'Settled' },
+      { id: 't2', time: '09:55 AM', patientName: 'Amir Juma', patientNo: 'PT-4903', method: 'Insurance', amount: 55000, status: 'Settled' },
+      { id: 't3', time: '09:40 AM', patientName: 'Hassan Mwita', patientNo: 'PT-4889', method: 'Mobile Money', amount: 20000, status: 'Settled' },
+      { id: 't4', time: '07:55 AM', patientName: 'Linda Mtui', patientNo: 'PT-4911', method: 'Insurance', amount: 0, status: 'Exempt' },
+      { id: 't5', time: '07:30 AM', patientName: 'Lulu Kapinga', patientNo: 'PT-7712', method: 'Mobile Money', amount: 45000, status: 'Settled' }
+    ]))
+  }
+
+  // Billing: Cashier dashboard KPI stats (used by CashierDashboard)
+  if (!localStorage.getItem('hf_mock_cashier_stats')) {
+    localStorage.setItem('hf_mock_cashier_stats', JSON.stringify({
+      todayRevenue: 1845000,
+      revenueChangePct: 12,
+      transactionCount: 42,
+      pendingBillsCount: 14,
+      insurancePendingCount: 8,
+      revenueBreakdown: [
+        { method: 'Cash', amount: 945000, percentage: 51 },
+        { method: 'Mobile Money', amount: 540000, percentage: 29 },
+        { method: 'Insurance', amount: 360000, percentage: 20 }
+      ]
+    }))
+  }
+
+  // Billing: Process Payment — active bill line items (used by ProcessingPaymentPage)
+  if (!localStorage.getItem('hf_mock_active_bill')) {
+    localStorage.setItem('hf_mock_active_bill', JSON.stringify({
+      patientName: 'Fatuma Said',
+      patientNo: 'PT-4891',
+      invoiceId: 'INV-2026-4891',
+      totalBill: 25000,
+      paid: 0,
+      lineItems: [
+        { category: 'Consultation', label: 'General Consultation', amount: 15000 },
+        { category: 'Registration', label: 'Registration Fee', amount: 10000 }
+      ]
+    }))
+  }
+
+  // Seed payment records
+  if (!localStorage.getItem('hf_mock_payment_rows')) {
+    localStorage.setItem('hf_mock_payment_rows', JSON.stringify([
+      { id: 'pay1', patientName: 'Zuwena Salum', patientNumber: 'PT-3841', visitDate: '2026-06-11', totalBill: 45000, paid: 0, paymentMethod: 'Insurance', status: 'Insurance Pending', insurer: 'NHIF', lineItems: [{ label: 'Consultation', amount: 15000 }, { label: 'Laboratory', amount: 30000 }], lastPaymentAt: null },
+      { id: 'pay2', patientName: 'Fatuma Said', patientNumber: 'PT-4891', visitDate: '2026-06-11', totalBill: 25000, paid: 0, paymentMethod: 'Cash', status: 'Unpaid', insurer: null, lineItems: [{ label: 'Consultation', amount: 15000 }, { label: 'Registration', amount: 10000 }], lastPaymentAt: null },
+      { id: 'pay3', patientName: 'Grace Kimaro', patientNumber: 'PT-4892', visitDate: '2026-06-11', totalBill: 30000, paid: 30000, paymentMethod: 'Cash', status: 'Paid', insurer: null, lineItems: [{ label: 'Consultation', amount: 15000 }, { label: 'Pharmacy', amount: 15000 }], lastPaymentAt: '10:05' },
+      { id: 'pay4', patientName: 'Hassan Mwita', patientNumber: 'PT-4889', visitDate: '2026-06-11', totalBill: 60000, paid: 20000, paymentMethod: 'Insurance', status: 'Partial', insurer: 'Jubilee Insurance', lineItems: [{ label: 'Consultation', amount: 20000 }, { label: 'Radiology', amount: 40000 }], lastPaymentAt: '09:40' },
+      { id: 'pay5', patientName: 'Amir Juma', patientNumber: 'PT-4903', visitDate: '2026-06-11', totalBill: 55000, paid: 55000, paymentMethod: 'Insurance', status: 'Paid', insurer: 'Strategis Insurance', lineItems: [{ label: 'Consultation', amount: 25000 }, { label: 'Laboratory', amount: 30000 }], lastPaymentAt: '09:55' },
+      { id: 'pay6', patientName: 'Joseph Mwinyi', patientNumber: 'PT-9201', visitDate: '2026-06-11', totalBill: 18000, paid: 0, paymentMethod: 'Cash', status: 'Unpaid', insurer: null, lineItems: [{ label: 'Consultation', amount: 18000 }], lastPaymentAt: null },
+      { id: 'pay7', patientName: 'Mary Ngoma', patientNumber: 'PT-5501', visitDate: '2026-06-11', totalBill: 40000, paid: 0, paymentMethod: 'Insurance', status: 'Insurance Pending', insurer: 'AAR Healthcare', lineItems: [{ label: 'Consultation', amount: 15000 }, { label: 'Laboratory', amount: 25000 }], lastPaymentAt: null },
+      { id: 'pay8', patientName: 'Linda Mtui', patientNumber: 'PT-4911', visitDate: '2026-06-11', totalBill: 0, paid: 0, paymentMethod: 'Exempt', status: 'Paid', insurer: null, lineItems: [{ label: 'Exempt visit', amount: 0 }], lastPaymentAt: '07:55' }
+    ]))
+  }
 }
+
 
 initLocalStorage()
 
@@ -666,6 +939,8 @@ apiClient.defaults.adapter = async (config) => {
       roles = ['receptionist']
     } else if (username === 'nurse') {
       roles = ['triage_nurse']
+    } else if (username === 'wardnurse') {
+      roles = ['ward_nurse']
     } else if (username === 'lab' || username === 'labtech' || username === 'labtechnician') {
       roles = ['lab_technician']
     } else if (username === 'pharmacist') {
@@ -716,6 +991,21 @@ apiClient.defaults.adapter = async (config) => {
     
     return respond(200, { message: 'All sessions terminated' })
   }
+
+  // // Auth: Session Check
+  // if (url.endsWith('/auth/session-check') && method === 'get') {
+  //   return respond(200, {
+  //     session_revoked: false,
+  //     has_other_active: false,
+  //   })
+  // }
+
+  // // Auth: Keep Only This Session
+  // if (url.endsWith('/auth/session-keep-only') && method === 'post') {
+  //   return respond(200, {
+  //     message: 'Other sessions terminated for mock auth flow',
+  //   })
+  // }
 
   // User: Me
   if (url.endsWith('/me') && method === 'get') {
@@ -1552,6 +1842,153 @@ apiClient.defaults.adapter = async (config) => {
       const filtered = sessions.filter((s: ActiveSession) => s.id !== sessionId)
       localStorage.setItem('hf_mock_active_sessions', JSON.stringify(filtered))
       return respond(200, { message: 'Session revoked' })
+    }
+  }
+
+  // Ward: Admitted patients list
+  if (url.includes('/ward/patients')) {
+    const patients = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
+    if (method === 'get') {
+      return respond(200, patients)
+    }
+  }
+
+  // Ward: Bed map grid
+  if (url.includes('/ward/beds')) {
+    const beds = JSON.parse(localStorage.getItem('hf_mock_beds') || '[]')
+    const patients = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
+    if (method === 'get') {
+      const bedsWithPatients = beds.map((b: any) => {
+        if (b.patientId) {
+          const patient = patients.find((p: any) => p.id === b.patientId)
+          return { ...b, patient }
+        }
+        return b
+      })
+      return respond(200, bedsWithPatients)
+    }
+    if (method === 'patch') {
+      const bedId = url.split('/').pop() || ''
+      const index = beds.findIndex((b: any) => b.id === bedId)
+      if (index === -1) return respond(404, { detail: 'Bed not found' })
+      beds[index] = { ...beds[index], ...data }
+      localStorage.setItem('hf_mock_beds', JSON.stringify(beds))
+      return respond(200, beds[index])
+    }
+  }
+
+  // Ward: Pending admissions queue
+  if (url.includes('/ward/pending-admissions')) {
+    const pending = JSON.parse(localStorage.getItem('hf_mock_pending_admissions') || '[]')
+    if (method === 'get') {
+      return respond(200, pending)
+    }
+  }
+
+  // Ward: Inpatient orders
+  if (url.includes('/ward/orders')) {
+    const orders = JSON.parse(localStorage.getItem('hf_mock_inpatient_orders') || '[]')
+    if (method === 'get') {
+      return respond(200, orders)
+    }
+    if (method === 'patch') {
+      const orderId = url.split('/').pop() || ''
+      const index = orders.findIndex((o: any) => o.id === orderId)
+      if (index === -1) return respond(404, { detail: 'Order not found' })
+      orders[index] = { ...orders[index], ...data }
+      localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify(orders))
+      return respond(200, orders[index])
+    }
+  }
+
+  // Ward: Visitor log ledger
+  if (url.includes('/ward/visitors')) {
+    const records = JSON.parse(localStorage.getItem('hf_mock_visitor_records') || '[]')
+    if (method === 'get') {
+      return respond(200, records)
+    }
+    if (method === 'post') {
+      const newRecord = { id: `vr-${Date.now()}`, ...data, status: 'Active' }
+      records.push(newRecord)
+      localStorage.setItem('hf_mock_visitor_records', JSON.stringify(records))
+      return respond(201, newRecord)
+    }
+    if (method === 'patch') {
+      const recordId = url.split('/').pop() || ''
+      const index = records.findIndex((r: any) => r.id === recordId)
+      if (index === -1) return respond(404, { detail: 'Visitor record not found' })
+      records[index] = { ...records[index], ...data }
+      localStorage.setItem('hf_mock_visitor_records', JSON.stringify(records))
+      return respond(200, records[index])
+    }
+  }
+
+  // Ward: Active visitors with countdown data
+  if (url.includes('/ward/active-visitors')) {
+    const visitors = JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]')
+    if (method === 'get') {
+      return respond(200, visitors)
+    }
+    if (method === 'delete') {
+      const visitorId = url.split('/').pop() || ''
+      const filtered = visitors.filter((v: any) => v.id !== visitorId)
+      localStorage.setItem('hf_mock_active_visitors', JSON.stringify(filtered))
+      return respond(200, { message: 'Visitor checked out' })
+    }
+  }
+
+  // Ward: Shift handover history
+  if (url.includes('/ward/handovers')) {
+    const handovers = JSON.parse(localStorage.getItem('hf_mock_handover_history') || '[]')
+    if (method === 'get') {
+      return respond(200, handovers)
+    }
+    if (method === 'post') {
+      const newHandover = { id: `h-${Date.now()}`, ...data }
+      handovers.unshift(newHandover)
+      localStorage.setItem('hf_mock_handover_history', JSON.stringify(handovers))
+      return respond(201, newHandover)
+    }
+  }
+
+  // Billing: Insurance verifications
+  if (url.includes('/billing/insurance-verifications')) {
+    const verifications = JSON.parse(localStorage.getItem('hf_mock_insurance_verifications') || '[]')
+    if (method === 'get') {
+      return respond(200, verifications)
+    }
+    if (method === 'patch') {
+      const verificationId = url.split('/').pop() || ''
+      const index = verifications.findIndex((v: any) => v.id === verificationId)
+      if (index === -1) return respond(404, { detail: 'Verification record not found' })
+      verifications[index] = { ...verifications[index], ...data }
+      localStorage.setItem('hf_mock_insurance_verifications', JSON.stringify(verifications))
+      return respond(200, verifications[index])
+    }
+  }
+
+  // Billing: Daily transactions ledger
+  if (url.includes('/billing/transactions')) {
+    const transactions = JSON.parse(localStorage.getItem('hf_mock_daily_transactions') || '[]')
+    if (method === 'get') {
+      return respond(200, transactions)
+    }
+  }
+
+  // Billing: Cashier dashboard stats
+  if (url.includes('/billing/cashier-stats')) {
+    const stats = JSON.parse(localStorage.getItem('hf_mock_cashier_stats') || '{}')
+    if (method === 'get') {
+      return respond(200, stats)
+    }
+  }
+
+  // Billing: Pending bills queue (derives from payment rows)
+  if (url.includes('/billing/pending-bills')) {
+    const allPayments = JSON.parse(localStorage.getItem('hf_mock_payment_rows') || '[]')
+    const pending = allPayments.filter((p: any) => p.status !== 'Paid')
+    if (method === 'get') {
+      return respond(200, pending)
     }
   }
 

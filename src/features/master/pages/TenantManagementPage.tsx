@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
 import { SuspendTenantModal } from '@/features/master/components/SuspendTenantModal'
@@ -17,7 +16,8 @@ export function TenantManagementPage() {
   // Filter states
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [regionFilter, setRegionFilter] = useState('all')
+  const [countryFilter, setCountryFilter] = useState('all')
+  const [planFilter, setPlanFilter] = useState('all')
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
@@ -58,7 +58,6 @@ export function TenantManagementPage() {
     }
   }
 
-
   const handleImpersonate = (tenant: Tenant) => {
     navigate(`/impersonation/switching?tenant_id=${tenant.tenant_id}&return_to=/admin/dashboard`, { replace: true })
   }
@@ -67,15 +66,20 @@ export function TenantManagementPage() {
   const filteredTenants = tenants.filter((t) => {
     const matchesSearch =
       t.hospital_name.toLowerCase().includes(search.toLowerCase()) ||
-      t.tenant_id.toLowerCase().includes(search.toLowerCase())
+      t.tenant_id.toLowerCase().includes(search.toLowerCase()) ||
+      (t.city && t.city.toLowerCase().includes(search.toLowerCase())) ||
+      (t.country && t.country.toLowerCase().includes(search.toLowerCase()))
     
     const matchesStatus =
       statusFilter === 'all' || t.status.toLowerCase() === statusFilter.toLowerCase()
       
-    const matchesRegion =
-      regionFilter === 'all' || (t.data_region && t.data_region.toLowerCase() === regionFilter.toLowerCase())
+    const matchesCountry =
+      countryFilter === 'all' || (t.country && t.country.toLowerCase() === countryFilter.toLowerCase())
 
-    return matchesSearch && matchesStatus && matchesRegion
+    const matchesPlan =
+      planFilter === 'all' || (t.subscription_plan && t.subscription_plan.toLowerCase() === planFilter.toLowerCase())
+
+    return matchesSearch && matchesStatus && matchesCountry && matchesPlan
   })
 
   // Pagination calculations
@@ -90,159 +94,235 @@ export function TenantManagementPage() {
     setCurrentPage(1)
     setActiveDropdown(null)
     setDropdownCoords(null)
-  }, [search, statusFilter, regionFilter, pageSize])
+  }, [search, statusFilter, countryFilter, planFilter, pageSize])
+
+  // KPI stats calculations
+  const totalHospitals = tenants.length
+  const activeCount = tenants.filter(t => t.status.toLowerCase() === 'active').length
+  const suspendedCount = tenants.filter(t => t.status.toLowerCase() === 'suspended').length
+  const trialCount = tenants.filter(t => t.status.toLowerCase() === 'trial').length
+  const terminatedCount = tenants.filter(t => t.status.toLowerCase() === 'terminated').length
 
   const getStatusBadgeClass = (status: string) => {
     switch (status.toLowerCase()) {
       case 'active':
-        return 'status-badge status-active'
+        return 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700'
       case 'trial':
-        return 'status-badge status-trial'
+        return 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700'
       case 'suspended':
-        return 'status-badge status-suspended'
+        return 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-error-container text-error'
       case 'terminated':
-        return 'status-badge status-terminated'
+        return 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700'
       default:
-        return 'status-badge'
+        return 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-neutral-100 text-neutral-700'
     }
   }
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <PageHeader
-          title="Tenants"
-          description="Manage registered hospitals on the platform."
-        />
-        <button className="btn btn-primary" onClick={() => navigate('/master/tenants/new')}>
-          + Onboard Tenant
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-xl gap-md">
+        <div>
+          <h2 className="text-headline-lg font-headline-lg text-on-surface mb-xs">Hospitals</h2>
+          <p className="font-body-md text-body-md text-secondary">Manage and monitor health facility infrastructure subscriptions</p>
+        </div>
+        <button 
+          className="inline-flex items-center justify-center gap-sm px-lg h-10 bg-primary text-white rounded-lg font-bold hover:brightness-110 active:opacity-80 transition-all shadow-sm"
+          onClick={() => navigate('/master/tenants/new')}
+        >
+          <span className="material-symbols-outlined text-[20px]">add_circle</span>
+          <span>Onboard New Hospital</span>
         </button>
       </div>
 
-      <div className="card" style={{ padding: '1.5rem' }}>
+      {/* KPI Cards Bento */}
+      <div className="grid grid-cols-1 gap-md mb-lg md:grid-cols-5">
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between">
+          <div className="flex flex-col gap-xs">
+            <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider m-0">Total Hospitals</p>
+            <h3 className="font-headline-md text-headline-md text-on-surface m-0 leading-none font-bold">{totalHospitals}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-blue-600 text-[22px]">domain</span>
+          </div>
+        </div>
         
-        {/* Filters Panel */}
-        <div style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
-          <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
-            <span className="material-symbols-outlined search-input-icon" style={{ fontSize: '18px', display: 'flex', alignItems: 'center' }}>search</span>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Search hospitals..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between">
+          <div className="flex flex-col gap-xs">
+            <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider m-0">Active</p>
+            <h3 className="font-headline-md text-headline-md text-on-surface m-0 leading-none font-bold">{activeCount}</h3>
           </div>
-          
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Status:</label>
-            <select
-              className="form-control"
-              style={{ width: '130px', padding: '0.35rem 0.5rem' }}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="trial">Trial</option>
-              <option value="suspended">Suspended</option>
-              <option value="terminated">Terminated</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Region:</label>
-            <select
-              className="form-control"
-              style={{ width: '130px', padding: '0.35rem 0.5rem' }}
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-            >
-              <option value="all">All regions</option>
-              <option value="af-east">AF-East</option>
-              <option value="af-south">AF-South</option>
-              <option value="eu-west">EU-West</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Show:</label>
-            <select
-              className="form-control"
-              style={{ width: '70px', padding: '0.35rem 0.5rem' }}
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-            </select>
+          <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-green-600 text-[22px]">check_circle</span>
           </div>
         </div>
 
-        {/* 1. SKELETON LOADING STATE */}
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between">
+          <div className="flex flex-col gap-xs">
+            <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider m-0">Suspended</p>
+            <h3 className="font-headline-md text-headline-md text-on-surface m-0 leading-none font-bold">{suspendedCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-[#ffdad6] flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-[#ba1a1a] text-[22px]">pause_circle</span>
+          </div>
+        </div>
+
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between">
+          <div className="flex flex-col gap-xs">
+            <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider m-0">Trial</p>
+            <h3 className="font-headline-md text-headline-md text-on-surface m-0 leading-none font-bold">{trialCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-purple-600 text-[22px]">hourglass_top</span>
+          </div>
+        </div>
+
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-md flex items-center justify-between">
+          <div className="flex flex-col gap-xs">
+            <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider m-0">Terminated</p>
+            <h3 className="font-headline-md text-headline-md text-on-surface m-0 leading-none font-bold">{terminatedCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-on-surface-variant text-[22px]">cancel</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="bg-white p-md rounded-t-xl border-x border-t border-outline-variant flex flex-wrap items-center gap-md">
+        <div className="flex-1 min-w-[240px] relative">
+          <span className="material-symbols-outlined absolute left-sm top-[7px] text-outline text-[20px] select-none pointer-events-none z-10 leading-none">search</span>
+          <input 
+            className="w-full pl-xl pr-md py-2 border border-outline-variant rounded-lg bg-white text-body-sm placeholder:text-outline-variant text-on-surface focus:outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary transition-all" 
+            placeholder="Search by name, city or ID..." 
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex items-center gap-sm flex-wrap">
+          <select 
+            className="border border-outline-variant rounded-lg px-md py-2 text-body-sm focus:ring-primary focus:border-primary bg-white cursor-pointer"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">Status: All</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="trial">Trial</option>
+            <option value="terminated">Terminated</option>
+          </select>
+
+          <select 
+            className="border border-outline-variant rounded-lg px-md py-2 text-body-sm focus:ring-primary focus:border-primary bg-white cursor-pointer"
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
+          >
+            <option value="all">Country: All</option>
+            <option value="tanzania">Tanzania</option>
+            <option value="kenya">Kenya</option>
+            <option value="uganda">Uganda</option>
+          </select>
+
+          <select 
+            className="border border-outline-variant rounded-lg px-md py-2 text-body-sm focus:ring-primary focus:border-primary bg-white cursor-pointer"
+            value={planFilter}
+            onChange={(e) => setPlanFilter(e.target.value)}
+          >
+            <option value="all">Plan: All</option>
+            <option value="premium">Premium</option>
+            <option value="standard">Standard</option>
+            <option value="basic">Basic</option>
+          </select>
+
+          <select 
+            className="border border-outline-variant rounded-lg px-md py-2 text-body-sm focus:ring-primary focus:border-primary bg-white cursor-pointer text-secondary font-medium"
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            title="Page Size"
+          >
+            <option value={5}>Show: 5</option>
+            <option value={10}>Show: 10</option>
+            <option value={25}>Show: 25</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Data Table */}
+      <div className="bg-white border-x border-b border-outline-variant rounded-b-xl overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+        
         {loading ? (
-          <div className="table-responsive">
-            <table className="table" style={{ width: '100%' }}>
+          /* SKELETON LOADING STATE */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse" style={{ width: '100%' }}>
               <thead>
-                <tr>
-                  <th>Hospital Name</th>
-                  <th>Tenant ID</th>
-                  <th>Status</th>
-                  <th>Created At</th>
-                  <th>Region</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                <tr className="bg-surface-container-low border-y border-outline-variant">
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Hospital Name</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Tenant ID</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Country</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">City</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Status</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Plan</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Expiry Date</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Created</th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {[1, 2, 3, 4, 5].map((idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <div style={{ height: '14px', width: '150px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
+                  <tr key={idx} className="border-b border-outline-variant">
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-40 bg-surface-container-highest rounded animate-pulse" />
                     </td>
-                    <td>
-                      <div style={{ height: '14px', width: '80px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-20 bg-surface-container-highest rounded animate-pulse" />
                     </td>
-                    <td>
-                      <div style={{ height: '18px', width: '60px', backgroundColor: '#e9ecef', borderRadius: '12px', animation: 'pulse 1.2s infinite' }} />
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-20 bg-surface-container-highest rounded animate-pulse" />
                     </td>
-                    <td>
-                      <div style={{ height: '14px', width: '85px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-24 bg-surface-container-highest rounded animate-pulse" />
                     </td>
-                    <td>
-                      <div style={{ height: '14px', width: '60px', backgroundColor: '#e9ecef', borderRadius: '4px', animation: 'pulse 1.2s infinite' }} />
+                    <td className="px-lg py-md">
+                      <div className="h-6 w-16 bg-surface-container-highest rounded-full animate-pulse" />
                     </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ height: '20px', width: '24px', backgroundColor: '#e9ecef', borderRadius: '4px', marginLeft: 'auto', animation: 'pulse 1.2s infinite' }} />
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-20 bg-surface-container-highest rounded animate-pulse" />
+                    </td>
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-24 bg-surface-container-highest rounded animate-pulse" />
+                    </td>
+                    <td className="px-lg py-md">
+                      <div className="h-4 w-24 bg-surface-container-highest rounded animate-pulse" />
+                    </td>
+                    <td className="px-lg py-md text-right">
+                      <div className="h-8 w-8 bg-surface-container-highest rounded-full ml-auto animate-pulse" />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <style>{`
-              @keyframes pulse {
-                0% { opacity: 0.6; }
-                50% { opacity: 0.3; }
-                100% { opacity: 0.6; }
-              }
-            `}</style>
           </div>
         ) : paginatedTenants.length === 0 ? (
-          /* 2. EMPTY STATE */
-          <div style={{ textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '3rem', marginBottom: '1rem', color: 'var(--color-primary)' }}>local_hospital</span>
-            <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--color-text)' }}>No Hospitals Found</h4>
-            <p style={{ color: 'var(--color-text-light)', fontSize: '0.875rem', maxWidth: '350px', margin: 0 }}>
+          /* EMPTY STATE */
+          <div className="text-center py-16 px-4 flex flex-col items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-[48px] mb-md">local_hospital</span>
+            <h4 className="text-headline-sm font-bold text-on-surface mb-xs">No Hospitals Found</h4>
+            <p className="text-secondary text-body-sm max-w-sm mb-lg">
               We couldn't find any onboarded hospital tenants matching your current filters or search query.
             </p>
-            {(search || statusFilter !== 'all' || regionFilter !== 'all') && (
+            {(search || statusFilter !== 'all' || countryFilter !== 'all' || planFilter !== 'all') && (
               <button
                 className="btn btn-secondary btn-sm"
-                style={{ marginTop: '1rem' }}
                 onClick={() => {
                   setSearch('')
                   setStatusFilter('all')
-                  setRegionFilter('all')
+                  setCountryFilter('all')
+                  setPlanFilter('all')
                 }}
               >
                 Clear Filters
@@ -250,223 +330,228 @@ export function TenantManagementPage() {
             )}
           </div>
         ) : (
-          /* 3. POPULATED STATE */
+          /* POPULATED STATE */
           <>
-            <div className="table-responsive">
-              <table className="table">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr>
-                    <th>Hospital Name</th>
-                    <th>Tenant ID</th>
-                    <th>Status</th>
-                    <th>Created At</th>
-                    <th>Region</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  <tr className="bg-surface-container-low border-y border-outline-variant">
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Hospital Name</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Tenant ID</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Country</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">City</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Status</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Plan</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Expiry Date</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider">Created</th>
+                    <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {paginatedTenants.map((t, index) => {
-                    const isLastVisibleRow = index === paginatedTenants.length - 1
+                <tbody className="divide-y divide-outline-variant">
+                  {paginatedTenants.map((t) => {
+                    const expiryStr = t.subscription_end 
+                      ? new Date(t.subscription_end).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : 'Continuous';
+                    const createdStr = t.created_at
+                      ? new Date(t.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : 'N/A';
 
                     return (
-                    <tr 
-                      key={t.tenant_id} 
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/master/tenants/${t.tenant_id}`)}
-                    >
-                      <td>
-                        <strong>{t.hospital_name}</strong>
-                      </td>
-                      <td><code>{t.tenant_id}</code></td>
-                      <td>
-                        <span className={getStatusBadgeClass(t.status)}>{t.status}</span>
-                      </td>
-                      <td>{t.created_at ? new Date(t.created_at).toLocaleDateString() : 'N/A'}</td>
-                      <td>
-                        <span className="badge badge-neutral" style={{ borderRadius: '9999px' }}>
-                          {t.data_region || 'AF-East'}
-                        </span>
-                      </td>
-                      <td 
-                        style={{ textAlign: 'right', position: 'relative' }}
-                        onClick={(e) => e.stopPropagation()}
+                      <tr 
+                        key={t.tenant_id} 
+                        className="hover:bg-primary-fixed/10 transition-colors group cursor-pointer"
+                        onClick={() => navigate(`/master/tenants/${t.tenant_id}`)}
                       >
-                        <button
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.25rem 0.5rem',
-                            fontSize: '1rem',
-                            fontWeight: 'bold',
-                            lineHeight: 1,
-                            border: '1px solid var(--color-border)',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (activeDropdown === t.tenant_id) {
-                              setActiveDropdown(null)
-                              setDropdownCoords(null)
-                            } else {
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              const dropdownHeight = 160 // approximate height of the dropdown
-                              const goesOffBottom = rect.bottom + dropdownHeight > window.innerHeight
-                              
-                              setActiveDropdown(t.tenant_id)
-                              setDropdownCoords({
-                                top: goesOffBottom ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
-                                right: window.innerWidth - rect.right,
-                              })
-                            }
-                          }}
+                        <td className="px-lg py-md font-bold text-on-surface">
+                          {t.hospital_name}
+                        </td>
+                        <td className="px-lg py-md text-body-sm font-mono text-secondary">
+                          {t.tenant_id}
+                        </td>
+                        <td className="px-lg py-md text-body-sm">
+                          {t.country || '-'}
+                        </td>
+                        <td className="px-lg py-md text-body-sm">
+                          {t.city || '-'}
+                        </td>
+                        <td className="px-lg py-md">
+                          <span className={getStatusBadgeClass(t.status)}>{t.status}</span>
+                        </td>
+                        <td className="px-lg py-md text-body-sm font-medium">
+                          {t.subscription_plan || 'Basic'}
+                        </td>
+                        <td className="px-lg py-md text-body-sm">
+                          {expiryStr}
+                        </td>
+                        <td className="px-lg py-md text-body-sm text-secondary">
+                          {createdStr}
+                        </td>
+                        <td 
+                          className="px-lg py-md text-right"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          ⋮
-                        </button>
-
-                        {activeDropdown === t.tenant_id && dropdownCoords && createPortal(
-                          <>
-                            <div
-                              style={{
-                                position: 'fixed',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                zIndex: 999,
-                                background: 'transparent',
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation()
+                          <button
+                            className="text-secondary hover:text-primary p-xs rounded-full hover:bg-surface-container-high transition-colors bg-transparent border-0 cursor-pointer flex items-center justify-center w-8 h-8 ml-auto"
+                            title="More actions"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (activeDropdown === t.tenant_id) {
                                 setActiveDropdown(null)
                                 setDropdownCoords(null)
-                              }}
-                            />
-                            <div
-                              className="dropdown-menu-wrapper"
-                              style={{
-                                position: 'fixed',
-                                top: `${dropdownCoords.top}px`,
-                                right: `${dropdownCoords.right}px`,
-                                zIndex: 1000,
-                                margin: 0,
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                className="dropdown-item-btn"
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                const dropdownHeight = 160
+                                const goesOffBottom = rect.bottom + dropdownHeight > window.innerHeight
+                                
+                                setActiveDropdown(t.tenant_id)
+                                setDropdownCoords({
+                                  top: goesOffBottom ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
+                                  right: window.innerWidth - rect.right,
+                                })
+                              }
+                            }}
+                          >
+                            <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                            <span className="sr-only">⋮</span>
+                          </button>
+
+                          {activeDropdown === t.tenant_id && dropdownCoords && createPortal(
+                            <>
+                              <div
+                                style={{
+                                  position: 'fixed',
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  zIndex: 999,
+                                  background: 'transparent',
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  navigate(`/master/tenants/${t.tenant_id}`)
                                   setActiveDropdown(null)
                                   setDropdownCoords(null)
                                 }}
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                              />
+                              <div
+                                className="dropdown-menu-wrapper"
+                                style={{
+                                  position: 'fixed',
+                                  top: `${dropdownCoords.top}px`,
+                                  right: `${dropdownCoords.right}px`,
+                                  zIndex: 1000,
+                                  margin: 0,
+                                }}
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <span className="material-symbols-outlined text-[16px]">info</span> View details
-                              </button>
-                              
-                              <div className="dropdown-menu-divider" />
+                                <button
+                                  className="dropdown-item-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    navigate(`/master/tenants/${t.tenant_id}`)
+                                    setActiveDropdown(null)
+                                    setDropdownCoords(null)
+                                  }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">info</span> View details
+                                </button>
+                                
+                                <div className="dropdown-menu-divider" />
 
-                              {t.status === 'active' && (
-                                <button
-                                  className="dropdown-item-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleImpersonate(t)
-                                    setActiveDropdown(null)
-                                    setDropdownCoords(null)
-                                  }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">login</span> Impersonate
-                                </button>
-                              )}
-                              {t.status === 'active' && (
-                                <button
-                                  className="dropdown-item-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedTenantForSuspend(t)
-                                    setSuspensionReason('')
-                                    setActiveDropdown(null)
-                                    setDropdownCoords(null)
-                                  }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">pause</span> Suspend
-                                </button>
-                              )}
-                              {t.status === 'suspended' && (
-                                <button
-                                  className="dropdown-item-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleUpdateStatus(t.tenant_id, 'active')
-                                    setActiveDropdown(null)
-                                    setDropdownCoords(null)
-                                  }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">play_arrow</span> Unsuspend
-                                </button>
-                              )}
-                            </div>
-                          </>,
-                          document.body
-                        )}</td>
-                    </tr>
+                                {t.status === 'active' && (
+                                  <button
+                                    className="dropdown-item-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleImpersonate(t)
+                                      setActiveDropdown(null)
+                                      setDropdownCoords(null)
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">login</span> Impersonate
+                                  </button>
+                                )}
+                                {t.status === 'active' && (
+                                  <button
+                                    className="dropdown-item-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedTenantForSuspend(t)
+                                      setActiveDropdown(null)
+                                      setDropdownCoords(null)
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">pause</span> Suspend
+                                  </button>
+                                )}
+                                {t.status === 'suspended' && (
+                                  <button
+                                    className="dropdown-item-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleUpdateStatus(t.tenant_id, 'active')
+                                      setActiveDropdown(null)
+                                      setDropdownCoords(null)
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">play_arrow</span> Unsuspend
+                                  </button>
+                                )}
+                              </div>
+                            </>,
+                            document.body
+                          )}
+                        </td>
+                      </tr>
                     )
                   })}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination Controls */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: '1.5rem',
-                borderTop: '1px solid var(--color-border)',
-                paddingTop: '1rem',
-                fontSize: '0.8125rem',
-                color: 'var(--color-text-light)'
-              }}
-            >
-              <div>
+            {/* Pagination */}
+            <div className="p-md bg-surface-bright flex items-center justify-between border-t border-outline-variant">
+              <span className="font-body-sm text-body-sm text-secondary">
                 Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of{' '}
-                <strong>{totalItems}</strong> hospitals
-              </div>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <strong>{totalItems}</strong> entries
+              </span>
+              <div className="flex gap-xs">
                 <button
-                  className="btn btn-secondary btn-sm"
+                  className="px-sm py-xs border border-outline-variant rounded bg-surface-container-lowest text-outline font-body-sm flex items-center justify-center min-w-[32px] disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(currentPage - 1)}
                 >
-                  Previous
+                  <span className="material-symbols-outlined text-[20px] leading-none">chevron_left</span>
                 </button>
+                
                 {[...Array(totalPages)].map((_, i) => (
                   <button
                     key={i}
-                    className={`btn btn-sm ${currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`px-sm py-xs border rounded font-body-sm font-medium ${currentPage === i + 1 ? 'border-primary bg-primary text-white' : 'border-outline-variant bg-surface-container-lowest text-secondary hover:bg-surface-container-low'}`}
                     onClick={() => setCurrentPage(i + 1)}
                   >
                     {i + 1}
                   </button>
                 ))}
+                
                 <button
-                  className="btn btn-secondary btn-sm"
+                  className="px-sm py-xs border border-outline-variant rounded bg-surface-container-lowest text-outline font-body-sm flex items-center justify-center min-w-[32px] disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(currentPage + 1)}
                 >
-                  Next
+                  <span className="material-symbols-outlined text-[20px] leading-none">chevron_right</span>
                 </button>
               </div>
             </div>
           </>
         )}
       </div>
+
+
 
       {/* SUSPEND TENANT MODAL */}
       <SuspendTenantModal
@@ -479,3 +564,4 @@ export function TenantManagementPage() {
     </>
   )
 }
+

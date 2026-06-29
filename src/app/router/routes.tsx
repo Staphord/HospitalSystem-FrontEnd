@@ -75,7 +75,19 @@ import { DispensePrescriptionPage } from '@/features/pharmacy/pages/DispensePres
 import { PrescriptionQueuePage } from '@/features/pharmacy/pages/PrescriptionQueuePage'
 import { StockManagementPage } from '@/features/pharmacy/pages/StockManagementPage'
 import { BillsPage } from '@/features/billing/pages/BillsPage'
+import { CashierDashboard } from '@/features/billing/pages/CashierDashboard'
+import { BillDetailsPage } from '@/features/billing/pages/BillDetailsPage'
+import { ProcessingPaymentPage } from '@/features/billing/pages/ProcessingPaymentPage'
+import { DailySummaryPage } from '@/features/billing/pages/DailySummaryPage'
 import { AdmissionsPage } from '@/features/ward/pages/AdmissionsPage'
+import { WardNurseDashboard } from '@/features/ward/pages/WardNurseDashboard'
+import { BedMapPage } from '@/features/ward/pages/BedMapPage'
+import { MyPatientsPage } from '@/features/ward/pages/MyPatientsPage'
+import { NursingNotesPage } from '@/features/ward/pages/NursingNotesPage'
+import { InpatientOrdersPage as WardInpatientOrdersPage } from '@/features/ward/pages/InpatientOrdersPage'
+import { VisitorLogPage } from '@/features/ward/pages/VisitorLogPage'
+import { ActiveVisitorsPage } from '@/features/ward/pages/ActiveVisitorsPage'
+import { ShiftHandoverPage } from '@/features/ward/pages/ShiftHandoverPage'
 import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage'
 import { ProfilePage } from '@/features/profile/pages/ProfilePage'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -184,6 +196,18 @@ export const routes = [
             ],
           },
           {
+            element: <RoleRoute allowed={[ROLES.wardNurse, ROLES.hospitalAdmin]} />,
+            children: [
+              { path: '/ward/dashboard', element: <WardNurseDashboard /> },
+              { path: '/ward/beds', element: <BedMapPage /> },
+              { path: '/ward/patients', element: <MyPatientsPage /> },
+              { path: '/ward/patients/:patientId/notes', element: <NursingNotesPage /> },
+              { path: '/ward/visitors', element: <VisitorLogPage /> },
+              { path: '/ward/visitors/active', element: <ActiveVisitorsPage /> },
+              { path: '/ward/handover', element: <ShiftHandoverPage /> },
+            ],
+          },
+          {
             element: <RoleRoute allowed={[ROLES.doctor, ROLES.hospitalAdmin]} />,
             children: [
               { path: '/consultation/queue', element: <ConsultationQueuePage /> },
@@ -230,11 +254,18 @@ export const routes = [
           },
           {
             element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist]} />,
-            children: [{ path: '/billing', element: <BillsPage /> }],
+            children: [
+              { path: '/billing', element: <Navigate to="/billing/dashboard" replace /> },
+              { path: '/billing/dashboard', element: <CashierDashboard /> },
+              { path: '/billing/bills', element: <BillsPage /> },
+              { path: '/billing/bills/:billId', element: <BillDetailsPage /> },
+              { path: '/billing/payment/:billId', element: <ProcessingPaymentPage /> },
+              { path: '/billing/summary', element: <DailySummaryPage /> },
+            ],
           },
           {
-            element: <RoleRoute allowed={[ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/ward/admissions', element: <AdmissionsPage /> }],
+            element: <RoleRoute allowed={[ROLES.triageNurse,ROLES.wardNurse, ROLES.doctor, ROLES.hospitalAdmin]} />,
+            children: [{ path: '/ward/admissions', element: <AdmissionsPage /> }, { path: '/ward/orders', element: <WardInpatientOrdersPage /> }],
           },
           { path: '/notifications', element: <NotificationsPage /> },
           { path: '/profile', element: <ProfilePage /> },
