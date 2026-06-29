@@ -974,12 +974,21 @@ function PaymentStatusTab() {
 
         {/* Filters Toolbar */}
         <div className="p-md grid grid-cols-1 md:grid-cols-4 gap-md bg-white border-b border-[#dfe1e6]">
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#42526e] text-sm">
+          <div className="relative flex items-center h-10">
+            <span
+              className="material-symbols-outlined absolute left-3 text-[#42526e] pointer-events-none select-none"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                marginTop: '-1px',
+                fontSize: '20px',
+                lineHeight: '1',
+              }}
+            >
               search
             </span>
             <input
-              className="w-full pl-10 pr-4 py-2 bg-white border border-[#dfe1e6] rounded-lg text-sm focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
+              className="w-full h-full pl-10 pr-4 bg-white border border-[#dfe1e6] rounded-lg text-sm focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
               placeholder="Search by name or ID..."
               type="text"
               value={searchQuery}
@@ -990,7 +999,7 @@ function PaymentStatusTab() {
             />
           </div>
           <select
-            className="w-full px-4 py-2 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
+            className="w-full h-10 px-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as PaymentFilter)
@@ -1004,7 +1013,7 @@ function PaymentStatusTab() {
             <option value="Insurance Pending">Insurance Pending</option>
           </select>
           <select
-            className="w-full px-4 py-2 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
+            className="w-full h-10 px-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
             value={paymentMethodFilter}
             onChange={(e) => {
               setPaymentMethodFilter(e.target.value)
@@ -1017,12 +1026,21 @@ function PaymentStatusTab() {
             <option value="M-Pesa">M-Pesa</option>
             <option value="Card">Credit Card</option>
           </select>
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#42526e] text-sm">
+          <div className="relative flex items-center h-10">
+            <span
+              className="material-symbols-outlined absolute left-3 text-[#42526e] pointer-events-none select-none"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)',
+                marginTop: '-1px',
+                fontSize: '20px',
+                lineHeight: '1',
+              }}
+            >
               calendar_today
             </span>
             <input
-              className="w-full pl-10 pr-4 py-2 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
+              className="w-full h-full pl-10 pr-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
               type="text"
               readOnly
               value="08 Jun - 09 Jun 2026"

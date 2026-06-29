@@ -211,7 +211,7 @@ export function WardNurseDashboard() {
               <h3 className="font-headline-sm text-headline-sm text-primary m-0">Critical Patients Preview</h3>
               <Link
                 to="/ward/patients"
-                className="font-label-md text-clinical-blue hover:underline"
+                className="font-label-md text-clinical-blue no-underline hover:no-underline"
               >
                 View All Patients →
               </Link>
@@ -280,7 +280,7 @@ export function WardNurseDashboard() {
               <h3 className="font-headline-sm text-headline-sm text-primary m-0">Pending Inpatient Orders</h3>
               <Link
                 to="/ward/orders"
-                className="font-label-md text-clinical-blue hover:underline"
+                className="font-label-md text-clinical-blue no-underline hover:no-underline"
               >
                 View All →
               </Link>
@@ -342,7 +342,7 @@ export function WardNurseDashboard() {
               </div>
               <Link
                 to="/ward/visitors/active"
-                className="font-label-md text-clinical-blue hover:underline"
+                className="font-label-md text-clinical-blue no-underline hover:no-underline"
               >
                 View All →
               </Link>
@@ -381,8 +381,7 @@ export function WardNurseDashboard() {
             <div className="p-md border-t border-border-default">
               <Link
                 to="/ward/visitors"
-                className="w-full flex items-center justify-center gap-1 px-4 py-2 text-sm font-semibold text-clinical-blue bg-clinical-blue/10 hover:bg-clinical-blue/20 rounded-lg transition-all duration-200"
-                style={{ textDecoration: 'none' }}
+                className="w-full flex items-center justify-center gap-1 px-4 py-2 text-sm font-semibold text-clinical-blue bg-clinical-blue/10 hover:bg-clinical-blue/20 rounded-lg transition-all duration-200 no-underline hover:no-underline"
               >
                 <span className="material-symbols-outlined text-[18px]">person_add</span>
                 Log New Visitor
@@ -447,8 +446,7 @@ export function WardNurseDashboard() {
             </p>
             <Link
               to="/ward/handover"
-              className="w-full block bg-white text-primary font-bold py-2 rounded-lg hover:bg-secondary-fixed transition-colors text-center"
-              style={{ textDecoration: 'none' }}
+              className="w-full block bg-white text-primary hover:text-primary font-bold py-2 rounded-lg hover:bg-secondary-fixed transition-colors text-center no-underline hover:no-underline"
             >
               Start Handover Process
             </Link>

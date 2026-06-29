@@ -368,15 +368,13 @@ export function BedMapPage() {
             <div className="flex gap-md pt-2">
               <Link
                 to={`/ward/patients/${selectedBed.patient.id}/notes`}
-                className="flex-1 px-md py-sm bg-clinical-blue text-white rounded font-label-md text-label-md hover:opacity-90 transition-opacity text-center"
-                style={{ textDecoration: 'none' }}
+                className="flex-1 px-md py-sm bg-clinical-blue text-white hover:text-white rounded font-label-md text-label-md hover:opacity-90 transition-opacity text-center no-underline hover:no-underline"
               >
                 Record Notes
               </Link>
               <Link
                 to="/ward/orders"
-                className="flex-1 px-md py-sm border border-border-default text-slate-secondary rounded font-label-md text-label-md hover:bg-neutral-bg transition-colors text-center"
-                style={{ textDecoration: 'none' }}
+                className="flex-1 px-md py-sm border border-border-default text-slate-secondary rounded font-label-md text-label-md hover:bg-neutral-bg transition-colors text-center no-underline hover:no-underline"
               >
                 View Orders
               </Link>

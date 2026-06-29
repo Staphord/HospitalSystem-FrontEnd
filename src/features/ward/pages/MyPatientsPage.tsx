@@ -606,19 +606,17 @@ export function MyPatientsPage() {
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             to={`/ward/patients/${p.id}/notes`}
-                            className="bg-clinical-blue text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-primary transition-colors"
-                            style={{ color: '#ffffff', textDecoration: 'none' }}
+                            className="bg-clinical-blue text-white hover:text-white text-xs font-bold px-3 py-1.5 rounded hover:bg-primary transition-colors no-underline hover:no-underline"
                           >
                             Record Notes
                           </Link>
                           <Link
                             to="/ward/orders"
-                            className={`text-xs font-bold px-3 py-1.5 rounded border border-border-default text-secondary transition-colors ${
+                            className={`text-xs font-bold px-3 py-1.5 rounded border border-border-default text-secondary transition-colors no-underline hover:no-underline ${
                               p.condition === 'Critical'
                                 ? 'hover:bg-white'
                                 : 'hover:bg-surface-container-lowest'
                             }`}
-                            style={{ color: '#4f5f7b', textDecoration: 'none' }}
                           >
                             View Orders
                           </Link>
@@ -675,8 +673,7 @@ export function MyPatientsPage() {
           </p>
           <Link
             to="/ward/beds"
-            className="mt-6 flex items-center gap-2 bg-surface-container-lowest border border-clinical-blue text-clinical-blue font-bold py-2 px-6 rounded-lg hover:bg-clinical-blue hover:text-white transition-all"
-            style={{ textDecoration: 'none' }}
+            className="mt-6 flex items-center gap-2 bg-surface-container-lowest border border-clinical-blue text-clinical-blue font-bold py-2 px-6 rounded-lg hover:bg-clinical-blue hover:text-white transition-all no-underline hover:no-underline"
           >
             <span className="material-symbols-outlined">map</span> View Bed Map
           </Link>
@@ -699,8 +696,7 @@ export function MyPatientsPage() {
       {/* Floating Action Button */}
       <Link
         to="/ward/beds"
-        className="fixed bottom-lg right-lg w-14 h-14 bg-clinical-blue text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30 group"
-        style={{ textDecoration: 'none' }}
+        className="fixed bottom-lg right-lg w-14 h-14 bg-clinical-blue text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-30 group no-underline hover:no-underline"
         title="New Admission"
       >
         <span className="material-symbols-outlined text-[32px]">add</span>

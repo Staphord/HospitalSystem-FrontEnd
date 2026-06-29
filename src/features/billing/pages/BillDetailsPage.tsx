@@ -81,15 +81,14 @@ export function BillDetailsPage() {
         <div className="flex items-center gap-2">
           <Link
             to="/billing"
-            className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition-all"
+            className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition-all no-underline hover:no-underline"
           >
             Back to Bills
           </Link>
           {outstanding > 0 && (
             <Link
               to={`/billing/payment/${bill.id}`}
-              className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all"
-              style={{ textDecoration: 'none' }}
+              className="px-4 py-2 text-sm font-semibold text-white hover:text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all no-underline hover:no-underline"
             >
               Process Payment
             </Link>
@@ -193,8 +192,7 @@ export function BillDetailsPage() {
             </p>
             <Link
               to={`/billing/payment/${bill.id}`}
-              className="inline-block w-full text-center py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition"
-              style={{ textDecoration: 'none' }}
+              className="inline-block w-full text-center py-2 text-xs font-bold text-white hover:text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition no-underline hover:no-underline"
             >
               Collect Payment
             </Link>

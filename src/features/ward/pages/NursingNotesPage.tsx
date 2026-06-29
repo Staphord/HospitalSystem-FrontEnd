@@ -303,8 +303,7 @@ export function NursingNotesPage() {
         <nav className="flex items-center text-slate-secondary mb-xs">
           <Link
             to="/ward/patients"
-            className="font-label-md text-[12px] hover:text-primary"
-            style={{ textDecoration: 'none' }}
+            className="font-label-md text-[12px] hover:text-primary no-underline hover:no-underline"
           >
             My Patients
           </Link>

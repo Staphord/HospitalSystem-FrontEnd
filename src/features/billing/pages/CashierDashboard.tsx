@@ -155,7 +155,7 @@ export function CashierDashboard() {
             </h3>
             <Link
               to="/billing/bills"
-              className="font-label-sm text-label-sm text-[#0052cc] hover:text-[#003d9b] font-semibold transition-colors no-underline"
+              className="font-label-sm text-label-sm text-[#0052cc] hover:text-[#003d9b] font-semibold transition-colors no-underline hover:no-underline"
             >
               View All Bills →
             </Link>
@@ -327,7 +327,7 @@ export function CashierDashboard() {
 
           <Link
             to="/billing/bills"
-            className="mt-sm w-full h-[40px] border border-solid border-[#dfe1e6] hover:border-[#0052cc]/30 rounded-lg text-[#42526e] hover:text-[#0052cc] font-semibold transition-colors flex items-center justify-center gap-xs bg-white no-underline text-xs"
+            className="mt-sm w-full h-[40px] border border-solid border-[#dfe1e6] hover:border-[#0052cc]/30 rounded-lg text-[#42526e] hover:text-[#0052cc] font-semibold transition-colors flex items-center justify-center gap-xs bg-white no-underline hover:no-underline text-xs"
           >
             Review Claims
             <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

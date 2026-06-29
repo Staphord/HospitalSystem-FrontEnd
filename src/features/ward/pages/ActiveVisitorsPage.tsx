@@ -122,13 +122,13 @@ export function ActiveVisitorsPage() {
           <div className="flex items-center gap-sm">
             <Link
               to="/ward/dashboard"
-              className="flex items-center justify-center px-md h-10 text-label-md font-label-md text-slate-secondary bg-surface-container-lowest border border-border-default hover:bg-neutral-bg rounded-lg shadow-sm transition-all cursor-pointer no-underline"
+              className="flex items-center justify-center px-md h-10 text-label-md font-label-md text-slate-secondary bg-surface-container-lowest border border-border-default hover:bg-neutral-bg rounded-lg shadow-sm transition-all cursor-pointer no-underline hover:no-underline"
             >
               Dashboard
             </Link>
             <Link
               to="/ward/visitors"
-              className="flex items-center justify-center px-md h-10 text-label-md font-label-md text-white bg-clinical-blue hover:opacity-90 rounded-lg shadow-sm transition-all cursor-pointer no-underline"
+              className="flex items-center justify-center px-md h-10 text-label-md font-label-md text-white hover:text-white bg-clinical-blue hover:opacity-90 rounded-lg shadow-sm transition-all cursor-pointer no-underline hover:no-underline"
             >
               Visitor Logs
             </Link>
