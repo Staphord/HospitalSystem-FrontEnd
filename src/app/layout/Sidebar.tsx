@@ -7,6 +7,7 @@ import { getReceptionNavIcon, getReceptionNavLabel } from '@/app/layout/receptio
 import { getTriageNavIcon, getTriageNavLabel, isTriageNavItemActive } from '@/app/layout/triageNavUtils'
 import { getConsultationNavIcon, getConsultationNavLabel, isConsultationNavItemActive } from '@/app/layout/consultationNavUtils'
 import { getLaboratoryNavIcon, isLaboratoryNavItemActive } from '@/app/layout/laboratoryNavUtils'
+import { getRadiologyNavIcon, isRadiologyNavItemActive } from '@/app/layout/radiologyNavUtils'
 import { getPharmacyNavIcon, getPharmacyNavLabel, isPharmacyNavItemActive } from '@/app/layout/pharmacyNavUtils'
 import { toast } from 'sonner'
 
@@ -586,6 +587,97 @@ export function Sidebar() {
               <div className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-warning" />
                 <span className="text-label-sm text-warning">Lab Technician</span>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-sm text-secondary hover:text-error transition-colors font-body-sm w-full py-xs bg-transparent border-0 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">logout</span>
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+    )
+  }
+
+  if ((hasRole(ROLES.radiographer) || user?.role === ROLES.radiographer) && !isHospitalAdmin()) {
+    const displayName = user?.full_name || user?.username || 'User'
+
+    const RADIOLOGY_NAV = [
+      {
+        section: 'Overview',
+        items: [{ label: 'My Dashboard', path: '/dashboard' }],
+      },
+      {
+        section: 'Radiology',
+        items: [
+          { label: 'Imaging Requests', path: '/radiology/requests' },
+          { label: 'Imaging Schedule', path: '/radiology/schedule' },
+        ],
+      },
+    ]
+
+    return (
+      <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
+        <div className="flex flex-col py-lg px-md gap-xs">
+          <div className="flex items-center gap-sm">
+            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+              <span className="material-symbols-outlined text-[20px]">local_hospital</span>
+            </div>
+            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
+              Muhimbili National Hospital
+            </span>
+          </div>
+          <span className="text-secondary font-body-sm pl-[40px]">Radiology</span>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm space-y-lg">
+          {RADIOLOGY_NAV.map((group) => (
+            <div key={group.section} className="mb-xs">
+              <h3 className="px-md mb-xs font-label-md text-label-md text-on-surface-variant uppercase tracking-wider opacity-60">
+                {group.section}
+              </h3>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={() =>
+                    `reception-nav-link flex items-center gap-3 px-md py-sm cursor-pointer transition-all duration-200 ease-in-out ${
+                      isRadiologyNavItemActive(item.path, location.pathname)
+                        ? 'reception-nav-link--active'
+                        : ''
+                    }`
+                  }
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {getRadiologyNavIcon(item.label)}
+                  </span>
+                  <span className="font-body-sm">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t border-border-subtle p-md flex flex-col gap-sm bg-surface-container-low">
+          <div className="flex items-center gap-sm min-w-0">
+            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary font-semibold text-sm shrink-0 border border-border-subtle">
+              {displayName
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-body-sm font-semibold text-on-surface truncate">{displayName}</span>
+              <div className="flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded-full bg-surface-container-high text-secondary text-[10px] font-semibold">
+                  Radiographer
+                </span>
               </div>
             </div>
           </div>

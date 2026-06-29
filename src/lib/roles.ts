@@ -196,7 +196,12 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
   },
   {
-    label: 'Radiology',
+    label: 'Imaging Requests',
+    path: '/radiology/requests',
+    roles: [ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Imaging Schedule',
     path: '/radiology/schedule',
     roles: [ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin],
   },
@@ -256,7 +261,7 @@ export function getDefaultRoute(roles: string[], userRole?: string | null): stri
   if (effective.includes(ROLES.triageNurse)) return '/dashboard'
   if (effective.includes(ROLES.receptionist)) return '/dashboard'
   if (effective.includes(ROLES.labTechnician)) return '/dashboard'
-  if (effective.includes(ROLES.radiographer)) return '/radiology/schedule'
+  if (effective.includes(ROLES.radiographer)) return '/dashboard'
   if (effective.includes(ROLES.pharmacist)) return '/dashboard'
   if (effective.includes(ROLES.cashier)) return '/billing'
   return '/dashboard'

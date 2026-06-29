@@ -10,6 +10,8 @@ import { LaboratoryTopbar } from '@/app/layout/LaboratoryTopbar'
 import { LaboratoryMobileNav } from '@/app/layout/LaboratoryMobileNav'
 import { PharmacyTopbar } from '@/app/layout/PharmacyTopbar'
 import { PharmacyMobileNav } from '@/app/layout/PharmacyMobileNav'
+import { RadiologyTopbar } from '@/app/layout/RadiologyTopbar'
+import { RadiologyMobileNav } from '@/app/layout/RadiologyMobileNav'
 import { ImpersonationBanner } from '@/app/layout/ImpersonationBanner'
 import { AppProvider } from '@/features/admin/context/AppContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -29,8 +31,16 @@ export function HospitalLayout() {
     (hasRole(ROLES.labTechnician) || user?.role === ROLES.labTechnician) && !isAdmin
   const isPharmacist =
     (hasRole(ROLES.pharmacist) || user?.role === ROLES.pharmacist) && !isAdmin
+  const isRadiographer =
+    (hasRole(ROLES.radiographer) || user?.role === ROLES.radiographer) && !isAdmin
   const useModernShell =
-    isAdmin || isReceptionist || isTriageNurse || isDoctor || isLabTechnician || isPharmacist
+    isAdmin ||
+    isReceptionist ||
+    isTriageNurse ||
+    isDoctor ||
+    isLabTechnician ||
+    isPharmacist ||
+    isRadiographer
 
   useEffect(() => {
     if (!isReadOnly) return
@@ -114,6 +124,8 @@ export function HospitalLayout() {
             <LaboratoryTopbar />
           ) : isPharmacist ? (
             <PharmacyTopbar />
+          ) : isRadiographer ? (
+            <RadiologyTopbar />
           ) : (
             <Topbar />
           )}
@@ -126,7 +138,8 @@ export function HospitalLayout() {
                     isTriageNurse ||
                     isDoctor ||
                     isLabTechnician ||
-                    isPharmacist
+                    isPharmacist ||
+                    isRadiographer
                   ? 'flex-1 overflow-y-auto p-4 md:p-xl bg-background pb-20 lg:pb-xl'
                   : 'page-content') + (isReadOnly ? ' read-only-session' : '')
             }
@@ -139,6 +152,7 @@ export function HospitalLayout() {
         {isDoctor && <ConsultationMobileNav />}
         {isLabTechnician && <LaboratoryMobileNav />}
         {isPharmacist && <PharmacyMobileNav />}
+        {isRadiographer && <RadiologyMobileNav />}
       </div>
     </AppProvider>
   )

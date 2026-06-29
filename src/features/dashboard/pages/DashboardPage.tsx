@@ -9,6 +9,7 @@ import { TriageDashboardContent } from '@/features/triage/components/TriageDashb
 import { DoctorDashboardContent } from '@/features/consultation/components/DoctorDashboardContent'
 import { LabDashboardContent } from '@/features/laboratory/components/LabDashboardContent'
 import { PharmacyDashboardContent } from '@/features/pharmacy/components/PharmacyDashboardContent'
+import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
 import { useNavigate } from 'react-router-dom'
 
@@ -197,6 +198,11 @@ export function DashboardPage() {
   const isDoctor = hasEffectiveRole(roles, user?.role, ROLES.doctor) && !isHospitalAdmin
   const isLabTechnician = hasEffectiveRole(roles, user?.role, ROLES.labTechnician) && !isHospitalAdmin
   const isPharmacist = hasEffectiveRole(roles, user?.role, ROLES.pharmacist) && !isHospitalAdmin
+  const isRadiographer = hasEffectiveRole(roles, user?.role, ROLES.radiographer) && !isHospitalAdmin
+
+  if (isRadiographer) {
+    return <RadiologyDashboardContent />
+  }
 
   if (isLabTechnician) {
     return <LabDashboardContent />
