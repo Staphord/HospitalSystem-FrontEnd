@@ -113,26 +113,14 @@ export function SubscriptionDetailPage() {
         })
       }
 
-      // Generate manual override zero-amount adjustment invoice on the server
-      await masterService.createInvoice({
-        tenant_id: subscription.tenant_id,
-        subscription_id: subscription.id,
-        plan_name: newPlanName,
-        billing_period_start: new Date().toISOString().split('T')[0],
-        billing_period_end: subscription.end_date || new Date().toISOString().split('T')[0],
-        currency: tenant?.currency || 'USD',
-        amount: 0,
-        status: 'paid',
-        description: `Admin manual override adjustment to plan: ${newPlanName}`,
-        due_date: new Date().toISOString().split('T')[0]
-      })
-
       const allSubs = await masterService.listSubscriptions()
-      const sub = allSubs.find((s) => s.id === id)
-      if (sub) {
-        setSubscription(sub)
-        const tenantData = await masterService.getTenant(sub.tenant_id)
+      const tenantSubs = allSubs.filter((s) => s.tenant_id === subscription.tenant_id)
+      const newSub = tenantSubs[0]
+      if (newSub) {
+        setSubscription(newSub)
+        const tenantData = await masterService.getTenant(newSub.tenant_id)
         setTenant(tenantData)
+        navigate(`/master/subscriptions/${newSub.id}`, { replace: true })
       }
     } catch {
       toast.error('Failed to change subscription plan.')

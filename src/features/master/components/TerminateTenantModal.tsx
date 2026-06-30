@@ -45,36 +45,30 @@ export function TerminateTenantModal({
   const [finalConsent2, setFinalConsent2] = useState(false)
   const [terminating, setTerminating] = useState(false)
   const [exportFormat, setExportFormat] = useState('json')
+  const [downloading, setDownloading] = useState(false)
 
   if (!isOpen) return null
 
-  const handleDownloadBackup = () => {
-    const backupData = {
-      tenant_id: tenantId,
-      hospital_name: tenantName,
-      exported_at: new Date().toISOString(),
-      statistics: {
-        active_staff_users: stats ? (stats.user_count || stats.kc_user_count || 0) : 0,
-        total_patients: stats ? (stats.patient_count || 0) : 0,
-        storage_gb: storageGb,
-        db_size_mb: stats ? (stats.db_size_mb || 0) : 0
-      },
-      profile: tenantProfile || { tenant_id: tenantId, hospital_name: tenantName },
-      subscriptions: subscriptions,
-      invoices: invoices,
-      audit_logs: auditLogs
+  const handleDownloadBackup = async () => {
+    setDownloading(true)
+    try {
+      const responseData = await masterService.exportTenantData(tenantId)
+      const blob = new Blob([JSON.stringify(responseData, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${tenantId}_clinical_data_export.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setHasDownloadedBackup(true)
+      toast.success('Backup export file downloaded successfully!')
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to download backup export from the server.')
+    } finally {
+      setDownloading(false)
     }
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${tenantId}_clinical_data_export.${exportFormat}`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    setHasDownloadedBackup(true)
-    toast.success(`Backup export file (${exportFormat.toUpperCase()}) generated and downloaded successfully!`)
   }
 
   const handleTerminate = async () => {
@@ -270,12 +264,19 @@ export function TerminateTenantModal({
                 </p>
               </div>
               <button 
-                className={`flex items-center justify-center gap-sm font-label-md py-sm px-xl rounded transition-all active:scale-95 text-white border-0 cursor-pointer ${hasDownloadedBackup ? 'bg-tertiary' : 'bg-primary hover:bg-primary-container'}`}
+                className={`flex items-center justify-center gap-sm font-label-md py-sm px-xl rounded transition-all active:scale-95 text-white border-0 ${downloading ? 'opacity-50 cursor-not-allowed bg-primary' : (hasDownloadedBackup ? 'bg-tertiary cursor-pointer' : 'bg-primary hover:bg-primary-container cursor-pointer')}`}
                 id="downloadBtn"
+                disabled={downloading}
                 onClick={handleDownloadBackup}
               >
-                <span className="material-symbols-outlined" aria-hidden="true">download</span>
-                <span>{hasDownloadedBackup ? 'Export Downloaded' : 'Generate & Download Backup Export'}</span>
+                <span className="material-symbols-outlined" aria-hidden="true">
+                  {downloading ? 'sync' : 'download'}
+                </span>
+                <span>
+                  {downloading 
+                    ? 'Generating Backup...' 
+                    : (hasDownloadedBackup ? 'Export Downloaded' : 'Generate & Download Backup Export')}
+                </span>
               </button>
               {!hasDownloadedBackup && (
                 <p className="font-label-sm text-[#ba1a1a] flex items-center gap-xs m-0">
@@ -432,7 +433,7 @@ export function TerminateTenantModal({
                 onClick={handleTerminate}
               >
                 <span className="material-symbols-outlined" aria-hidden="true" style={{ fontVariationSettings: "'FILL' 1" }}>delete_forever</span>
-                <span>{terminating ? 'Terminating...' : 'Terminate Organization'}</span>
+                <span>{terminating ? 'Terminating...' : 'Terminate Hospital'}</span>
               </button>
             </div>
           </div>

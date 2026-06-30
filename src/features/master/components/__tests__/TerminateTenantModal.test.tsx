@@ -16,6 +16,7 @@ vi.mock('sonner', () => ({
 vi.mock('@/api/services/master', () => ({
   masterService: {
     updateTenant: vi.fn(),
+    exportTenantData: vi.fn(),
   },
 }))
 
@@ -45,6 +46,12 @@ describe('TerminateTenantModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(masterService.exportTenantData).mockResolvedValue({
+      tenant_id: 'test-tenant',
+      hospital_name: 'Test Hospital Name',
+      exported_at: '2026-06-29T12:00:00Z',
+      data: {}
+    })
     global.URL.createObjectURL = vi.fn().mockReturnValue('mock-download-url')
     global.URL.revokeObjectURL = vi.fn()
   })
@@ -95,6 +102,11 @@ describe('TerminateTenantModal', () => {
     const downloadBtn = screen.getByRole('button', { name: /Generate & Download Backup Export/i })
     fireEvent.click(downloadBtn)
 
+    // Wait for the async call to finish and update state
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Export Downloaded' })).toBeInTheDocument()
+    })
+
     // Checkbox should now be visible
     const verifyCheckbox = container.querySelector('#chk_verify_backup') as HTMLInputElement
     expect(verifyCheckbox).not.toBeNull()
@@ -115,14 +127,18 @@ describe('TerminateTenantModal', () => {
 
     // Step 2
     fireEvent.click(screen.getByRole('button', { name: /Generate & Download Backup/i }))
-    const verifyCheckbox = container.querySelector('#chk_verify_backup') as HTMLInputElement
-    fireEvent.click(verifyCheckbox)
+    let verifyCheckbox: HTMLInputElement | null = null
+    await waitFor(() => {
+      verifyCheckbox = container.querySelector('#chk_verify_backup') as HTMLInputElement
+      expect(verifyCheckbox).not.toBeNull()
+    })
+    fireEvent.click(verifyCheckbox!)
     fireEvent.click(screen.getByRole('button', { name: 'Next Step' }))
 
     // Step 3
     expect(screen.getByText('Terminate Hospital Account - Step 3 of 3')).toBeInTheDocument()
 
-    const terminateBtn = screen.getByRole('button', { name: 'Terminate Organization' })
+    const terminateBtn = screen.getByRole('button', { name: 'Terminate Hospital' })
     expect(terminateBtn).toBeDisabled()
 
     // Check only first consent checkbox
