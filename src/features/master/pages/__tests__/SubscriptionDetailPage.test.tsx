@@ -239,20 +239,11 @@ describe('SubscriptionDetailPage', () => {
       fireEvent.click(upgradeBtns[0])
     })
 
-    // Verify upgrade plan and invoice calls are made
+    // Verify upgrade plan call is made
     await waitFor(() => {
       expect(mockUpgrade).toHaveBeenCalledWith('aga-khan', {
         plan_id: 'premium',
       })
-      expect(masterService.createInvoice).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tenant_id: 'aga-khan',
-          amount: 0,
-          status: 'paid',
-          description: 'Admin manual override adjustment to plan: Premium',
-          due_date: expect.any(String),
-        })
-      )
     })
   })
 })

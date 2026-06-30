@@ -54,7 +54,7 @@ export const SubscriptionPage: React.FC = () => {
     try {
       const [tenantData, allSubs, plansData, invoicesData] = await Promise.all([
         masterService.getTenant(tenantId),
-        masterService.listSubscriptions(),
+        masterService.listSubscriptions(tenantId),
         masterService.listPlans(),
         masterService.listInvoices(tenantId),
       ]);
@@ -63,7 +63,7 @@ export const SubscriptionPage: React.FC = () => {
       setPlans(plansData);
       setInvoices(invoicesData);
 
-      const activeSub = allSubs.find((s) => s.tenant_id === tenantId);
+      const activeSub = allSubs[0];
       if (activeSub) {
         setSubscription(activeSub);
       }
@@ -108,9 +108,9 @@ export const SubscriptionPage: React.FC = () => {
       let verified = false;
       for (let i = 0; i < 5; i++) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        const allSubs = await masterService.listSubscriptions();
-        const sub = allSubs.find((s) => s.id === subscription.id);
-        if (sub && sub.plan_name === selectedPlanForChange.plan_name && sub.status.toLowerCase() === 'active') {
+        const tenantSubs = await masterService.listSubscriptions(subscription.tenant_id);
+        const sub = tenantSubs[0];
+        if (sub && sub.plan_name.toLowerCase() === selectedPlanForChange.plan_name.toLowerCase() && sub.status.toLowerCase() === 'active') {
           verified = true;
           break;
         }

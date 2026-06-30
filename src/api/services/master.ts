@@ -39,6 +39,17 @@ function normalizeTenants(data: Tenant[]): Tenant[] {
   return Array.isArray(data) ? data.map(normalizeTenant) : []
 }
 
+const mapPlanIdToName = (planIdOrName: string): string => {
+  const mapping: Record<string, string> = {
+    '11111111-1111-1111-1111-111111111111': 'free_trial',
+    '22222222-2222-2222-2222-222222222222': 'basic',
+    '33333333-3333-3333-3333-333333333333': 'standard',
+    '44444444-4444-4444-4444-444444444444': 'premium',
+    '55555555-5555-5555-5555-555555555555': 'enterprise',
+  }
+  return mapping[planIdOrName] || planIdOrName
+}
+
 // All paths proxied via api-gateway → master-service
 export const masterService = {
   listTenants: () =>
@@ -84,7 +95,7 @@ export const masterService = {
   upgradeSubscriptionEndpoint: (tenantId: string, data: { plan_id: string; billing_cycle?: string }) =>
     apiClient
       .post<unknown>(`/tenants/${tenantId}/upgrade`, {
-        plan: data.plan_id,
+        plan: mapPlanIdToName(data.plan_id),
         billing_cycle: data.billing_cycle || 'monthly'
       })
       .then((r) => r.data),
@@ -92,7 +103,7 @@ export const masterService = {
   downgradeSubscriptionEndpoint: (tenantId: string, data: { plan_id: string; billing_cycle?: string; effective_at_end?: boolean }) =>
     apiClient
       .post<unknown>(`/tenants/${tenantId}/downgrade`, {
-        plan: data.plan_id,
+        plan: mapPlanIdToName(data.plan_id),
         billing_cycle: data.billing_cycle || 'monthly',
         effective_at_end: data.effective_at_end || false
       })
@@ -104,7 +115,7 @@ export const masterService = {
       .then((r) => r.data),
 
   createInvoice: (data: InvoiceCreate) =>
-    apiClient.post<Invoice>('/invoices', data).then((r) => r.data),
+    apiClient.post<Invoice>(`/tenants/${data.tenant_id}/invoices`, data).then((r) => r.data),
 
   updateInvoice: (invoiceId: string, data: Partial<Invoice> & { payment_method?: string }) =>
     apiClient.patch<Invoice>(`/invoices/${invoiceId}`, data).then((r) => r.data),
