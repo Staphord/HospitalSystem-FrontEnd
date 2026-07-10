@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { receptionService } from '@/api/services/reception'
 
 const FIELD_LABEL = 'block font-label-md text-label-md text-secondary mb-xs uppercase'
 const INLINE_ERROR = 'text-error font-label-sm text-label-sm font-semibold mt-xs m-0'
@@ -68,6 +69,7 @@ export function PatientRegistrationPage() {
   const [memberName, setMemberName] = useState('')
 
   const [errors, setErrors] = useState<FormErrors>({})
+  const [submitting, setSubmitting] = useState(false)
 
   const clearError = (field: FormField) => {
     setErrors((prev) => {
@@ -98,7 +100,7 @@ export function PatientRegistrationPage() {
     return next
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     const validationErrors = validateForm()
     setErrors(validationErrors)
@@ -107,10 +109,52 @@ export function PatientRegistrationPage() {
       return
     }
 
-    toast.success('Patient registered successfully and assigned to Triage Queue Position #9!')
-    setTimeout(() => {
-      navigate('/reception/queue')
-    }, 1500)
+    setSubmitting(true)
+    try {
+      const genderValue = gender.toLowerCase() as 'male' | 'female' | 'other'
+
+      const result = await receptionService.registerAndVisit({
+        patient: {
+          full_name: fullName.trim(),
+          date_of_birth: dob,
+          gender: genderValue,
+          national_id: nationalId.trim() || undefined,
+          phone_primary: phone.trim() || undefined,
+          email: email.trim() || undefined,
+          next_of_kin_name: nokName.trim() || undefined,
+          next_of_kin_relationship: nokRelationship !== 'Select Relationship'
+            ? nokRelationship.toLowerCase()
+            : undefined,
+          next_of_kin_phone: nokPhone.trim() || undefined,
+        },
+        visit: {
+          visit_type: 'outpatient',
+          payment_type: paymentType,
+        },
+        insurance: paymentType === 'insurance'
+          ? {
+              insurer_name: insurerName,
+              policy_number: policyNumber.trim(),
+            }
+          : undefined,
+      })
+
+      const queueNumber = result.visit.queue?.queue_number ?? 'assigned'
+      toast.success(`Patient registered — Triage Queue Position ${queueNumber}`)
+      setTimeout(() => {
+        navigate('/reception/queue')
+      }, 1500)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      if (detail?.toLowerCase().includes('national id') || detail?.toLowerCase().includes('already exists')) {
+        setErrors((prev) => ({ ...prev, nationalId: 'A patient with this National ID already exists' }))
+        toast.error('Duplicate National ID — patient already registered.')
+      } else {
+        toast.error(detail ?? 'Registration failed. Please try again.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -364,16 +408,21 @@ export function PatientRegistrationPage() {
               <div className="grid grid-cols-2 gap-md">
                 <div className="col-span-2">
                   <label className={FIELD_LABEL}>Insurer Name</label>
-                  <select
-                    className={`${fieldInputClass(false)} appearance-none`}
-                    style={selectChevronStyle}
+                  <input
+                    type="text"
+                    placeholder="Enter or select insurer (e.g. Jubilee Insurance)"
+                    className={fieldInputClass(false)}
                     value={insurerName}
                     onChange={(e) => setInsurerName(e.target.value)}
-                  >
-                    <option>Aetna International</option>
-                    <option>BlueCross BlueShield</option>
-                    <option>Cigna Healthcare</option>
-                  </select>
+                    list="insurer-suggestions"
+                  />
+                  <datalist id="insurer-suggestions">
+                    <option value="Aetna International" />
+                    <option value="BlueCross BlueShield" />
+                    <option value="Cigna Healthcare" />
+                    <option value="Jubilee Insurance" />
+                    <option value="NHIF" />
+                  </datalist>
                 </div>
                 <div>
                   <RequiredLabel>Policy Number</RequiredLabel>
@@ -406,7 +455,7 @@ export function PatientRegistrationPage() {
           <div className="mt-lg p-md bg-hover-tint border border-primary-container/20 rounded-lg flex items-center">
             <span className="material-symbols-outlined text-primary mr-md">info</span>
             <p className="font-body-md text-primary font-medium m-0">
-              Patient will be assigned to <span className="font-bold">Triage Queue — Position #9</span>
+              Patient will be registered and routed to the active Triage Queue
             </p>
           </div>
         </section>
@@ -415,7 +464,9 @@ export function PatientRegistrationPage() {
           <div className="max-w-[720px] mx-auto flex flex-col items-center">
             <div className="mb-sm px-md py-xs bg-hover-tint rounded-full flex items-center">
               <span className="material-symbols-outlined text-primary text-[16px] mr-xs">assignment_ind</span>
-              <span className="font-label-md text-label-md text-primary">#PT-4892 will be assigned</span>
+              <span className="font-label-md text-label-md text-primary">
+                {fullName.trim() ? `Registering ${fullName.trim()}...` : 'Registering new patient...'}
+              </span>
             </div>
             <div className="flex items-center justify-between w-full gap-md">
               <button
@@ -427,10 +478,20 @@ export function PatientRegistrationPage() {
               </button>
               <button
                 type="submit"
-                className="bg-primary-container text-on-primary px-xl h-10 rounded-lg font-headline-sm flex items-center hover:opacity-90 transition-all shadow-sm border-0 cursor-pointer"
+                disabled={submitting}
+                className="bg-primary-container text-on-primary px-xl h-10 rounded-lg font-headline-sm flex items-center hover:opacity-90 transition-all shadow-sm border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>Save &amp; Assign to Queue</span>
-                <span className="material-symbols-outlined ml-sm text-[20px]">chevron_right</span>
+                {submitting ? (
+                  <>
+                    <span className="material-symbols-outlined ml-sm text-[20px] animate-spin">progress_activity</span>
+                    <span className="ml-sm">Registering...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Save &amp; Assign to Queue</span>
+                    <span className="material-symbols-outlined ml-sm text-[20px]">chevron_right</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

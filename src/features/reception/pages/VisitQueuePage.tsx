@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { receptionService } from '@/api/services/reception'
+import type { QueueWorklistItem } from '@/api/types/reception'
 
 interface QueueItem {
   pos: number
   name: string
-  id: string
+  id: string          // patient_number for display
+  queueId: string     // actual queue_id from backend
   time: string
   wait: string
   waitColor: string
@@ -12,6 +15,7 @@ interface QueueItem {
   status: 'WAITING' | 'IN TRIAGE' | 'WITH DOCTOR' | 'COMPLETE'
   statusBg: string
   statusText: string
+  _waitMinutes: number
 }
 
 const KPI_CARD =
@@ -125,11 +129,70 @@ const INITIAL_QUEUE: QueueItem[] = [
   },
 ]
 
-const PAGE_SIZE = 5
+// ── KPI helpers ─────────────────────────────────────────────────────────────
 
-function renumberQueue(items: QueueItem[]) {
-  return items.map((item, index) => ({ ...item, pos: index + 1 }))
+function waitMinutes(createdAt: string): number {
+  return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000)
 }
+
+function computeKpis(items: QueueItem[]) {
+  const active = items.filter((i) => i.status !== 'COMPLETE')
+  if (active.length === 0) return { avg: 0, longest: 0 }
+  const waits = active.map((i) => i._waitMinutes)
+  const avg = Math.round(waits.reduce((a, b) => a + b, 0) / waits.length)
+  const longest = Math.max(...waits)
+  return { avg, longest }
+}
+
+function formatWait(mins: number): string {
+  if (mins <= 0) return '--'
+  return `${mins} min`
+}
+
+function mapStatus(backendStatus: string): QueueItem['status'] {
+  switch (backendStatus?.toLowerCase()) {
+    case 'in_progress': return 'IN TRIAGE'
+    case 'completed':   return 'COMPLETE'
+    case 'skipped':     return 'COMPLETE'
+    default:            return 'WAITING'
+  }
+}
+
+function statusStyles(status: QueueItem['status']): { statusBg: string; statusText: string } {
+  switch (status) {
+    case 'WAITING':     return { statusBg: 'bg-warning/10',           statusText: 'text-warning' }
+    case 'IN TRIAGE':   return { statusBg: 'bg-info/10',              statusText: 'text-info' }
+    case 'WITH DOCTOR': return { statusBg: 'bg-success/10',           statusText: 'text-success' }
+    case 'COMPLETE':    return { statusBg: 'bg-surface-container-high', statusText: 'text-on-surface-variant' }
+  }
+}
+
+function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
+  const mins = waitMinutes(entry.created_at)
+  const status = mapStatus(entry.status)
+  const { statusBg, statusText } = statusStyles(status)
+  const timeStr = new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const waitColor = mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success'
+
+  return {
+    pos,
+    name: entry.patient?.full_name ?? 'Unknown',
+    id: entry.patient?.patient_number ?? entry.patient_id,
+    queueId: entry.queue_id,
+    time: timeStr,
+    wait: formatWait(mins),
+    waitColor,
+    payment: entry.visit?.payment_type
+      ? entry.visit.payment_type.charAt(0).toUpperCase() + entry.visit.payment_type.slice(1)
+      : 'Cash',
+    status,
+    statusBg,
+    statusText,
+    _waitMinutes: mins,
+  }
+}
+
+const PAGE_SIZE = 5
 
 function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => void }) {
   return (
@@ -311,10 +374,28 @@ function QueueActionsMenu({
 }
 
 export function VisitQueuePage() {
-  const [queueItems, setQueueItems] = useState(INITIAL_QUEUE)
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [viewTarget, setViewTarget] = useState<QueueItem | null>(null)
+
+  const fetchQueue = async () => {
+    try {
+      const data = await receptionService.getTriageQueue()
+      setQueueItems(data.map((entry, i) => toQueueItem(entry, i + 1)))
+    } catch {
+      // silently keep last known state on refresh errors
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void fetchQueue()
+    const interval = setInterval(() => void fetchQueue(), 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const totalPages = Math.max(1, Math.ceil(queueItems.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -325,31 +406,38 @@ export function VisitQueuePage() {
     setQueueItems((prev) => {
       const index = prev.findIndex((item) => item.id === id)
       if (index === -1) return prev
-
       const swapIndex = direction === 'up' ? index - 1 : index + 1
       if (swapIndex < 0 || swapIndex >= prev.length) return prev
-
       const next = [...prev]
       ;[next[index], next[swapIndex]] = [next[swapIndex], next[index]]
-      return renumberQueue(next)
+      return next.map((item, i) => ({ ...item, pos: i + 1 }))
     })
   }
 
   const removeItem = (id: string) => {
-    setQueueItems((prev) => renumberQueue(prev.filter((item) => item.id !== id)))
+    setQueueItems((prev) => {
+      const filtered = prev.filter((item) => item.id !== id)
+      return filtered.map((item, i) => ({ ...item, pos: i + 1 }))
+    })
     const newLength = queueItems.length - 1
     const newTotalPages = Math.max(1, Math.ceil(newLength / PAGE_SIZE))
-    if (currentPage > newTotalPages) {
-      setCurrentPage(newTotalPages)
-    }
+    if (currentPage > newTotalPages) setCurrentPage(newTotalPages)
   }
 
+  const { avg: avgWait, longest: longestWait } = computeKpis(queueItems)
   const showingFrom = queueItems.length === 0 ? 0 : pageStart + 1
   const showingTo = Math.min(pageStart + PAGE_SIZE, queueItems.length)
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-lg">
+      {loading && (
+        <div className="flex items-center justify-center py-xl">
+          <span className="material-symbols-outlined text-[40px] text-primary animate-spin">progress_activity</span>
+        </div>
+      )}
+      {!loading && (
+        <>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-lg">
         <div className={KPI_CARD}>
           <div className="flex justify-between items-start">
             <div>
@@ -365,9 +453,9 @@ export function VisitQueuePage() {
               </span>
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-1 text-success">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span className="text-[11px] font-medium">+2 since last hour</span>
+          <div className="mt-2 flex items-center gap-1 text-outline">
+            <span className="material-symbols-outlined text-[16px]">info</span>
+            <span className="text-[11px] font-medium">Live triage queue</span>
           </div>
         </div>
 
@@ -376,7 +464,7 @@ export function VisitQueuePage() {
             <div>
               <p className={KPI_LABEL}>Avg Wait Time</p>
               <h3 className={KPI_VALUE}>
-                22<span className="text-outline text-headline-sm"> min</span>
+                {avgWait > 0 ? <>{avgWait}<span className="text-outline text-headline-sm"> min</span></> : <span className="text-outline text-headline-sm">--</span>}
               </h3>
             </div>
             <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
@@ -385,7 +473,7 @@ export function VisitQueuePage() {
           </div>
           <div className="mt-2 flex items-center gap-1 text-outline">
             <span className="material-symbols-outlined text-[16px]">info</span>
-            <span className="text-[11px] font-medium">System standard: 15min</span>
+            <span className="text-[11px] font-medium">Computed from live data</span>
           </div>
         </div>
 
@@ -393,17 +481,19 @@ export function VisitQueuePage() {
           <div className="flex justify-between items-start">
             <div>
               <p className={KPI_LABEL}>Longest Wait</p>
-              <h3 className={`${KPI_VALUE} text-error`}>
-                48<span className="text-error/70 text-headline-sm"> min</span>
+              <h3 className={`${KPI_VALUE} ${longestWait > 30 ? 'text-error' : 'text-on-surface'}`}>
+                {longestWait > 0
+                  ? <>{longestWait}<span className="text-headline-sm" style={{ opacity: 0.7 }}> min</span></>
+                  : <span className="text-outline text-headline-sm">--</span>}
               </h3>
             </div>
-            <div className="w-10 h-10 rounded bg-error/10 flex items-center justify-center text-error">
+            <div className={`w-10 h-10 rounded flex items-center justify-center ${longestWait > 30 ? 'bg-error/10 text-error' : 'bg-surface-container text-on-surface-variant'}`}>
               <span className="material-symbols-outlined text-[24px]">timer_off</span>
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-1 text-error">
-            <span className="material-symbols-outlined text-[16px]">warning</span>
-            <span className="text-[11px] font-medium">Requires immediate attention</span>
+          <div className={`mt-2 flex items-center gap-1 ${longestWait > 30 ? 'text-error' : 'text-outline'}`}>
+            <span className="material-symbols-outlined text-[16px]">{longestWait > 30 ? 'warning' : 'info'}</span>
+            <span className="text-[11px] font-medium">{longestWait > 30 ? 'Requires attention' : 'Within normal range'}</span>
           </div>
         </div>
       </div>
@@ -536,6 +626,8 @@ export function VisitQueuePage() {
       </div>
 
       {viewTarget && <QueueViewModal item={viewTarget} onClose={() => setViewTarget(null)} />}
+        </>
+      )}
     </div>
   )
 }
