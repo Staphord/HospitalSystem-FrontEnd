@@ -40,6 +40,45 @@ export function TenantDetailPage() {
   // Modal states
   const [isSuspendOpen, setIsSuspendOpen] = useState(false)
   const [isTerminateOpen, setIsTerminateOpen] = useState(false)
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false)
+  const [profileForm, setProfileForm] = useState({
+    hospital_name: '',
+    timezone: '',
+    currency: '',
+    date_format: '',
+    grace_period_days: 7,
+  })
+
+  const handleOpenEditProfile = () => {
+    if (!tenant) return
+    setProfileForm({
+      hospital_name: tenant.hospital_name || tenant.name || '',
+      timezone: tenant.timezone || 'UTC',
+      currency: tenant.currency || 'USD',
+      date_format: tenant.date_format || 'DD/MM/YYYY',
+      grace_period_days: (tenant as any).grace_period_days !== undefined ? (tenant as any).grace_period_days : 7,
+    })
+    setIsEditProfileOpen(true)
+  }
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!id || !tenant) return
+    try {
+      const updated = await masterService.updateTenant(id, {
+        hospital_name: profileForm.hospital_name,
+        timezone: profileForm.timezone,
+        currency: profileForm.currency,
+        date_format: profileForm.date_format,
+        grace_period_days: Number(profileForm.grace_period_days),
+      })
+      setTenant(updated)
+      setIsEditProfileOpen(false)
+    } catch (err) {
+      console.error("Failed to update profile", err)
+      alert("Failed to update tenant profile settings.")
+    }
+  }
 
   const fetchData = useCallback(async () => {
     if (!id) return
@@ -192,7 +231,10 @@ export function TenantDetailPage() {
                   <span>{tenant.tenant_id}</span> • <span>{tenant.city || '-'}, {tenant.country || '-'}</span>
                 </p>
                 {tenant.status.toLowerCase() !== 'terminated' && (
-                  <button className="flex items-center gap-2 px-3 py-1.5 text-secondary border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors font-label-md bg-transparent cursor-pointer">
+                  <button 
+                    onClick={handleOpenEditProfile}
+                    className="flex items-center gap-2 px-3 py-1.5 text-secondary border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors font-label-md bg-transparent cursor-pointer"
+                  >
                     <span className="material-symbols-outlined text-[18px]">edit</span>
                     <span>Edit Profile</span>
                   </button>
@@ -404,7 +446,7 @@ export function TenantDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="border-b border-outline-variant pb-3">
                   <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Date Format</p>
-                  <p className="text-body-md font-medium text-on-surface m-0">DD/MM/YYYY</p>
+                  <p className="text-body-md font-medium text-on-surface m-0">{tenant.date_format || 'DD/MM/YYYY'}</p>
                 </div>
                 <div className="border-b border-outline-variant pb-3">
                   <p className="text-label-sm font-label-sm text-secondary uppercase tracking-tight m-0">Data Region</p>
@@ -563,7 +605,7 @@ export function TenantDetailPage() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Invoice ID</th>
+                    <th>Invoice Number</th>
                     <th>Description</th>
                     <th>Amount</th>
                     <th>Due Date</th>
@@ -573,7 +615,7 @@ export function TenantDetailPage() {
                 <tbody>
                   {invoices.map((inv) => (
                     <tr key={inv.id}>
-                      <td><code>#{inv.id}</code></td>
+                      <td><code>{inv.invoice_number || `#${inv.id}`}</code></td>
                       <td>{inv.description || 'Subscription invoice'}</td>
                       <td><strong>{tenant.currency || 'TSH'} {inv.amount.toLocaleString()}</strong></td>
                       <td>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '-'}</td>
@@ -738,6 +780,118 @@ export function TenantDetailPage() {
             navigate('/master/tenants')
           }}
         />
+      )}
+
+      {/* EDIT PROFILE MODAL */}
+      {isEditProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-surface-white border border-border-subtle rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up">
+            <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-container-low">
+              <h3 className="font-headline-sm text-headline-sm m-0 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">edit_note</span>
+                Edit Hospital Profile
+              </h3>
+              <button 
+                onClick={() => setIsEditProfileOpen(false)}
+                className="text-secondary hover:text-on-surface bg-transparent border-0 cursor-pointer flex items-center justify-center p-1 rounded-full hover:bg-surface-container-high"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveProfile} className="p-lg space-y-md">
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs font-semibold">
+                  Hospital Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={profileForm.hospital_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, hospital_name: e.target.value })}
+                  className="w-full border border-border-subtle rounded-lg px-md py-2 text-body-md focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs font-semibold">
+                  Timezone
+                </label>
+                <select
+                  value={profileForm.timezone}
+                  onChange={(e) => setProfileForm({ ...profileForm, timezone: e.target.value })}
+                  className="w-full border border-border-subtle rounded-lg px-md py-2 text-body-md focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                >
+                  <option value="Africa/Dar_es_Salaam">East Africa Time (GMT+3) - Dar es Salaam</option>
+                  <option value="Africa/Nairobi">East Africa Time (GMT+3) - Nairobi</option>
+                  <option value="Africa/Kampala">East Africa Time (GMT+3) - Kampala</option>
+                  <option value="UTC">Coordinated Universal Time (UTC)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs font-semibold">
+                  Currency
+                </label>
+                <select
+                  value={profileForm.currency}
+                  onChange={(e) => setProfileForm({ ...profileForm, currency: e.target.value })}
+                  className="w-full border border-border-subtle rounded-lg px-md py-2 text-body-md focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                >
+                  <option value="TZS">Tanzanian Shilling (TZS)</option>
+                  <option value="KES">Kenyan Shilling (KES)</option>
+                  <option value="UGX">Ugandan Shilling (UGX)</option>
+                  <option value="USD">US Dollar (USD)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs font-semibold">
+                  Date Format
+                </label>
+                <select
+                  value={profileForm.date_format}
+                  onChange={(e) => setProfileForm({ ...profileForm, date_format: e.target.value })}
+                  className="w-full border border-border-subtle rounded-lg px-md py-2 text-body-md focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                >
+                  <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                  <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                  <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-label-md text-label-md text-on-surface mb-xs font-semibold">
+                  Grace Period (Days)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  value={profileForm.grace_period_days}
+                  onChange={(e) => setProfileForm({ ...profileForm, grace_period_days: Number(e.target.value) })}
+                  className="w-full border border-border-subtle rounded-lg px-md py-2 text-body-md focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-md pt-md border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsEditProfileOpen(false)}
+                  className="px-lg py-2 border border-outline-variant text-secondary rounded-lg hover:bg-surface-container-low transition-colors font-label-md bg-transparent cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-lg py-2 bg-primary text-white rounded-lg hover:bg-primary-container transition-all active:scale-95 font-label-md border-0 cursor-pointer shadow-md"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>

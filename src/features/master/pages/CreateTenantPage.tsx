@@ -133,7 +133,6 @@ export function CreateTenantPage() {
     const payload = {
       hospital_name: hospitalName,
       admin_username: `admin_${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'hosp'}`,
-      admin_password: 'ChangeMe123!',
       admin_email: primaryEmail,
       admin_full_name: primaryName,
       country,
