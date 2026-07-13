@@ -45,7 +45,6 @@ const mapPlanIdToName = (planIdOrName: string): string => {
     '22222222-2222-2222-2222-222222222222': 'basic',
     '33333333-3333-3333-3333-333333333333': 'standard',
     '44444444-4444-4444-4444-444444444444': 'premium',
-    '55555555-5555-5555-5555-555555555555': 'enterprise',
   }
   return mapping[planIdOrName] || planIdOrName
 }
@@ -92,11 +91,12 @@ export const masterService = {
       .post<unknown>(`/tenants/${tenantId}/downgrade`, data)
       .then((r) => r.data),
 
-  upgradeSubscriptionEndpoint: (tenantId: string, data: { plan_id: string; billing_cycle?: string }) =>
+  upgradeSubscriptionEndpoint: (tenantId: string, data: { plan_id: string; billing_cycle?: string; effective_at_end?: boolean }) =>
     apiClient
       .post<unknown>(`/tenants/${tenantId}/upgrade`, {
         plan: mapPlanIdToName(data.plan_id),
-        billing_cycle: data.billing_cycle || 'monthly'
+        billing_cycle: data.billing_cycle || 'monthly',
+        effective_at_end: data.effective_at_end || false
       })
       .then((r) => r.data),
 
@@ -159,6 +159,12 @@ export const masterService = {
 
   recordPayment: (tenantId: string, data: { invoice_id: string; amount: number; payment_method: string; reference_number?: string }) =>
     apiClient.post(`/tenants/${tenantId}/payments`, data).then((r) => r.data),
+
+  listSubscriptionAuditLogs: (tenantId: string) =>
+    apiClient.get<any[]>(`/tenants/${tenantId}/subscription-audit-log`).then((r) => r.data),
+
+  listPayments: (tenantId: string) =>
+    apiClient.get<any[]>(`/tenants/${tenantId}/payments`).then((r) => r.data),
 
   exportTenantData: (tenantId: string) =>
     apiClient.get<any>(`/tenants/${tenantId}/export`).then((r) => r.data),

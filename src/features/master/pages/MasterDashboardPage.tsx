@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { masterService } from '@/api/services/master'
-import { monitoringService, type SystemHealthData, type AuditLog } from '@/api/services/monitoring'
-import type { Tenant, Invoice } from '@/api/types/master'
+import { monitoringService, type SystemHealthData, type AuditLog, type TenantUsageTelemetry } from '@/api/services/monitoring'
+import type { Tenant, Invoice, SubscriptionPlan } from '@/api/types/master'
 
 export function MasterDashboardPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [health, setHealth] = useState<SystemHealthData | null>(null)
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([])
+  const [revenueHistory, setRevenueHistory] = useState<{ months: string[]; revenue: number[] } | null>(null)
+  const [usageTelemetry, setUsageTelemetry] = useState<TenantUsageTelemetry[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Chart range & hover states
+  const [barRange, setBarRange] = useState(6)
+  const [revRange, setRevRange] = useState(6)
+  const [barMenuOpen, setBarMenuOpen] = useState(false)
+  const [revMenuOpen, setRevMenuOpen] = useState(false)
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null)
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -17,12 +28,18 @@ export function MasterDashboardPage() {
       masterService.listInvoices(),
       monitoringService.getSystemHealth(),
       monitoringService.getAuditLogs(),
+      masterService.listPlans(),
+      masterService.getRevenueHistory(),
+      monitoringService.getUsageTelemetry(),
     ])
-      .then(([tData, iData, hData, aData]) => {
+      .then(([tData, iData, hData, aData, pData, rData, utData]) => {
         setTenants(tData)
         setInvoices(iData)
         setHealth(hData)
         setAuditLogs(aData)
+        setPlans(pData)
+        setRevenueHistory(rData)
+        setUsageTelemetry(utData)
       })
       .catch((err) => console.error('Error fetching dashboard data:', err))
       .finally(() => setLoading(false))
@@ -41,28 +58,126 @@ export function MasterDashboardPage() {
   const suspendedTenants = tenants.filter((t) => t.status === 'suspended').length
 
   const paidInvoices = invoices.filter((i) => i.status === 'paid')
-  const totalRevenue = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+  const totalRevenue = paidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
 
   const unpaidInvoices = invoices.filter((i) => i.status === 'unpaid' || i.status === 'overdue')
-  const invoicesDueThisMonthAmount = unpaidInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+  const invoicesDueThisMonthAmount = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
 
   const overdueInvoicesList = invoices.filter((i) => i.status === 'overdue')
-  const overdueAmount = overdueInvoicesList.reduce((sum, inv) => sum + inv.amount, 0)
+  const overdueAmount = overdueInvoicesList.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
   const overdueCount = overdueInvoicesList.length
+
+  const platformCurrency = invoices.find((inv) => inv.currency)?.currency || 'TSH'
 
   const activeIncidents = health?.incidents.filter((inc) => inc.status === 'active') || []
 
   const getTenantName = (tenant: Tenant) => tenant.hospital_name || tenant.name || tenant.tenant_id
 
-  // Dynamic bar data
-  const barData = [
-    { label: 'Jan', value: '30%', count: 2 },
-    { label: 'Feb', value: '50%', count: 3 },
-    { label: 'Mar', value: '20%', count: 1 },
-    { label: 'Apr', value: '80%', count: 5 },
-    { label: 'May', value: '40%', count: 2 },
-    { label: 'Jun', value: '90%', count: 6 },
-  ]
+  // Sum active users from usage telemetry
+  const totalActiveUsers = usageTelemetry.reduce((sum, ut) => sum + (ut.active_user_count || 0), 0)
+  const displayActiveUsers = usageTelemetry.length > 0 ? totalActiveUsers : (health?.telemetry.active_users || 0)
+
+  // Relative time helper
+  const getRelativeTime = (dateStr?: string | null) => {
+    if (!dateStr) return 'No activity'
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return 'No activity'
+    const diffMs = Date.now() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  }
+
+  // Parse and format uptime details for professional display
+  const parseUptime = (uptimeStr?: string | null) => {
+    if (!uptimeStr) return { pct: '99.99%', detail: '' }
+    const match = uptimeStr.match(/^([\d.]+%)\s*\(([^)]+)\)/)
+    if (match) {
+      const pct = match[1]
+      let detail = match[2]
+      detail = detail
+        .replace(/\s*days?,?\s*/gi, 'd ')
+        .replace(/\s*hours?,?\s*/gi, 'h ')
+        .replace(/\s*mins?,?\s*/gi, 'm ')
+        .trim()
+      return { pct, detail }
+    }
+    return { pct: uptimeStr, detail: '' }
+  }
+
+  // Dynamic bar data from tenant creation history
+  const getHospitalRegistrationTrends = (tenantsList: Tenant[], rangeMonths: number) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const now = new Date()
+    
+    const lastMonths = Array.from({ length: rangeMonths }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (rangeMonths - 1 - i), 1)
+      return {
+        monthName: months[d.getMonth()],
+        monthIndex: d.getMonth(),
+        year: d.getFullYear(),
+        count: 0
+      }
+    })
+
+    tenantsList.forEach(t => {
+      if (!t.created_at) return
+      const created = new Date(t.created_at)
+      const matchedMonth = lastMonths.find(m => m.monthIndex === created.getMonth() && m.year === created.getFullYear())
+      if (matchedMonth) {
+        matchedMonth.count += 1
+      }
+    })
+
+    const maxCount = Math.max(...lastMonths.map(m => m.count), 1)
+    
+    return lastMonths.map(m => ({
+      label: m.monthName.toUpperCase(),
+      // Zero-count months get zero height; non-zero are scaled between 10%-90%
+      value: m.count === 0 ? '0%' : `${(m.count / maxCount) * 80 + 10}%`,
+      count: m.count
+    }))
+  }
+
+  const dynamicBarData = getHospitalRegistrationTrends(tenants, barRange)
+
+  // Subscription Revenue Line Chart calculations
+  const revMonths = (revenueHistory?.months || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']).slice(-revRange)
+  const revValues = (revenueHistory?.revenue || [0, 0, 0, 0, 0, 0]).slice(-revRange)
+
+  const generateLinePath = (values: number[]) => {
+    if (values.length === 0) return { linePath: '', areaPath: '', points: [] }
+    const width = 400
+    const height = 150
+    const paddingBottom = 20
+    const paddingTop = 20
+    const chartHeight = height - paddingBottom - paddingTop
+
+    const maxVal = Math.max(...values, 1)
+    const minVal = Math.min(...values, 0)
+    const range = maxVal - minVal
+
+    const points = values.map((val, i) => {
+      const x = i * (width / (values.length - 1))
+      const y = height - paddingBottom - ((val - minVal) / range) * chartHeight
+      return { x, y }
+    })
+
+    let linePath = `M ${points[0].x},${points[0].y}`
+    for (let i = 1; i < points.length; i++) {
+      linePath += ` L ${points[i].x},${points[i].y}`
+    }
+
+    const areaPath = `${linePath} L ${width},${height} L 0,${height} Z`
+    return { linePath, areaPath, points }
+  }
+
+  const { linePath, areaPath, points: chartPoints } = generateLinePath(revValues)
 
   return (
     <>
@@ -88,11 +203,20 @@ export function MasterDashboardPage() {
             </div>
             <div style={{ background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '1rem' }}>
               <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-light)', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '0.05em' }}>Active Users</p>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{health?.telemetry.active_users || 47}</h3>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{displayActiveUsers}</h3>
             </div>
-            <div style={{ background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '1rem' }}>
+            <div style={{ background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-light)', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '0.05em' }}>Uptime</p>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{health?.telemetry.uptime || '99.87%'}</h3>
+              <div>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0, lineHeight: 1.2 }}>
+                  {parseUptime(health?.telemetry.uptime).pct}
+                </h3>
+                {parseUptime(health?.telemetry.uptime).detail && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', fontWeight: 600, display: 'block', marginTop: '2px' }}>
+                    ({parseUptime(health?.telemetry.uptime).detail})
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -104,7 +228,7 @@ export function MasterDashboardPage() {
               </div>
               <div>
                 <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-secondary)', margin: '0 0 2px 0' }}>Invoices Due This Month</p>
-                <p style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>TSH {invoicesDueThisMonthAmount.toLocaleString()}</p>
+                <p style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>{platformCurrency} {invoicesDueThisMonthAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
             <div style={{ background: 'rgba(255, 86, 48, 0.04)', border: '1px solid rgba(255, 86, 48, 0.12)', borderRadius: '8px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -115,7 +239,7 @@ export function MasterDashboardPage() {
                 <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-secondary)', margin: '0 0 2px 0' }}>Overdue Invoices</p>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
                   <span style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ff5630' }}>
-                    TSH {overdueAmount.toLocaleString()}
+                    {platformCurrency} {overdueAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   <span style={{ fontSize: '0.7rem', fontWeight: 500, color: 'rgba(255, 86, 48, 0.8)' }}>
                     ({overdueCount})
@@ -129,7 +253,7 @@ export function MasterDashboardPage() {
               </div>
               <div>
                 <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-secondary)', margin: '0 0 2px 0' }}>Payments Received</p>
-                <p style={{ fontSize: '1.35rem', fontWeight: 700, color: '#36b37e', margin: 0 }}>TSH {totalRevenue.toLocaleString()}</p>
+                <p style={{ fontSize: '1.35rem', fontWeight: 700, color: '#36b37e', margin: 0 }}>{platformCurrency} {totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
           </div>
@@ -141,30 +265,119 @@ export function MasterDashboardPage() {
             <div className="card" style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>New Hospitals per Month</h3>
-                <span className="material-symbols-outlined" style={{ color: 'var(--color-text-light)', cursor: 'pointer' }}>more_vert</span>
+                <div style={{ position: 'relative' }}>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ color: 'var(--color-text-light)', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setBarMenuOpen(!barMenuOpen)}
+                  >
+                    more_vert
+                  </span>
+                  {barMenuOpen && (
+                    <>
+                      <div 
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                        onClick={() => setBarMenuOpen(false)} 
+                      />
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        background: '#ffffff',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '6px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        zIndex: 101,
+                        minWidth: '120px',
+                        padding: '4px 0',
+                      }}>
+                        <button
+                          onClick={() => { setBarRange(3); setBarMenuOpen(false); }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            background: barRange === 3 ? 'rgba(0, 82, 204, 0.05)' : 'none',
+                            border: 'none',
+                            fontSize: '12px',
+                            color: barRange === 3 ? 'var(--color-primary)' : 'var(--color-text)',
+                            fontWeight: barRange === 3 ? 'bold' : 'normal',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Last 3 Months
+                        </button>
+                        <button
+                          onClick={() => { setBarRange(6); setBarMenuOpen(false); }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            background: barRange === 6 ? 'rgba(0, 82, 204, 0.05)' : 'none',
+                            border: 'none',
+                            fontSize: '12px',
+                            color: barRange === 6 ? 'var(--color-primary)' : 'var(--color-text)',
+                            fontWeight: barRange === 6 ? 'bold' : 'normal',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Last 6 Months
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-              <div style={{ height: '140px', display: 'flex', alignItems: 'end', justifyContent: 'space-between', gap: '0.75rem', padding: '0 0.5rem' }}>
-                {barData.map((bar, i) => (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'end' }}>
+              {/* Bar columns — label lives inside the same flex column for perfect alignment */}
+              <div style={{ display: 'flex', alignItems: 'end', gap: '0.5rem', padding: '0 0.25rem', height: '170px' }}>
+                {dynamicBarData.map((bar, i) => (
+                  <div
+                    key={i}
+                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'end' }}
+                  >
+                    {/* Bar */}
                     <div
+                      onMouseEnter={() => setHoveredBarIndex(i)}
+                      onMouseLeave={() => setHoveredBarIndex(null)}
                       style={{
                         width: '100%',
-                        background: i === 5 ? 'var(--color-primary)' : 'rgba(0, 82, 204, 0.2)',
+                        background: i === dynamicBarData.length - 1 ? 'var(--color-primary)' : 'rgba(0, 82, 204, 0.2)',
                         height: bar.value,
                         borderRadius: '2px 2px 0 0',
-                        position: 'relative'
+                        position: 'relative',
+                        cursor: bar.count > 0 ? 'pointer' : 'default',
+                        transition: 'background-color 0.2s ease',
+                        minHeight: 0,
                       }}
-                    />
+                    >
+                      {hoveredBarIndex === i && bar.count > 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 'calc(100% + 6px)',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: 'var(--color-primary)',
+                          color: '#ffffff',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          whiteSpace: 'nowrap',
+                          zIndex: 10,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        }}>
+                          {bar.count} Hospital{bar.count !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+                    {/* Label — aligned directly below its own bar column */}
+                    <span style={{ marginTop: '0.5rem', fontSize: '10px', color: 'var(--color-text-light)', fontWeight: 'bold', textAlign: 'center', userSelect: 'none' }}>
+                      {bar.label}
+                    </span>
                   </div>
                 ))}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', fontSize: '10px', color: 'var(--color-text-light)', fontWeight: 'bold' }}>
-                <span>JAN</span>
-                <span>FEB</span>
-                <span>MAR</span>
-                <span>APR</span>
-                <span>MAY</span>
-                <span>JUN</span>
               </div>
             </div>
 
@@ -172,27 +385,122 @@ export function MasterDashboardPage() {
             <div className="card" style={{ padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Subscription Revenue</h3>
-                <span className="material-symbols-outlined" style={{ color: 'var(--color-text-light)', cursor: 'pointer' }}>more_vert</span>
+                <div style={{ position: 'relative' }}>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ color: 'var(--color-text-light)', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setRevMenuOpen(!revMenuOpen)}
+                  >
+                    more_vert
+                  </span>
+                  {revMenuOpen && (
+                    <>
+                      <div 
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                        onClick={() => setRevMenuOpen(false)} 
+                      />
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        background: '#ffffff',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '6px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        zIndex: 101,
+                        minWidth: '120px',
+                        padding: '4px 0',
+                      }}>
+                        <button
+                          onClick={() => { setRevRange(3); setRevMenuOpen(false); }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            background: revRange === 3 ? 'rgba(0, 82, 204, 0.05)' : 'none',
+                            border: 'none',
+                            fontSize: '12px',
+                            color: revRange === 3 ? 'var(--color-primary)' : 'var(--color-text)',
+                            fontWeight: revRange === 3 ? 'bold' : 'normal',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Last 3 Months
+                        </button>
+                        <button
+                          onClick={() => { setRevRange(6); setRevMenuOpen(false); }}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            background: revRange === 6 ? 'rgba(0, 82, 204, 0.05)' : 'none',
+                            border: 'none',
+                            fontSize: '12px',
+                            color: revRange === 6 ? 'var(--color-primary)' : 'var(--color-text)',
+                            fontWeight: revRange === 6 ? 'bold' : 'normal',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Last 6 Months
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <div style={{ height: '140px', position: 'relative' }}>
                 <svg width="100%" height="100%" viewBox="0 0 400 150" preserveAspectRatio="none">
-                  <path d="M0,130 C50,120 100,140 150,80 S250,20 300,50 S350,10 400,30" fill="none" stroke="var(--color-primary)" strokeWidth="3" />
-                  <path d="M0,130 C50,120 100,140 150,80 S250,20 300,50 S350,10 400,30 V150 H0 Z" fill="url(#subRevenueGlow)" opacity="0.1" />
+                  {linePath && <path d={linePath} fill="none" stroke="var(--color-primary)" strokeWidth="3" />}
+                  {areaPath && <path d={areaPath} fill="url(#subRevenueGlow)" opacity="0.1" />}
                   <defs>
                     <linearGradient id="subRevenueGlow" x1="0%" x2="0%" y1="0%" y2="100%">
                       <stop offset="0%" stopColor="var(--color-primary)" />
                       <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
                     </linearGradient>
                   </defs>
+                  {chartPoints.map((pt, i) => (
+                    <circle
+                      key={i}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r={hoveredPointIndex === i ? 6 : 4}
+                      fill="var(--color-primary)"
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                      style={{ cursor: 'pointer', transition: 'r 0.15s ease' }}
+                      onMouseEnter={() => setHoveredPointIndex(i)}
+                      onMouseLeave={() => setHoveredPointIndex(null)}
+                    />
+                  ))}
                 </svg>
+                {hoveredPointIndex !== null && chartPoints[hoveredPointIndex] && (
+                  <div style={{
+                    position: 'absolute',
+                    left: `${(chartPoints[hoveredPointIndex].x / 400) * 100}%`,
+                    top: `${(chartPoints[hoveredPointIndex].y / 150) * 100 - 15}%`,
+                    transform: 'translate(-50%, -100%)',
+                    background: 'var(--color-primary)',
+                    color: '#ffffff',
+                    padding: '6px 10px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    whiteSpace: 'nowrap',
+                    zIndex: 10,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    pointerEvents: 'none',
+                    transition: 'left 0.15s ease, top 0.15s ease',
+                  }}>
+                    {platformCurrency} {revValues[hoveredPointIndex].toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', fontSize: '10px', color: 'var(--color-text-light)', fontWeight: 'bold' }}>
-                <span>JAN</span>
-                <span>FEB</span>
-                <span>MAR</span>
-                <span>APR</span>
-                <span>MAY</span>
-                <span>JUN</span>
+                {revMonths.map((m, i) => (
+                  <span key={i}>{m.toUpperCase()}</span>
+                ))}
               </div>
             </div>
 
@@ -221,10 +529,19 @@ export function MasterDashboardPage() {
                 <tbody>
                   {tenants.map((t) => {
                     const tenantName = getTenantName(t)
-                    const users = t.status === 'suspended' ? 0 : (tenantName.length * 7) % 150 + 10
-                    const storage = t.status === 'suspended' ? 88 : (tenantName.length * 4) % 80 + 10
-                    const lastActive = t.status === 'suspended' ? '4 days ago' : `${(tenantName.length * 3) % 55 + 2} mins ago`
-                    const hasAlert = t.status === 'suspended' || t.tenant_id === 'nairobi-hosp'
+                    const tTelemetry = usageTelemetry.find((ut) => ut.tenant_id === t.tenant_id)
+                    
+                    const users = t.status === 'suspended' ? 0 : (tTelemetry?.active_user_count ?? (tTelemetry?.user_count ?? 0))
+                    
+                    // Find plan storage limit to calculate percentage dynamically
+                    const matchedPlan = plans.find((p) => p.plan_id === t.subscription_plan || p.plan_name.toLowerCase() === t.subscription_plan?.toLowerCase())
+                    const planStorageGb = matchedPlan?.storage_gb || (t.subscription_plan === 'premium' ? 200 : t.subscription_plan === 'standard' ? 50 : 10)
+                    const dbSizeMb = tTelemetry?.db_size_mb ?? 0
+                    const maxStorageMb = planStorageGb * 1024
+                    const storage = Math.min(Math.round((dbSizeMb / maxStorageMb) * 100 * 10) / 10, 100)
+
+                    const lastActive = t.status === 'suspended' ? 'Suspended' : getRelativeTime(t.updated_at || t.created_at)
+                    const hasAlert = t.status === 'suspended' || t.status === 'terminated' || !!tTelemetry?.error
 
                     return (
                       <tr key={t.tenant_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
@@ -243,12 +560,12 @@ export function MasterDashboardPage() {
                             {t.status}
                           </span>
                         </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{users}</td>
+                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>{tTelemetry?.error ? '-' : users}</td>
                         <td style={{ padding: '0.75rem 1rem' }}>
                           <div style={{ width: '96px', height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden', display: 'inline-block', verticalAlign: 'middle', marginRight: '0.5rem' }}>
-                            <div style={{ height: '100%', width: `${storage}%`, background: t.status === 'suspended' ? '#ff5630' : 'var(--color-primary)' }} />
+                            <div style={{ height: '100%', width: `${tTelemetry?.error ? 0 : storage}%`, background: hasAlert ? '#ff5630' : 'var(--color-primary)' }} />
                           </div>
-                          <span>{storage}%</span>
+                          <span>{tTelemetry?.error ? 'Error' : `${storage}% (${dbSizeMb}MB / ${planStorageGb}GB)`}</span>
                         </td>
                         <td style={{ padding: '0.75rem 1rem', color: 'var(--color-text-light)' }}>{lastActive}</td>
                         <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>

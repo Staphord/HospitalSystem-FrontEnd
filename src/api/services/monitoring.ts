@@ -97,6 +97,7 @@ export interface TenantUsageTelemetry {
   db_size_bytes?: number
   db_size_mb?: number
   user_count?: number
+  active_user_count?: number
   error?: string
 }
 
@@ -138,8 +139,8 @@ export const monitoringService = {
 
     return {
       telemetry: {
-        uptime: '99.98%',
-        active_users: dbConnections,
+        uptime: t.uptime ?? '99.99%',
+        active_users: t.active_users_count ?? dbConnections,
         cpu_usage: cpuPct,
         ram_usage: ramPct,
         disk_usage: diskPct,
