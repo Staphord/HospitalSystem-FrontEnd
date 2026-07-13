@@ -211,6 +211,22 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
                     <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.email}</p>
                   </div>
                 )}
+                {patient.next_of_kin_name && (
+                  <>
+                    <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                      <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Next of Kin</p>
+                      <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                        {patient.next_of_kin_name} ({patient.next_of_kin_relationship ?? '—'})
+                      </p>
+                    </div>
+                    <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                      <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Kin Contact</p>
+                      <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                        {patient.next_of_kin_phone ?? '—'}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="p-md text-center font-body-sm text-secondary bg-surface-bright border border-border-subtle rounded-lg">
