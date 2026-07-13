@@ -6,13 +6,14 @@ import { toast } from 'sonner'
 interface ChangePlanModalProps {
   currentPlanName: string
   onClose: () => void
-  onSelectPlan: (planName: string) => Promise<void>
+  onSelectPlan: (planName: string, effectiveAtEnd: boolean) => Promise<void>
 }
 
 export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: ChangePlanModalProps) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [effectiveAtEnd, setEffectiveAtEnd] = useState(false)
   const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').trim()
 
   const isPlanMatch = (pName1: string, pName2: string) => {
@@ -52,11 +53,12 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
   const handleSelect = async (planName: string) => {
     setSubmitting(true)
     try {
-      await onSelectPlan(planName)
+      await onSelectPlan(planName, effectiveAtEnd)
       toast.success(`Plan updated to ${planName} successfully!`)
       onClose()
-    } catch {
-      toast.error('Failed to update plan.')
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || 'Failed to update plan.'
+      toast.error(errMsg)
     } finally {
       setSubmitting(false)
     }
@@ -89,6 +91,18 @@ export function ChangePlanModal({ currentPlanName, onClose, onSelectPlan }: Chan
               <p style={{ fontSize: '0.875rem', color: 'var(--color-text-light)', marginBottom: '1.5rem' }}>
                 Compare plans and change the active subscription tier for this tenant. Price differences are calculated relative to the current active plan fee of <strong>${currentPrice}/month</strong>.
               </p>
+
+              <div style={{ display: 'flex', gap: '2rem', padding: '0.75rem 1rem', backgroundColor: '#f8f9fa', border: '1px solid var(--color-border)', borderRadius: '8px', marginBottom: '1.5rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text)' }}>Activation Timing:</span>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', cursor: 'pointer', userSelect: 'none', color: 'var(--color-text)' }}>
+                  <input type="radio" name="timing" checked={effectiveAtEnd} onChange={() => setEffectiveAtEnd(true)} style={{ cursor: 'pointer' }} />
+                  Next Billing Cycle (Deferred)
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', cursor: 'pointer', userSelect: 'none', color: 'var(--color-text)' }}>
+                  <input type="radio" name="timing" checked={!effectiveAtEnd} onChange={() => setEffectiveAtEnd(false)} style={{ cursor: 'pointer' }} />
+                  Immediate (Prorated)
+                </label>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                 {plans.map((plan) => {

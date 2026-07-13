@@ -17,6 +17,9 @@ export function SubscriptionDetailPage() {
   const [isChangePlanOpen, setIsChangePlanOpen] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [now] = useState(() => Date.now())
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [historyTab, setHistoryTab] = useState<'invoices' | 'plan-events'>('invoices')
   const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase()
 
   useEffect(() => {
@@ -37,14 +40,18 @@ export function SubscriptionDetailPage() {
           setSubscription(sub)
         }
 
-        const [tenantData, plansData] = await Promise.all([
+        const [tenantData, plansData, invoicesData, auditLogsData] = await Promise.all([
           masterService.getTenant(sub.tenant_id),
-          masterService.listPlans()
+          masterService.listPlans(),
+          masterService.listInvoices(sub.tenant_id),
+          masterService.listSubscriptionAuditLogs(sub.tenant_id)
         ])
 
         if (active) {
           setTenant(tenantData)
           setPlans(plansData)
+          setInvoices(invoicesData)
+          setAuditLogs(auditLogsData)
           setLoading(false)
         }
       } catch {
@@ -74,7 +81,7 @@ export function SubscriptionDetailPage() {
     }
   }
 
-  const handleChangePlan = async (newPlanName: string) => {
+  const handleChangePlan = async (newPlanName: string, effectiveAtEnd: boolean) => {
     if (!subscription || !id) return
     const planSlug = newPlanName.toLowerCase()
 
@@ -91,8 +98,7 @@ export function SubscriptionDetailPage() {
       'trial': 0,
       'basic': 1,
       'standard': 2,
-      'premium': 3,
-      'enterprise': 4
+      'premium': 3
     }
 
     const currentRank = PLAN_RANKS[subscription.plan_name.toLowerCase()] ?? 0
@@ -101,26 +107,41 @@ export function SubscriptionDetailPage() {
     try {
       if (subscription.status.toLowerCase() === 'trial') {
         await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
-          plan_id: targetPlan.plan_id
+          plan_id: targetPlan.plan_id,
+          effective_at_end: effectiveAtEnd
         })
       } else if (targetRank > currentRank) {
         await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
-          plan_id: targetPlan.plan_id
+          plan_id: targetPlan.plan_id,
+          effective_at_end: effectiveAtEnd
         })
       } else {
         await masterService.downgradeSubscriptionEndpoint(subscription.tenant_id, {
-          plan_id: targetPlan.plan_id
+          plan_id: targetPlan.plan_id,
+          effective_at_end: effectiveAtEnd
         })
       }
 
-      const allSubs = await masterService.listSubscriptions()
-      const tenantSubs = allSubs.filter((s) => s.tenant_id === subscription.tenant_id)
-      const newSub = tenantSubs[0]
-      if (newSub) {
-        setSubscription(newSub)
-        const tenantData = await masterService.getTenant(newSub.tenant_id)
+      // Reload all page data to reflect the plan change, new subscription record,
+      // and any generated invoice. Use the tenant_id to filter subscriptions.
+      const [allSubs, tenantData, invoicesData, auditLogsData] = await Promise.all([
+        masterService.listSubscriptions(subscription.tenant_id),
+        masterService.getTenant(subscription.tenant_id),
+        masterService.listInvoices(subscription.tenant_id),
+        masterService.listSubscriptionAuditLogs(subscription.tenant_id),
+      ])
+
+      // Pick the newest subscription record for this tenant
+      const newestSub = allSubs.length > 0 ? allSubs[0] : null
+
+      if (newestSub) {
+        setSubscription(newestSub)
         setTenant(tenantData)
-        navigate(`/master/subscriptions/${newSub.id}`, { replace: true })
+        setInvoices(invoicesData)
+        setAuditLogs(auditLogsData)
+        if (newestSub.id !== id) {
+          navigate(`/master/subscriptions/${newestSub.id}`, { replace: true })
+        }
       }
     } catch {
       toast.error('Failed to change subscription plan.')
@@ -295,6 +316,126 @@ export function SubscriptionDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Subscription & Billing History Card */}
+          <div className="card" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1.25rem 0', fontSize: '1.125rem', fontWeight: 600 }}>Subscription & Billing History</h3>
+
+            {/* Tab Bar */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setHistoryTab('invoices')}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  border: 'none',
+                  background: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  borderBottom: historyTab === 'invoices' ? '2px solid var(--color-primary)' : 'none',
+                  color: historyTab === 'invoices' ? 'var(--color-primary)' : 'var(--color-text-light)'
+                }}
+              >
+                Invoices & Payments
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryTab('plan-events')}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  border: 'none',
+                  background: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  borderBottom: historyTab === 'plan-events' ? '2px solid var(--color-primary)' : 'none',
+                  color: historyTab === 'plan-events' ? 'var(--color-primary)' : 'var(--color-text-light)'
+                }}
+              >
+                Plan Change Log
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {historyTab === 'invoices' ? (
+              <div style={{ overflowX: 'auto' }}>
+                {invoices.length === 0 ? (
+                  <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.875rem' }}>
+                    No invoice history records found.
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-light)' }}>
+                        <th style={{ padding: '0.5rem' }}>Invoice Number</th>
+                        <th style={{ padding: '0.5rem' }}>Billing Period</th>
+                        <th style={{ padding: '0.5rem' }}>Plan</th>
+                        <th style={{ padding: '0.5rem' }}>Amount</th>
+                        <th style={{ padding: '0.5rem' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((inv) => (
+                        <tr key={inv.invoice_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 500 }}>{inv.invoice_number}</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>
+                            {new Date(inv.billing_period_start).toLocaleDateString()} - {new Date(inv.billing_period_end).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.5rem', textTransform: 'capitalize' }}>{inv.plan_name}</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>${Number(inv.amount).toFixed(2)}</td>
+                          <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <span
+                              className={`badge ${
+                                inv.status === 'paid' ? 'badge-success' : inv.status === 'overdue' ? 'badge-danger' : 'badge-warning'
+                              }`}
+                              style={{ fontSize: '0.75rem' }}
+                            >
+                              {inv.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ) : (
+              <div>
+                {auditLogs.length === 0 ? (
+                  <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.875rem' }}>
+                    No subscription logs found.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {auditLogs.map((log) => (
+                      <div
+                        key={log.log_id || log.id}
+                        style={{
+                          padding: '1rem',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '8px',
+                          backgroundColor: 'var(--color-background-light, #fdfdfd)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'capitalize' }}>
+                            {log.event_type.replace('_', ' ')}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
+                            {new Date(log.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-text)' }}>
+                          {log.reason || 'No description provided.'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column: Expiry & Quick Links Cards */}
