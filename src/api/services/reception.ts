@@ -27,6 +27,10 @@ export const receptionService = {
   registerPatient: (data: Omit<BackendPatient, 'id' | 'patient_number' | 'created_at'>) =>
     apiClient.post<BackendPatient>('/reception/patients', data).then((r) => r.data),
 
+  /** Fetch a single patient's full profile by their UUID */
+  getPatient: (patientId: string) =>
+    apiClient.get<BackendPatient>(`/patients/${patientId}`).then((r) => r.data),
+
   // ── Insurance ───────────────────────────────────────────────────────────
 
   /** Add an insurance policy to an existing patient */

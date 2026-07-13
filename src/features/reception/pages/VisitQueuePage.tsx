@@ -178,9 +178,9 @@ function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
 
   return {
     pos,
-    name: entry.patient?.full_name ?? 'Unknown',
-    id: entry.patient?.patient_number ?? entry.patient_id,
-    patientId: entry.patient_id,
+    name: entry.patient.full_name,
+    id: entry.patient.patient_number,
+    patientId: entry.patient.patient_id,
     queueId: entry.queue_id,
     time: timeStr,
     wait: formatWait(mins),

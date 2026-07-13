@@ -94,19 +94,17 @@ export interface CombinedRegisterAndVisitResponse {
 
 export interface QueueWorklistItem {
   queue_id: string
-  visit_id: string
-  patient_id: string
   queue_type: string
   queue_number: string
   priority: string
   status: string
   created_at: string
-  patient?: {
+  patient: {
     patient_id: string
     patient_number: string
     full_name: string
   }
-  visit?: {
+  visit: {
     visit_id: string
     visit_number: string
     visit_type: string
