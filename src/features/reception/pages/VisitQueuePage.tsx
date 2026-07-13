@@ -12,7 +12,7 @@ interface QueueItem {
   wait: string
   waitColor: string
   payment: string
-  status: 'WAITING' | 'IN TRIAGE' | 'WITH DOCTOR' | 'COMPLETE'
+  status: 'WAITING' | 'IN TRIAGE' | 'WITH DOCTOR' | 'COMPLETE' | 'SKIPPED'
   statusBg: string
   statusText: string
   _waitMinutes: number
@@ -136,7 +136,7 @@ function waitMinutes(createdAt: string): number {
 }
 
 function computeKpis(items: QueueItem[]) {
-  const active = items.filter((i) => i.status !== 'COMPLETE')
+  const active = items.filter((i) => i.status !== 'COMPLETE' && i.status !== 'SKIPPED')
   if (active.length === 0) return { avg: 0, longest: 0 }
   const waits = active.map((i) => i._waitMinutes)
   const avg = Math.round(waits.reduce((a, b) => a + b, 0) / waits.length)
@@ -153,7 +153,7 @@ function mapStatus(backendStatus: string): QueueItem['status'] {
   switch (backendStatus?.toLowerCase()) {
     case 'in_progress': return 'IN TRIAGE'
     case 'completed':   return 'COMPLETE'
-    case 'skipped':     return 'COMPLETE'
+    case 'skipped':     return 'SKIPPED'
     default:            return 'WAITING'
   }
 }
@@ -164,6 +164,7 @@ function statusStyles(status: QueueItem['status']): { statusBg: string; statusTe
     case 'IN TRIAGE':   return { statusBg: 'bg-info/10',              statusText: 'text-info' }
     case 'WITH DOCTOR': return { statusBg: 'bg-success/10',           statusText: 'text-success' }
     case 'COMPLETE':    return { statusBg: 'bg-surface-container-high', statusText: 'text-on-surface-variant' }
+    case 'SKIPPED':     return { statusBg: 'bg-error/10',             statusText: 'text-error' }
   }
 }
 
@@ -258,28 +259,20 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
 
 function QueueActionsMenu({
   item,
-  queueLength,
   openMenuId,
   onOpenChange,
-  onMoveUp,
-  onMoveDown,
   onView,
   onRemove,
 }: {
   item: QueueItem
-  queueLength: number
   openMenuId: string | null
   onOpenChange: (id: string | null) => void
-  onMoveUp: () => void
-  onMoveDown: () => void
   onView: () => void
   onRemove: () => void
 }) {
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
   const isOpen = openMenuId === item.id
-  const isComplete = item.status === 'COMPLETE'
-  const canMoveUp = item.pos > 1 && !isComplete
-  const canMoveDown = item.pos < queueLength && !isComplete
+  const isInactive = item.status === 'COMPLETE' || item.status === 'SKIPPED'
 
   useEffect(() => {
     if (!isOpen) return
@@ -330,42 +323,23 @@ function QueueActionsMenu({
             <button
               type="button"
               role="menuitem"
-              disabled={!canMoveUp}
-              className={`${menuItemClass} text-on-surface`}
-              onClick={onMoveUp}
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
-              Move Up
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={!canMoveDown}
-              className={`${menuItemClass} text-on-surface`}
-              onClick={onMoveDown}
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
-              Move Down
-            </button>
-            <div className="h-px bg-border-subtle my-xs" />
-            <button
-              type="button"
-              role="menuitem"
               className={`${menuItemClass} text-on-surface`}
               onClick={onView}
             >
               <span className="material-symbols-outlined text-[18px]">visibility</span>
               View
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={`${menuItemClass} text-error`}
-              onClick={onRemove}
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-              Remove
-            </button>
+            {!isInactive && (
+              <button
+                type="button"
+                role="menuitem"
+                className={`${menuItemClass} text-error`}
+                onClick={onRemove}
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+                Remove
+              </button>
+            )}
           </div>
         </>
       )}
@@ -379,6 +353,7 @@ export function VisitQueuePage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [viewTarget, setViewTarget] = useState<QueueItem | null>(null)
+  const [filterType, setFilterType] = useState<'active' | 'all'>('active')
 
   const fetchQueue = async () => {
     try {
@@ -397,36 +372,35 @@ export function VisitQueuePage() {
     return () => clearInterval(interval)
   }, [])
 
-  const totalPages = Math.max(1, Math.ceil(queueItems.length / PAGE_SIZE))
+  const filteredItems = queueItems.filter((item) => {
+    if (filterType === 'active') {
+      return item.status === 'WAITING' || item.status === 'IN TRIAGE'
+    }
+    return true
+  })
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
   const pageStart = (safePage - 1) * PAGE_SIZE
-  const visibleItems = queueItems.slice(pageStart, pageStart + PAGE_SIZE)
+  const visibleItems = filteredItems.slice(pageStart, pageStart + PAGE_SIZE)
 
-  const moveItem = (id: string, direction: 'up' | 'down') => {
-    setQueueItems((prev) => {
-      const index = prev.findIndex((item) => item.id === id)
-      if (index === -1) return prev
-      const swapIndex = direction === 'up' ? index - 1 : index + 1
-      if (swapIndex < 0 || swapIndex >= prev.length) return prev
-      const next = [...prev]
-      ;[next[index], next[swapIndex]] = [next[swapIndex], next[index]]
-      return next.map((item, i) => ({ ...item, pos: i + 1 }))
-    })
+  const removeItem = async (queueId: string, patientId: string, name: string) => {
+    try {
+      await receptionService.updateQueueStatus(queueId, 'skipped')
+      setQueueItems((prev) => {
+        const filtered = prev.filter((item) => item.id !== patientId)
+        return filtered.map((item, i) => ({ ...item, pos: i + 1 }))
+      })
+      toast.success(`${name} removed from queue.`)
+    } catch {
+      toast.error('Failed to remove patient from queue.')
+    }
   }
 
-  const removeItem = (id: string) => {
-    setQueueItems((prev) => {
-      const filtered = prev.filter((item) => item.id !== id)
-      return filtered.map((item, i) => ({ ...item, pos: i + 1 }))
-    })
-    const newLength = queueItems.length - 1
-    const newTotalPages = Math.max(1, Math.ceil(newLength / PAGE_SIZE))
-    if (currentPage > newTotalPages) setCurrentPage(newTotalPages)
-  }
-
-  const { avg: avgWait, longest: longestWait } = computeKpis(queueItems)
-  const showingFrom = queueItems.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, queueItems.length)
+  const activeItems = queueItems.filter((i) => i.status === 'WAITING' || i.status === 'IN TRIAGE')
+  const { avg: avgWait, longest: longestWait } = computeKpis(activeItems)
+  const showingFrom = filteredItems.length === 0 ? 0 : pageStart + 1
+  const showingTo = Math.min(pageStart + PAGE_SIZE, filteredItems.length)
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
@@ -442,7 +416,7 @@ export function VisitQueuePage() {
           <div className="flex justify-between items-start">
             <div>
               <p className={KPI_LABEL}>Total in Queue</p>
-              <h3 className={KPI_VALUE}>{queueItems.length}</h3>
+              <h3 className={KPI_VALUE}>{activeItems.length}</h3>
             </div>
             <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
               <span
@@ -501,13 +475,39 @@ export function VisitQueuePage() {
       <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
         <div className="p-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
           <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Active Queue
+            {filterType === 'active' ? 'Active Queue' : 'Queue History'}
           </h3>
-          <div className="flex gap-sm">
-            <button type="button" className={TOOLBAR_BTN}>
-              <span className="material-symbols-outlined text-[18px]">filter_list</span>
-              Filter
-            </button>
+          <div className="flex gap-sm items-center">
+            <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterType('active')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  filterType === 'active'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                Active Queue
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterType('all')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  filterType === 'all'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                All History
+              </button>
+            </div>
             <button type="button" className={TOOLBAR_BTN}>
               <span className="material-symbols-outlined text-[18px]">print</span>
               Print List
@@ -549,31 +549,19 @@ export function VisitQueuePage() {
                   </td>
                   <td className="py-md px-md text-right">
                     <div
-                      className={`flex justify-end ${item.status === 'COMPLETE' ? 'opacity-50' : ''}`}
+                      className={`flex justify-end ${item.status === 'COMPLETE' || item.status === 'SKIPPED' ? 'opacity-50' : ''}`}
                     >
                       <QueueActionsMenu
                         item={item}
-                        queueLength={queueItems.length}
                         openMenuId={openMenuId}
                         onOpenChange={setOpenMenuId}
-                        onMoveUp={() => {
-                          setOpenMenuId(null)
-                          moveItem(item.id, 'up')
-                          toast.success(`${item.name} moved up in queue.`)
-                        }}
-                        onMoveDown={() => {
-                          setOpenMenuId(null)
-                          moveItem(item.id, 'down')
-                          toast.success(`${item.name} moved down in queue.`)
-                        }}
                         onView={() => {
                           setOpenMenuId(null)
                           setViewTarget(item)
                         }}
                         onRemove={() => {
                           setOpenMenuId(null)
-                          removeItem(item.id)
-                          toast.success(`${item.name} removed from queue.`)
+                          void removeItem(item.queueId, item.id, item.name)
                         }}
                       />
                     </div>
@@ -586,9 +574,9 @@ export function VisitQueuePage() {
 
         <div className="p-md bg-surface-bright border-t border-border-subtle flex justify-between items-center">
           <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-            {queueItems.length === 0
+            {filteredItems.length === 0
               ? 'No patients in queue'
-              : `Showing ${showingFrom} to ${showingTo} of ${queueItems.length} patients in queue`}
+              : `Showing ${showingFrom} to ${showingTo} of ${filteredItems.length} patients in queue`}
           </p>
           <div className="flex items-center gap-xs">
             <button

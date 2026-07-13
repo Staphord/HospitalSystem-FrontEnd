@@ -68,4 +68,10 @@ export const receptionService = {
     apiClient
       .get<QueueWorklistItem[]>('/reception/queue', { params: { queue_type: queueType } })
       .then((r) => r.data),
+
+  /** Update the status of a queue entry (e.g. skip / in_progress / completed) */
+  updateQueueStatus: (queueId: string, status: 'in_progress' | 'completed' | 'skipped') =>
+    apiClient
+      .patch<any>(`/visits/queues/${queueId}/status`, { status })
+      .then((r) => r.data),
 }

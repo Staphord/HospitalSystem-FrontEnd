@@ -102,14 +102,16 @@ export interface QueueWorklistItem {
   status: string
   created_at: string
   patient?: {
-    id: string
+    patient_id: string
     patient_number: string
     full_name: string
-    gender: string
   }
   visit?: {
     visit_id: string
     visit_number: string
+    visit_type: string
     payment_type: string
+    status: string
+    queue_number: string | null
   }
 }
