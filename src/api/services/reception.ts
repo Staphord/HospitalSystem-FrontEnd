@@ -16,10 +16,14 @@ export const receptionService = {
   // ── Patients ────────────────────────────────────────────────────────────
 
   /** Search returning patients by name, phone, or national ID */
-  searchPatients: (query: string, page = 1, pageSize = 20) =>
+  searchPatients: (query?: string, page = 1, pageSize = 20) =>
     apiClient
       .get<PatientSearchResponse>('/reception/patients', {
-        params: { search: query, page, page_size: pageSize },
+        params: {
+          ...(query?.trim() ? { search: query.trim() } : {}),
+          page,
+          page_size: pageSize,
+        },
       })
       .then((r) => r.data),
 

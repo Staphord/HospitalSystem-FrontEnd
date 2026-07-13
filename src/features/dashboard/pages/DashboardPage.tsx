@@ -283,7 +283,7 @@ export function DashboardPage() {
       setQueueItems(previewItems)
 
       // 3. Fetch 5 most recent registrations
-      const patientResponse = await receptionService.searchPatients('', 1, 5)
+      const patientResponse = await receptionService.searchPatients(undefined, 1, 5)
       setRecentPatients(patientResponse.patients)
 
     } catch (err) {
