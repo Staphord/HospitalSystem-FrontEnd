@@ -147,7 +147,7 @@ export function PatientRegistrationPage() {
           const queue = await receptionService.getTriageQueue()
           const activeQueueItem = queue.find(
             (item) =>
-              item.patient_id === exactMatch.id &&
+              item.patient.patient_id === exactMatch.id &&
               (item.status === 'waiting' || item.status === 'in_progress')
           )
           if (activeQueueItem) {

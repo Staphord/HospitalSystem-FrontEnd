@@ -141,15 +141,22 @@ function PatientFoundCard({
   const [paymentType, setPaymentType] = useState<'cash' | 'insurance'>('cash')
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>('')
 
+  // Queue Status States
+  const [queueStatus, setQueueStatus] = useState<string | null>(null)
+  const [queueNumber, setQueueNumber] = useState<string | null>(null)
+  const [loadingQueue, setLoadingQueue] = useState(false)
+
   // Inline Add Policy form states
   const [showAddPolicy, setShowAddPolicy] = useState(false)
   const [insurerName, setInsurerName] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
   const [savingPolicy, setSavingPolicy] = useState(false)
 
-  const loadPolicies = async () => {
+  const loadPatientStatus = async () => {
     setLoadingPolicies(true)
+    setLoadingQueue(true)
     try {
+      // Load policies
       const data = await receptionService.getInsurancePolicies(patient.id)
       setPolicies(data)
       // Auto-select the first active policy if any
@@ -160,15 +167,31 @@ function PatientFoundCard({
       } else {
         setPaymentType('cash')
       }
+
+      // Check active queue status
+      const queue = await receptionService.getTriageQueue()
+      const activeQueueItem = queue.find(
+        (item) =>
+          item.patient.patient_id === patient.id &&
+          (item.status === 'waiting' || item.status === 'in_progress')
+      )
+      if (activeQueueItem) {
+        setQueueStatus(activeQueueItem.status)
+        setQueueNumber(activeQueueItem.queue_number)
+      } else {
+        setQueueStatus(null)
+        setQueueNumber(null)
+      }
     } catch {
-      toast.error('Failed to load insurance policies.')
+      toast.error('Failed to load patient insurance or queue details.')
     } finally {
       setLoadingPolicies(false)
+      setLoadingQueue(false)
     }
   }
 
   useEffect(() => {
-    void loadPolicies()
+    void loadPatientStatus()
   }, [patient.id])
 
   const handleAddPolicy = async (e: React.FormEvent) => {
@@ -363,15 +386,53 @@ function PatientFoundCard({
       </div>
 
       <div className="p-lg border-t border-border-subtle bg-surface-bright flex flex-wrap gap-sm">
-        <button
-          type="button"
-          onClick={() => onCheckIn(paymentType, selectedPolicyId || undefined)}
-          disabled={checkingIn || (paymentType === 'insurance' && !selectedPolicyId)}
-          className="h-10 px-lg rounded font-body-sm text-body-sm font-semibold text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-sm"
-        >
-          {checkingIn && <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>}
-          Check In to Queue
-        </button>
+        {(() => {
+          const getCheckInBtnConfig = () => {
+            if (loadingQueue) {
+              return {
+                text: 'Checking Queue Status...',
+                className: 'bg-surface-container text-secondary border border-border-subtle cursor-not-allowed opacity-75',
+                disabled: true,
+                icon: 'progress_activity',
+              }
+            }
+            if (queueStatus) {
+              const isWaiting = queueStatus.toLowerCase() === 'waiting'
+              return {
+                text: isWaiting ? `Already Waiting (Queue #${queueNumber})` : 'Currently in Triage',
+                className: isWaiting
+                  ? 'bg-warning/10 text-warning border border-warning/30 cursor-not-allowed font-bold font-semibold'
+                  : 'bg-info/10 text-info border border-info/30 cursor-not-allowed font-bold font-semibold',
+                disabled: true,
+                icon: isWaiting ? 'hourglass_empty' : 'clinical_fe',
+              }
+            }
+            return {
+              text: 'Check In to Queue',
+              className: 'text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+              disabled: checkingIn || (paymentType === 'insurance' && !selectedPolicyId),
+              icon: checkingIn ? 'progress_activity' : 'assignment_ind',
+            }
+          }
+
+          const btnConfig = getCheckInBtnConfig()
+
+          return (
+            <button
+              type="button"
+              onClick={() => !btnConfig.disabled && onCheckIn(paymentType, selectedPolicyId || undefined)}
+              disabled={btnConfig.disabled}
+              className={`h-10 px-lg rounded font-body-sm text-body-sm flex items-center gap-sm ${btnConfig.className}`}
+            >
+              {btnConfig.icon && (
+                <span className={`material-symbols-outlined text-[16px] ${btnConfig.icon === 'progress_activity' ? 'animate-spin' : ''}`}>
+                  {btnConfig.icon}
+                </span>
+              )}
+              {btnConfig.text}
+            </button>
+          )
+        })()}
         <button
           type="button"
           onClick={onViewQueue}
