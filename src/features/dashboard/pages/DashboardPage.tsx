@@ -504,13 +504,7 @@ export function DashboardPage() {
                 <span className="material-symbols-outlined text-[18px]">manage_search</span>
                 Returning Patient
               </button>
-              <button 
-                onClick={() => navigate('/reception/queue')} 
-                className="bg-error hover:bg-[#D94524] text-on-error font-body-sm text-sm font-semibold h-10 px-6 rounded-lg transition-colors flex items-center gap-2 md:ml-auto cursor-pointer border-0"
-              >
-                <span className="material-symbols-outlined text-[18px]">emergency</span>
-                Walk-in Emergency
-              </button>
+
             </div>
           </div>
 
@@ -524,33 +518,35 @@ export function DashboardPage() {
                 <span className="ml-auto bg-warning text-white font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">2</span>
               </div>
               <div className="p-md space-y-3">
-                <div className="flex items-start justify-between bg-white p-3 rounded border border-border-subtle">
+                {/* Urgent Queue Time Alert */}
+                <div className="flex items-start justify-between bg-white p-3 rounded border-l-4 border-l-error border-y border-r border-border-subtle">
                   <div className="overflow-hidden">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Verification Pending</p>
-                    <p className="font-body-sm text-[11px] text-secondary">Zuwena Salum (#MH-3841)</p>
+                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">High Wait Time Warning</p>
+                    <p className="font-body-sm text-[11px] text-secondary">Triage queue is moving slower than normal.</p>
                   </div>
                   <button 
-                    onClick={() => navigate('/billing')} 
-                    className="font-body-sm text-[11px] text-primary-container font-medium hover:underline whitespace-nowrap ml-2 mt-0.5 bg-transparent border-0 cursor-pointer"
+                    onClick={() => navigate('/reception/queue')} 
+                    className="font-body-sm text-[11px] text-error font-medium hover:underline whitespace-nowrap ml-2 mt-0.5 bg-transparent border-0 cursor-pointer"
                   >
-                    Verify Now
+                    Check Queue
                   </button>
                 </div>
-                <div className="flex items-start justify-between bg-white p-3 rounded border border-border-subtle">
+
+                {/* Important Verification Alert */}
+                <div className="flex items-start justify-between bg-white p-3 rounded border-l-4 border-l-warning border-y border-r border-border-subtle">
                   <div className="overflow-hidden">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Verification Pending</p>
-                    <p className="font-body-sm text-[11px] text-secondary">Lulu Kapinga (#MH-7712)</p>
+                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Review Required</p>
+                    <p className="font-body-sm text-[11px] text-secondary">Checked-in patients have pending insurance verifications.</p>
                   </div>
                   <button 
-                    onClick={() => navigate('/billing')} 
+                    onClick={() => navigate('/reception/queue')} 
                     className="font-body-sm text-[11px] text-primary-container font-medium hover:underline whitespace-nowrap ml-2 mt-0.5 bg-transparent border-0 cursor-pointer"
                   >
-                    Verify Now
+                    Manage
                   </button>
                 </div>
               </div>
             </div>
-
             {/* Recent Registrations Card */}
             <div className="bg-surface-white rounded-lg border border-border-subtle flex flex-col flex-1 min-h-[280px] shadow-sm">
               <div className="p-md border-b border-border-subtle flex justify-between items-center shrink-0">
