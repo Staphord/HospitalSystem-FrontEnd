@@ -238,7 +238,7 @@ function QueueActionsMenu({
   onRemove: () => void
 }) {
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
-  const isOpen = openMenuId === item.id
+  const isOpen = openMenuId === item.queueId
   const isInactive = item.status === 'COMPLETE' || item.status === 'SKIPPED'
 
   useEffect(() => {
@@ -257,7 +257,7 @@ function QueueActionsMenu({
     }
     const rect = e.currentTarget.getBoundingClientRect()
     setAnchor({ top: rect.bottom + 4, left: rect.right - 180 })
-    onOpenChange(item.id)
+    onOpenChange(item.queueId)
   }
 
   const menuItemClass =
@@ -355,7 +355,7 @@ export function VisitQueuePage() {
     try {
       await receptionService.updateQueueStatus(queueId, 'skipped')
       setQueueItems((prev) => {
-        const filtered = prev.filter((item) => item.id !== patientId)
+        const filtered = prev.filter((item) => item.queueId !== queueId)
         return filtered.map((item, i) => ({ ...item, pos: i + 1 }))
       })
       toast.success(`${name} removed from queue.`)
@@ -498,7 +498,7 @@ export function VisitQueuePage() {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {visibleItems.map((item) => (
-                <tr key={item.id} className="hover:bg-hover-tint transition-colors group">
+                <tr key={item.queueId} className="hover:bg-hover-tint transition-colors group">
                   <td className={TD_MUTED}>{item.pos}</td>
                   <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
                     {item.name}
