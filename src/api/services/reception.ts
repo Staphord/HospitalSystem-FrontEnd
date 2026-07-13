@@ -73,6 +73,12 @@ export const receptionService = {
       .get<QueueWorklistItem[]>('/reception/queue', { params: { queue_type: queueType } })
       .then((r) => r.data),
 
+  /** Fetch all triage queue entries checked in today */
+  getTriageQueueToday: () =>
+    apiClient
+      .get<any[]>('/reception/visits/queues/triage/today')
+      .then((r) => r.data),
+
   /** Update the status of a queue entry (e.g. skip / in_progress / completed) */
   updateQueueStatus: (queueId: string, status: 'in_progress' | 'completed' | 'skipped') =>
     apiClient
