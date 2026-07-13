@@ -105,6 +105,15 @@ export function PatientRegistrationPage() {
     setErrors(validationErrors)
 
     if (Object.keys(validationErrors).length > 0) {
+      setTimeout(() => {
+        const firstInvalidEl = document.querySelector('[aria-invalid="true"]')
+        if (firstInvalidEl) {
+          firstInvalidEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          if (firstInvalidEl instanceof HTMLElement) {
+            firstInvalidEl.focus()
+          }
+        }
+      }, 50)
       return
     }
 
@@ -443,21 +452,15 @@ export function PatientRegistrationPage() {
           )}
 
           <div className="mt-lg p-md bg-hover-tint border border-primary-container/20 rounded-lg flex items-center">
-            <span className="material-symbols-outlined text-primary mr-md">info</span>
+            <span className="material-symbols-outlined text-primary mr-md">assignment_ind</span>
             <p className="font-body-md text-primary font-medium m-0">
-              Patient will be registered and routed to the active Triage Queue
+              Patient {fullName.trim() ? <strong>{fullName.trim()}</strong> : 'record'} will be registered and routed to the next available Triage Queue position.
             </p>
           </div>
         </section>
 
         <footer className="fixed bottom-16 lg:bottom-0 left-0 right-0 lg:left-auto lg:right-0 w-full lg:w-[calc(100%-240px)] bg-surface-white border-t border-border-subtle px-lg py-md z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
           <div className="max-w-[720px] mx-auto flex flex-col items-center">
-            <div className="mb-sm px-md py-xs bg-hover-tint rounded-full flex items-center">
-              <span className="material-symbols-outlined text-primary text-[16px] mr-xs">assignment_ind</span>
-              <span className="font-label-md text-label-md text-primary">
-                {fullName.trim() ? `Registering ${fullName.trim()}...` : 'Registering new patient...'}
-              </span>
-            </div>
             <div className="flex items-center justify-between w-full gap-md">
               <button
                 type="button"
