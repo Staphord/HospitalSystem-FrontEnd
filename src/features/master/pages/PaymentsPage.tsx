@@ -54,10 +54,11 @@ export function PaymentsPage() {
   const filteredPayments = payments.filter((p) => {
     const hospital = getHospitalName(p.tenant_id).toLowerCase()
     const id = p.id.toLowerCase()
+    const invNum = (p.invoice_number || '').toLowerCase()
     const ref = (p.reference_number || '').toLowerCase()
     const query = search.toLowerCase()
 
-    const matchesSearch = hospital.includes(query) || id.includes(query) || ref.includes(query)
+    const matchesSearch = hospital.includes(query) || id.includes(query) || invNum.includes(query) || ref.includes(query)
     const matchesHospital = !selectedHospital || p.tenant_id === selectedHospital
     const matchesMethod = !selectedMethod || p.payment_method === selectedMethod
     const matchesCurrency = !selectedCurrency || getHospitalCurrency(p.tenant_id) === selectedCurrency
@@ -185,10 +186,10 @@ export function PaymentsPage() {
   }
 
   const handleExportCSV = () => {
-    const headers = ['Reference Number', 'Invoice ID', 'Hospital Name', 'Amount Paid', 'Payment Date', 'Payment Method']
+    const headers = ['Reference Number', 'Invoice Number', 'Hospital Name', 'Amount Paid', 'Payment Date', 'Payment Method']
     const rows = filteredPayments.map((p) => [
       p.reference_number || `PAY-${p.id}`,
-      p.id,
+      p.invoice_number || p.id,
       getHospitalName(p.tenant_id),
       p.amount_paid || p.amount,
       p.payment_date || 'N/A',
@@ -271,7 +272,7 @@ export function PaymentsPage() {
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search by Hospital, Invoice ID, Reference..."
+                  placeholder="Search by Hospital, Invoice Number, Reference..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -329,7 +330,7 @@ export function PaymentsPage() {
                     <tr>
                       <th>Payment Date</th>
                       <th>Reference Number</th>
-                      <th>Invoice ID</th>
+                      <th>Invoice Number</th>
                       <th>Hospital</th>
                       <th>Method</th>
                       <th style={{ textAlign: 'right' }}>Amount Settled</th>
@@ -346,7 +347,7 @@ export function PaymentsPage() {
                             <strong><code>#{p.reference_number || `PAY-${p.id}`}</code></strong>
                           </td>
                           <td>
-                            <code>#{p.id}</code>
+                            <code>{p.invoice_number || `#${p.id}`}</code>
                           </td>
                           <td>
                             <strong>{getHospitalName(p.tenant_id)}</strong>

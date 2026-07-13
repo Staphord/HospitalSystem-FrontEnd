@@ -145,13 +145,10 @@ export function InvoiceManagementPage() {
       ? `${description} (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
       : `Subscription renewal (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
 
-    const invoiceNumber = 'INV-' + tenantId.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) + '-' + Date.now().toString().slice(-6)
-
     try {
       await masterService.createInvoice({
         tenant_id: tenantId,
         subscription_id: subId,
-        invoice_number: invoiceNumber,
         plan_name: planName,
         billing_period_start: billingPeriodStart,
         billing_period_end: billingPeriodEnd,
@@ -326,7 +323,7 @@ export function InvoiceManagementPage() {
             <input
               type="text"
               className="form-control"
-              placeholder="Search by hospital name, invoice ID, status..."
+              placeholder="Search by hospital name, invoice number, status..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -360,7 +357,7 @@ export function InvoiceManagementPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Invoice ID</th>
+                  <th>Invoice Number</th>
                   <th>Hospital / Tenant</th>
                   <th>Amount</th>
                   <th>Status</th>
@@ -371,7 +368,7 @@ export function InvoiceManagementPage() {
               <tbody>
                 {filteredInvoices.map((i) => (
                   <tr key={i.id}>
-                    <td><code>#{i.id}</code></td>
+                    <td><code>{i.invoice_number || `#${i.id}`}</code></td>
                     <td>
                       <strong>{getHospitalName(i.tenant_id)}</strong>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
