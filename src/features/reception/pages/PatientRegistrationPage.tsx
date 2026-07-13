@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
@@ -76,6 +76,13 @@ export function PatientRegistrationPage() {
   const [duplicateQueueStatus, setDuplicateQueueStatus] = useState<string | null>(null)
   const [duplicateQueueNumber, setDuplicateQueueNumber] = useState<string | null>(null)
   const [checkingDuplicate, setCheckingDuplicate] = useState(false)
+
+  const visitSetupRef = useRef<HTMLDivElement>(null)
+
+  const scrollToVisitSetup = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault()
+    visitSetupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
   const clearError = (field: FormField) => {
     setErrors((prev) => {
@@ -168,6 +175,22 @@ export function PatientRegistrationPage() {
   const handleCheckInDuplicate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!duplicatePatient) return
+
+    // Validate insurance policy details for existing patient check-in
+    const checkInErrors: FormErrors = {}
+    if (paymentType === 'insurance' && !policyNumber.trim()) {
+      checkInErrors.policyNumber = 'Policy number is required'
+    }
+
+    if (Object.keys(checkInErrors).length > 0) {
+      setErrors(checkInErrors)
+      setTimeout(() => {
+        const el = document.querySelector('[aria-invalid="true"]')
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (el instanceof HTMLElement) el.focus()
+      }, 50)
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -437,7 +460,7 @@ export function PatientRegistrationPage() {
                   ) : (
                     <button
                       type="button"
-                      onClick={handleCheckInDuplicate}
+                      onClick={scrollToVisitSetup}
                       className="text-primary hover:underline font-bold bg-transparent border-0 p-0 cursor-pointer text-label-sm inline-flex items-center gap-xs"
                     >
                       [Check In Now]
@@ -536,7 +559,7 @@ export function PatientRegistrationPage() {
           </div>
         </section>
 
-        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg shadow-sm">
+        <section ref={visitSetupRef} className="bg-surface-white border border-border-subtle rounded-xl p-lg shadow-sm">
           <div className="flex items-center mb-md pb-sm border-b border-surface-container">
             <span
               className="material-symbols-outlined text-primary mr-sm"
@@ -661,10 +684,10 @@ export function PatientRegistrationPage() {
                 </p>
               </div>
             ) : (
-              <div className="mt-lg p-md bg-success/5 border border-success/20 rounded-lg flex items-center">
-                <span className="material-symbols-outlined text-success mr-md">check_circle</span>
-                <p className="font-body-md text-success font-medium m-0">
-                  Patient <strong>{duplicatePatient.full_name}</strong> is already registered. They will be checked in directly and routed to the Triage Queue.
+              <div className="mt-lg p-md bg-warning/5 border border-warning/20 rounded-lg flex items-center">
+                <span className="material-symbols-outlined text-warning mr-md">info</span>
+                <p className="font-body-md text-on-surface font-medium m-0">
+                  Patient <strong>{duplicatePatient.full_name}</strong> is already registered. Choose Cash or fill in their Insurance Details below to check them into the queue.
                 </p>
               </div>
             )

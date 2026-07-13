@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
-import type { QueueWorklistItem } from '@/api/types/reception'
+import type { QueueWorklistItem, BackendPatient } from '@/api/types/reception'
 
 interface QueueItem {
   pos: number
   name: string
   id: string          // patient_number for display
+  patientId?: string  // patient UUID
   queueId: string     // actual queue_id from backend
   time: string
   wait: string
@@ -179,6 +180,7 @@ function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
     pos,
     name: entry.patient?.full_name ?? 'Unknown',
     id: entry.patient?.patient_number ?? entry.patient_id,
+    patientId: entry.patient_id,
     queueId: entry.queue_id,
     time: timeStr,
     wait: formatWait(mins),
@@ -196,6 +198,25 @@ function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
 const PAGE_SIZE = 5
 
 function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => void }) {
+  const [patient, setPatient] = useState<BackendPatient | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!item.patientId) return
+    const loadPatient = async () => {
+      setLoading(true)
+      try {
+        const data = await receptionService.getPatient(item.patientId!)
+        setPatient(data)
+      } catch (err) {
+        console.error('Failed to load patient details in queue modal', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadPatient()
+  }, [item.patientId])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-md"
@@ -203,15 +224,15 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
       role="presentation"
     >
       <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[480px] overflow-hidden"
+        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[500px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="queue-view-title"
       >
-        <div className="p-lg border-b border-border-subtle flex justify-between items-center">
+        <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
           <h2 id="queue-view-title" className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Queue Entry Details
+            Queue &amp; Patient Record
           </h2>
           <button
             type="button"
@@ -222,34 +243,79 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        <div className="p-lg grid grid-cols-2 gap-md">
+        <div className="p-lg max-h-[75vh] overflow-y-auto space-y-md">
+          {/* Queue entry details */}
           <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Position</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">#{item.pos}</p>
+            <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Queue Details</h3>
+            <div className="grid grid-cols-2 gap-sm bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Position</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">#{item.pos}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Triage Status</p>
+                <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>{item.status}</span>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient Name</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.name}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient #</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.id}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Registered At</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.time}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Wait Time</p>
+                <p className={`font-body-sm text-body-sm font-semibold m-0 ${item.waitColor}`}>{item.wait}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Payment Type</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.payment}</p>
+              </div>
+            </div>
           </div>
+
+          {/* Patient demographic details */}
           <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient Name</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.name}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.id}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Registered At</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.time}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Wait Time</p>
-            <p className={`font-body-sm text-body-sm font-semibold m-0 ${item.waitColor}`}>{item.wait}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Payment Type</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.payment}</p>
-          </div>
-          <div className="col-span-2">
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Triage Status</p>
-            <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>{item.status}</span>
+            <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Patient Demographics</h3>
+            {loading ? (
+              <div className="p-lg bg-surface-bright border border-border-subtle rounded-lg flex items-center justify-center min-h-[140px]">
+                <span className="material-symbols-outlined text-[32px] text-primary animate-spin">progress_activity</span>
+              </div>
+            ) : patient ? (
+              <div className="grid grid-cols-2 gap-sm bg-surface-bright border border-border-subtle p-md rounded-lg">
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Identification No</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.national_id ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Phone Number</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Gender</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0" style={{ textTransform: 'capitalize' }}>{patient.gender}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Date of Birth</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.date_of_birth}</p>
+                </div>
+                {patient.email && (
+                  <div className="col-span-2">
+                    <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Email</p>
+                    <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.email}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-md text-center font-body-sm text-secondary bg-surface-bright border border-border-subtle rounded-lg">
+                Patient record details unavailable.
+              </div>
+            )}
           </div>
         </div>
       </div>
