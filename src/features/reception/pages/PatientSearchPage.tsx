@@ -63,15 +63,15 @@ function PatientDetailModal({ patient, onClose }: { patient: BackendPatient; onC
       role="presentation"
     >
       <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[520px] overflow-hidden"
+        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[500px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="patient-detail-title"
       >
-        <div className="p-lg border-b border-border-subtle flex justify-between items-center">
+        <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
           <h2 id="patient-detail-title" className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Patient Details
+            Patient profile Details
           </h2>
           <button
             type="button"
@@ -82,40 +82,66 @@ function PatientDetailModal({ patient, onClose }: { patient: BackendPatient; onC
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        <div className="p-lg grid grid-cols-2 gap-md">
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Full Name</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{patient.full_name}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.patient_number}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">National ID</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.national_id ?? '—'}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Phone</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Date of Birth</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.date_of_birth}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Gender</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0" style={{ textTransform: 'capitalize' }}>{patient.gender}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">
-              {patient.next_of_kin_name ? `${patient.next_of_kin_name} (${patient.next_of_kin_relationship ?? ''}) · ${patient.next_of_kin_phone ?? ''}` : '—'}
-            </p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Blood Group</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.blood_group ?? '—'}</p>
+        <div className="p-lg space-y-md max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-sm bg-surface-bright border border-border-subtle p-md rounded-lg">
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Full Name</p>
+              <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{patient.full_name}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient #</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.patient_number}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Identification No</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.national_id ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Phone Number</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Gender</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0" style={{ textTransform: 'capitalize' }}>{patient.gender}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Date of Birth</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.date_of_birth}</p>
+            </div>
+            {patient.blood_group && (
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Blood Group</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.blood_group}</p>
+              </div>
+            )}
+            {patient.email && (
+              <div className="col-span-2">
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Email</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.email}</p>
+              </div>
+            )}
+            {patient.allergies && (
+              <div className="col-span-2">
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Allergies</p>
+                <p className="font-body-sm text-body-sm text-error font-medium m-0">{patient.allergies}</p>
+              </div>
+            )}
+            {patient.next_of_kin_name && (
+              <>
+                <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Next of Kin</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                    {patient.next_of_kin_name} ({patient.next_of_kin_relationship ?? '—'})
+                  </p>
+                </div>
+                <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Kin Contact</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                    {patient.next_of_kin_phone ?? '—'}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -266,124 +292,126 @@ function PatientFoundCard({
         </div>
       </div>
 
-      {/* Payment Selection Section */}
-      <div className="p-lg border-t border-border-subtle bg-surface-bright/50">
-        <h4 className="font-label-md text-label-md text-secondary uppercase mb-sm m-0">Check-In Payment Option</h4>
-        <div className="flex gap-md mb-md mt-sm">
-          <label className="flex items-center gap-sm cursor-pointer font-body-sm text-body-sm m-0 text-on-surface">
-            <input
-              type="radio"
-              name="search_payment_type"
-              checked={paymentType === 'cash'}
-              onChange={() => setPaymentType('cash')}
-              className="text-primary focus:ring-primary w-4 h-4"
-            />
-            Cash / Private
-          </label>
-          <label className="flex items-center gap-sm cursor-pointer font-body-sm text-body-sm m-0 text-on-surface">
-            <input
-              type="radio"
-              name="search_payment_type"
-              checked={paymentType === 'insurance'}
-              onChange={() => setPaymentType('insurance')}
-              className="text-primary focus:ring-primary w-4 h-4"
-            />
-            Insurance
-          </label>
-        </div>
-
-        {paymentType === 'insurance' && (
-          <div className="space-y-sm mb-md mt-sm">
-            {loadingPolicies ? (
-              <p className="text-body-sm text-secondary animate-pulse m-0">Loading insurance policies...</p>
-            ) : policies.length === 0 ? (
-              <div className="p-md rounded-lg bg-warning/5 border border-warning/20 text-warning text-body-sm">
-                No insurance policies registered for this patient.
-              </div>
-            ) : (
-              <div>
-                <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Select Insurance Policy</label>
-                <select
-                  value={selectedPolicyId}
-                  onChange={(e) => setSelectedPolicyId(e.target.value)}
-                  className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">-- Choose registered policy --</option>
-                  {policies.map((p) => (
-                    <option key={p.insurance_id} value={p.insurance_id}>
-                      {p.insurer_name} (Policy: {p.policy_number}) — [{p.verification_status}]
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {!showAddPolicy && (
-              <button
-                type="button"
-                onClick={() => setShowAddPolicy(true)}
-                className="text-primary hover:underline text-body-sm font-medium border-0 bg-transparent p-0 cursor-pointer flex items-center gap-xs mt-sm"
-              >
-                <span className="material-symbols-outlined text-[18px]">add</span> Add New Policy
-              </button>
-            )}
+      {/* Payment Selection Section (Only rendered if not already in queue) */}
+      {!queueStatus && (
+        <div className="p-lg border-t border-border-subtle bg-surface-bright/50">
+          <h4 className="font-label-md text-label-md text-secondary uppercase mb-sm m-0">Check-In Payment Option</h4>
+          <div className="flex gap-md mb-md mt-sm">
+            <label className="flex items-center gap-sm cursor-pointer font-body-sm text-body-sm m-0 text-on-surface">
+              <input
+                type="radio"
+                name="search_payment_type"
+                checked={paymentType === 'cash'}
+                onChange={() => setPaymentType('cash')}
+                className="text-primary focus:ring-primary w-4 h-4"
+              />
+              Cash / Private
+            </label>
+            <label className="flex items-center gap-sm cursor-pointer font-body-sm text-body-sm m-0 text-on-surface">
+              <input
+                type="radio"
+                name="search_payment_type"
+                checked={paymentType === 'insurance'}
+                onChange={() => setPaymentType('insurance')}
+                className="text-primary focus:ring-primary w-4 h-4"
+              />
+              Insurance
+            </label>
           </div>
-        )}
 
-        {showAddPolicy && (
-          <form onSubmit={handleAddPolicy} className="p-md bg-white rounded-lg border border-border-subtle space-y-md mb-md mt-sm">
-            <div className="flex justify-between items-center pb-xs border-b border-border-subtle">
-              <span className="font-label-md text-label-md font-semibold text-on-surface">Add Insurance Policy</span>
-              <button
-                type="button"
-                onClick={() => setShowAddPolicy(false)}
-                className="text-secondary hover:text-on-surface border-0 bg-transparent cursor-pointer font-body-sm font-medium"
-              >
-                Cancel
-              </button>
+          {paymentType === 'insurance' && (
+            <div className="space-y-sm mb-md mt-sm">
+              {loadingPolicies ? (
+                <p className="text-body-sm text-secondary animate-pulse m-0">Loading insurance policies...</p>
+              ) : policies.length === 0 ? (
+                <div className="p-md rounded-lg bg-warning/5 border border-warning/20 text-warning text-body-sm">
+                  No insurance policies registered for this patient.
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Select Insurance Policy</label>
+                  <select
+                    value={selectedPolicyId}
+                    onChange={(e) => setSelectedPolicyId(e.target.value)}
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">-- Choose registered policy --</option>
+                    {policies.map((p) => (
+                      <option key={p.insurance_id} value={p.insurance_id}>
+                        {p.insurer_name} (Policy: {p.policy_number}) — [{p.verification_status}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!showAddPolicy && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddPolicy(true)}
+                  className="text-primary hover:underline text-body-sm font-medium border-0 bg-transparent p-0 cursor-pointer flex items-center gap-xs mt-sm"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add</span> Add New Policy
+                </button>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-sm">
-              <div>
-                <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Insurer Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Jubilee Insurance"
-                  value={insurerName}
-                  onChange={(e) => setInsurerName(e.target.value)}
-                  className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
-                  list="insurer-suggestions"
-                />
-                <datalist id="insurer-suggestions">
-                  <option value="Aetna International" />
-                  <option value="BlueCross BlueShield" />
-                  <option value="Cigna Healthcare" />
-                  <option value="Jubilee Insurance" />
-                  <option value="NHIF" />
-                </datalist>
+          )}
+
+          {showAddPolicy && (
+            <form onSubmit={handleAddPolicy} className="p-md bg-white rounded-lg border border-border-subtle space-y-md mb-md mt-sm">
+              <div className="flex justify-between items-center pb-xs border-b border-border-subtle">
+                <span className="font-label-md text-label-md font-semibold text-on-surface">Add Insurance Policy</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPolicy(false)}
+                  className="text-secondary hover:text-on-surface border-0 bg-transparent cursor-pointer font-body-sm font-medium"
+                >
+                  Cancel
+                </button>
               </div>
-              <div>
-                <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Policy Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. POL-1002"
-                  value={policyNumber}
-                  onChange={(e) => setPolicyNumber(e.target.value)}
-                  className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
-                />
+              <div className="grid grid-cols-2 gap-sm">
+                <div>
+                  <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Insurer Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jubilee Insurance"
+                    value={insurerName}
+                    onChange={(e) => setInsurerName(e.target.value)}
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
+                    list="insurer-suggestions"
+                  />
+                  <datalist id="insurer-suggestions">
+                    <option value="Aetna International" />
+                    <option value="BlueCross BlueShield" />
+                    <option value="Cigna Healthcare" />
+                    <option value="Jubilee Insurance" />
+                    <option value="NHIF" />
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Policy Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. POL-1002"
+                    value={policyNumber}
+                    onChange={(e) => setPolicyNumber(e.target.value)}
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end pt-xs">
-              <button
-                type="submit"
-                disabled={savingPolicy}
-                className="px-md h-8 bg-primary-container text-white text-body-sm rounded-md font-medium hover:opacity-90 transition-opacity border-0 cursor-pointer disabled:opacity-60"
-              >
-                {savingPolicy ? 'Saving...' : 'Register Policy'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+              <div className="flex justify-end pt-xs">
+                <button
+                  type="submit"
+                  disabled={savingPolicy}
+                  className="px-md h-8 bg-primary-container text-white text-body-sm rounded-md font-medium hover:opacity-90 transition-opacity border-0 cursor-pointer disabled:opacity-60"
+                >
+                  {savingPolicy ? 'Saving...' : 'Register Policy'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
 
       <div className="p-lg border-t border-border-subtle bg-surface-bright flex flex-wrap gap-sm">
         {(() => {
