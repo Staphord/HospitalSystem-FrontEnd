@@ -31,105 +31,6 @@ const TOOLBAR_BTN =
 const STATUS_BADGE =
   'inline-flex items-center px-sm py-xs rounded-full font-label-md text-label-md font-bold'
 
-const INITIAL_QUEUE: QueueItem[] = [
-  {
-    pos: 1,
-    name: 'Fatuma Said',
-    id: 'PT-4891',
-    time: '08:12',
-    wait: '48 min',
-    waitColor: 'text-error',
-    payment: 'Cash',
-    status: 'WAITING',
-    statusBg: 'bg-warning/10',
-    statusText: 'text-warning',
-  },
-  {
-    pos: 2,
-    name: 'Hassan Mwita',
-    id: 'PT-4889',
-    time: '08:22',
-    wait: '38 min',
-    waitColor: 'text-error',
-    payment: 'Insurance',
-    status: 'IN TRIAGE',
-    statusBg: 'bg-info/10',
-    statusText: 'text-info',
-  },
-  {
-    pos: 3,
-    name: 'Grace Kimaro',
-    id: 'PT-4892',
-    time: '08:45',
-    wait: '15 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    status: 'WAITING',
-    statusBg: 'bg-warning/10',
-    statusText: 'text-warning',
-  },
-  {
-    pos: 4,
-    name: 'Amir Juma',
-    id: 'PT-4903',
-    time: '09:05',
-    wait: '8 min',
-    waitColor: 'text-success',
-    payment: 'Insurance',
-    status: 'WITH DOCTOR',
-    statusBg: 'bg-success/10',
-    statusText: 'text-success',
-  },
-  {
-    pos: 5,
-    name: 'Linda Mtui',
-    id: 'PT-4911',
-    time: '07:50',
-    wait: '--',
-    waitColor: 'text-on-surface-variant',
-    payment: 'Exempt',
-    status: 'COMPLETE',
-    statusBg: 'bg-surface-container-high',
-    statusText: 'text-on-surface-variant',
-  },
-  {
-    pos: 6,
-    name: 'Amani Khatib',
-    id: 'PT-1029',
-    time: '09:20',
-    wait: '12 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    status: 'IN TRIAGE',
-    statusBg: 'bg-info/10',
-    statusText: 'text-info',
-  },
-  {
-    pos: 7,
-    name: 'Zuwena Salum',
-    id: 'PT-3841',
-    time: '09:30',
-    wait: '18 min',
-    waitColor: 'text-warning',
-    payment: 'Insurance',
-    status: 'WAITING',
-    statusBg: 'bg-warning/10',
-    statusText: 'text-warning',
-  },
-  {
-    pos: 8,
-    name: 'Joseph Mwinyi',
-    id: 'PT-9201',
-    time: '09:45',
-    wait: '24 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    status: 'WITH DOCTOR',
-    statusBg: 'bg-success/10',
-    statusText: 'text-success',
-  },
-]
-
 // ── KPI helpers ─────────────────────────────────────────────────────────────
 
 function waitMinutes(createdAt: string): number {
@@ -581,7 +482,7 @@ export function VisitQueuePage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[440px] overflow-y-auto">
           <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead className="bg-surface-container-low">
               <tr>

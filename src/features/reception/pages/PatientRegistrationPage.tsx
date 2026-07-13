@@ -65,7 +65,7 @@ export function PatientRegistrationPage() {
   const [nokPhone, setNokPhone] = useState('')
 
   const [paymentType, setPaymentType] = useState<'cash' | 'insurance'>('insurance')
-  const [insurerName, setInsurerName] = useState('Aetna International')
+  const [insurerName, setInsurerName] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
 
   const [errors, setErrors] = useState<FormErrors>({})
