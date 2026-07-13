@@ -83,7 +83,16 @@ export function PatientRegistrationPage() {
     const next: FormErrors = {}
 
     if (!fullName.trim()) next.fullName = 'Full name is required'
-    if (!dob) next.dob = 'Date of birth is required'
+    if (!dob) {
+      next.dob = 'Date of birth is required'
+    } else {
+      const selectedDate = new Date(dob)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (selectedDate > today) {
+        next.dob = 'Date of birth cannot be in the future'
+      }
+    }
     if (gender === 'Select Gender') next.gender = 'Please select a gender'
     if (!nationalId.trim()) next.nationalId = 'National ID or passport number is required'
     if (!phone.trim()) next.phone = 'Contact phone is required'
@@ -154,12 +163,67 @@ export function PatientRegistrationPage() {
       }, 1500)
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      if (detail?.toLowerCase().includes('national id') || detail?.toLowerCase().includes('already exists')) {
-        setErrors((prev) => ({ ...prev, nationalId: 'A patient with this National ID already exists' }))
-        toast.error('Duplicate National ID — patient already registered.')
-      } else {
-        toast.error(detail ?? 'Registration failed. Please try again.')
+      
+      if (detail) {
+        const detailLower = detail.toLowerCase()
+        if (detailLower.includes('national id') || detailLower.includes('already exists')) {
+          setErrors((prev) => ({ ...prev, nationalId: 'A patient with this National ID already exists' }))
+          toast.error('Duplicate National ID — patient already registered.')
+          
+          setTimeout(() => {
+            const el = document.querySelector('[aria-invalid="true"]')
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            if (el instanceof HTMLElement) el.focus()
+          }, 50)
+          return
+        }
+
+        // Map backend validation errors (joined as a string) back to inline fields
+        const newErrors: FormErrors = {}
+        let hasMappedErrors = false
+        const parts = detail.split(',')
+        parts.forEach(part => {
+          const colonIndex = part.indexOf(':')
+          if (colonIndex !== -1) {
+            const fieldPath = part.slice(0, colonIndex).trim()
+            const errorMsg = part.slice(colonIndex + 1).trim()
+
+            if (fieldPath.includes('date_of_birth')) {
+              newErrors.dob = errorMsg
+              hasMappedErrors = true
+            } else if (fieldPath.includes('full_name')) {
+              newErrors.fullName = errorMsg
+              hasMappedErrors = true
+            } else if (fieldPath.includes('gender')) {
+              newErrors.gender = errorMsg
+              hasMappedErrors = true
+            } else if (fieldPath.includes('phone_primary')) {
+              newErrors.phone = errorMsg
+              hasMappedErrors = true
+            } else if (fieldPath.includes('national_id')) {
+              newErrors.nationalId = errorMsg
+              hasMappedErrors = true
+            } else if (fieldPath.includes('policy_number')) {
+              newErrors.policyNumber = errorMsg
+              hasMappedErrors = true
+            }
+          }
+        })
+
+        if (hasMappedErrors) {
+          setErrors((prev) => ({ ...prev, ...newErrors }))
+          toast.error('Validation failed. Please correct the fields marked in red.')
+          
+          setTimeout(() => {
+            const el = document.querySelector('[aria-invalid="true"]')
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            if (el instanceof HTMLElement) el.focus()
+          }, 50)
+          return
+        }
       }
+
+      toast.error(detail ?? 'Registration failed. Please try again.')
     } finally {
       setSubmitting(false)
     }
