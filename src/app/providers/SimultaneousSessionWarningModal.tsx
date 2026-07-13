@@ -6,11 +6,19 @@ import { apiClient } from '@/api/client'
 
 export function SimultaneousSessionWarningModal({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const { isAuthenticated, clearAuth } = useAuth()
+  const { isAuthenticated, isImpersonating, clearAuth } = useAuth()
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated) {
+      setShowModal(false)
+      return
+    }
+
+    // Impersonation tokens have no session_state claim and are not tracked
+    // in the RefreshToken table. Running a session check would falsely report
+    // session_revoked and force a logout.
+    if (isImpersonating) {
       setShowModal(false)
       return
     }
@@ -60,7 +68,7 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
     const checkInterval = setInterval(runCheck, 5000)
 
     return () => clearInterval(checkInterval)
-  }, [isAuthenticated])
+  }, [isAuthenticated, isImpersonating])
 
   const handleKeepThisSession = async () => {
     localStorage.removeItem('simulate_simultaneous_session')

@@ -8,7 +8,7 @@ import { authService } from '@/api/services/auth'
 
 export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const { isAuthenticated, clearAuth, refreshToken } = useAuth()
+  const { isAuthenticated, isImpersonating, clearAuth, refreshToken } = useAuth()
   
   const [showModal, setShowModal] = useState(false)
   const [countdown, setCountdown] = useState(60)
@@ -138,7 +138,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
 
   // Set up event listeners for tracking activity
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isImpersonating) {
       if (timerRef.current) clearTimeout(timerRef.current)
       localStorage.removeItem('hf_last_activity')
       return
@@ -172,7 +172,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
       if (timerRef.current) clearTimeout(timerRef.current)
       clearInterval(syncInterval)
     }
-  }, [isAuthenticated, showModal])
+  }, [isAuthenticated, isImpersonating, showModal])
 
   // Synchronize inactivity timer across browser tabs via storage events
   useEffect(() => {
@@ -187,7 +187,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
 
   // Synchronize inactivity session warning with token expiration
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || isImpersonating) return
 
     // Every 5 seconds, check if the refresh token is expired
     const interval = setInterval(() => {
