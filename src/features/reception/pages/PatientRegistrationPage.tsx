@@ -66,7 +66,6 @@ export function PatientRegistrationPage() {
   const [paymentType, setPaymentType] = useState<'cash' | 'insurance'>('insurance')
   const [insurerName, setInsurerName] = useState('Aetna International')
   const [policyNumber, setPolicyNumber] = useState('')
-  const [memberName, setMemberName] = useState('')
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
@@ -424,7 +423,7 @@ export function PatientRegistrationPage() {
                     <option value="NHIF" />
                   </datalist>
                 </div>
-                <div>
+                <div className="col-span-2">
                   <RequiredLabel>Policy Number</RequiredLabel>
                   <input
                     className={fieldInputClass(Boolean(errors.policyNumber))}
@@ -438,15 +437,6 @@ export function PatientRegistrationPage() {
                     aria-invalid={Boolean(errors.policyNumber)}
                   />
                   <InlineError message={errors.policyNumber} />
-                </div>
-                <div>
-                  <label className={FIELD_LABEL}>Member Name</label>
-                  <input
-                    className={fieldInputClass(false)}
-                    type="text"
-                    value={memberName}
-                    onChange={(e) => setMemberName(e.target.value)}
-                  />
                 </div>
               </div>
             </div>
