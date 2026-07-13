@@ -473,7 +473,7 @@ export function PatientRegistrationPage() {
               <RequiredLabel>Contact Phone</RequiredLabel>
               <input
                 className={fieldInputClass(Boolean(errors.phone))}
-                placeholder="+1 (555) 000-0000"
+                placeholder="e.g. 0712 345 678"
                 type="tel"
                 value={phone}
                 onChange={(e) => {
