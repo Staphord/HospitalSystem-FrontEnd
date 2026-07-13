@@ -485,17 +485,20 @@ export function PatientSearchPage() {
     e.preventDefault()
     setSelectedPatient(null)
 
-    const term = activeField === 'id' ? nationalId : activeField === 'phone' ? phone : name
-    if (!term.trim()) {
+    const term = nationalId.trim() || phone.trim() || name.trim()
+    if (!term) {
       toast.error('Enter a National ID, phone number, or patient name to search.')
       return
     }
 
+    const field: ActiveField = nationalId.trim() ? 'id' : phone.trim() ? 'phone' : 'name'
+    setActiveField(field)
+
     setSearching(true)
     try {
-      const response = await receptionService.searchPatients(term.trim())
+      const response = await receptionService.searchPatients(term)
       const results = response.patients
-      setSearchState({ results, field: activeField, term: term.trim() })
+      setSearchState({ results, field, term })
       setHasSearched(true)
       if (results.length === 1) {
         setSelectedPatient(results[0])
@@ -567,7 +570,13 @@ export function PatientSearchPage() {
               type="text"
               value={nationalId}
               onFocus={() => setActiveField('id')}
-              onChange={(e) => setNationalId(e.target.value)}
+              onChange={(e) => {
+                setNationalId(e.target.value)
+                if (e.target.value) {
+                  setPhone('')
+                  setName('')
+                }
+              }}
             />
           </div>
           <div className="col-span-12 md:col-span-4">
@@ -578,7 +587,13 @@ export function PatientSearchPage() {
               type="text"
               value={phone}
               onFocus={() => setActiveField('phone')}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                setPhone(e.target.value)
+                if (e.target.value) {
+                  setNationalId('')
+                  setName('')
+                }
+              }}
             />
           </div>
           <div className="col-span-12 md:col-span-3">
@@ -589,7 +604,13 @@ export function PatientSearchPage() {
               type="text"
               value={name}
               onFocus={() => setActiveField('name')}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                if (e.target.value) {
+                  setNationalId('')
+                  setPhone('')
+                }
+              }}
             />
           </div>
           <div className="col-span-12 md:col-span-1">
