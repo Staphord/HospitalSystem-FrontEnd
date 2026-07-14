@@ -74,7 +74,10 @@ function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
   const mins = waitMinutes(entry.created_at)
   const status = mapStatus(entry.status)
   const { statusBg, statusText } = statusStyles(status)
-  const timeStr = new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const dateObj = new Date(entry.created_at)
+  const dateStr = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const timeStr = `${dateStr}, ${timeFormatted}`
   const waitColor = mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success'
 
   return {
