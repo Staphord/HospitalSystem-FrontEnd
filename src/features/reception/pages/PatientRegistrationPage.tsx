@@ -143,6 +143,31 @@ export function PatientRegistrationPage() {
       if (exactMatch) {
         setDuplicatePatient(exactMatch)
         
+        // Auto-populate patient details
+        setFullName(exactMatch.full_name || '')
+        setDob(exactMatch.date_of_birth || '')
+        
+        if (exactMatch.gender) {
+          const capitalizedGender = exactMatch.gender.charAt(0).toUpperCase() + exactMatch.gender.slice(1).toLowerCase()
+          setGender(capitalizedGender)
+        } else {
+          setGender('Select Gender')
+        }
+        
+        setPhone(exactMatch.phone_primary || '')
+        setEmail(exactMatch.email || '')
+        setNokName(exactMatch.next_of_kin_name || '')
+        
+        if (exactMatch.next_of_kin_relationship) {
+          const capitalizedNokRel = exactMatch.next_of_kin_relationship.charAt(0).toUpperCase() + exactMatch.next_of_kin_relationship.slice(1).toLowerCase()
+          setNokRelationship(capitalizedNokRel)
+        } else {
+          setNokRelationship('Select Relationship')
+        }
+        
+        setNokPhone(exactMatch.next_of_kin_phone || '')
+        setErrors({})
+        
         try {
           const queue = await receptionService.getTriageQueue()
           const patientQueueItem = queue.find(
@@ -191,14 +216,11 @@ export function PatientRegistrationPage() {
     e.preventDefault()
     if (!duplicatePatient) return
 
-    // Validate insurance policy details for existing patient check-in
-    const checkInErrors: FormErrors = {}
-    if (paymentType === 'insurance' && !policyNumber.trim()) {
-      checkInErrors.policyNumber = 'Policy number is required'
-    }
+    // Run full validation to verify any edited patient details as well as check-in policy
+    const validationErrors = validateForm()
+    setErrors(validationErrors)
 
-    if (Object.keys(checkInErrors).length > 0) {
-      setErrors(checkInErrors)
+    if (Object.keys(validationErrors).length > 0) {
       setTimeout(() => {
         const el = document.querySelector('[aria-invalid="true"]')
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -209,6 +231,36 @@ export function PatientRegistrationPage() {
 
     setSubmitting(true)
     try {
+      // Check if any details changed and call updatePatient if so
+      const genderValue = gender.toLowerCase() as 'male' | 'female' | 'other'
+      const nokRelationValue = nokRelationship !== 'Select Relationship'
+        ? nokRelationship.toLowerCase()
+        : undefined
+
+      const hasChanges =
+        fullName.trim() !== (duplicatePatient.full_name || '') ||
+        dob !== (duplicatePatient.date_of_birth || '') ||
+        genderValue !== (duplicatePatient.gender?.toLowerCase() || '') ||
+        phone.trim() !== (duplicatePatient.phone_primary || '') ||
+        email.trim() !== (duplicatePatient.email || '') ||
+        nokName.trim() !== (duplicatePatient.next_of_kin_name || '') ||
+        (nokRelationValue || '') !== (duplicatePatient.next_of_kin_relationship?.toLowerCase() || '') ||
+        nokPhone.trim() !== (duplicatePatient.next_of_kin_phone || '')
+
+      if (hasChanges) {
+        await receptionService.updatePatient(duplicatePatient.id, {
+          full_name: fullName.trim(),
+          date_of_birth: dob,
+          gender: genderValue,
+          phone_primary: phone.trim() || null,
+          email: email.trim() || null,
+          next_of_kin_name: nokName.trim() || null,
+          next_of_kin_relationship: nokRelationValue || null,
+          next_of_kin_phone: nokPhone.trim() || null,
+        })
+        toast.success('Patient details updated successfully!')
+      }
+
       let activePolicyId = undefined
       if (paymentType === 'insurance' && policyNumber.trim()) {
         const newPolicy = await receptionService.addInsurancePolicy(duplicatePatient.id, {
@@ -226,7 +278,7 @@ export function PatientRegistrationPage() {
       })
 
       toast.success(
-        `${duplicatePatient.full_name} checked in — Queue Position ${result.queue.queue_number}`
+        `${fullName.trim()} checked in — Queue Position ${result.queue.queue_number}`
       )
       navigate('/reception/queue')
     } catch (err: unknown) {
