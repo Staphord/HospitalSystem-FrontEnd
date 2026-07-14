@@ -1,17 +1,23 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { receptionService } from '@/api/services/reception'
+import type { QueueWorklistItem, BackendPatient } from '@/api/types/reception'
 
 interface QueueItem {
   pos: number
+  ticketNumber: string
   name: string
-  id: string
+  id: string          // patient_number for display
+  patientId?: string  // patient UUID
+  queueId: string     // actual queue_id from backend
   time: string
   wait: string
   waitColor: string
   payment: string
-  status: 'WAITING' | 'IN TRIAGE' | 'WITH DOCTOR' | 'COMPLETE'
+  status: 'WAITING' | 'IN TRIAGE' | 'WITH DOCTOR' | 'COMPLETE' | 'SKIPPED'
   statusBg: string
   statusText: string
+  _waitMinutes: number
 }
 
 const KPI_CARD =
@@ -26,112 +32,98 @@ const TOOLBAR_BTN =
 const STATUS_BADGE =
   'inline-flex items-center px-sm py-xs rounded-full font-label-md text-label-md font-bold'
 
-const INITIAL_QUEUE: QueueItem[] = [
-  {
-    pos: 1,
-    name: 'Fatuma Said',
-    id: 'PT-4891',
-    time: '08:12',
-    wait: '48 min',
-    waitColor: 'text-error',
-    payment: 'Cash',
-    status: 'WAITING',
-    statusBg: 'bg-warning/10',
-    statusText: 'text-warning',
-  },
-  {
-    pos: 2,
-    name: 'Hassan Mwita',
-    id: 'PT-4889',
-    time: '08:22',
-    wait: '38 min',
-    waitColor: 'text-error',
-    payment: 'Insurance',
-    status: 'IN TRIAGE',
-    statusBg: 'bg-info/10',
-    statusText: 'text-info',
-  },
-  {
-    pos: 3,
-    name: 'Grace Kimaro',
-    id: 'PT-4892',
-    time: '08:45',
-    wait: '15 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    status: 'WAITING',
-    statusBg: 'bg-warning/10',
-    statusText: 'text-warning',
-  },
-  {
-    pos: 4,
-    name: 'Amir Juma',
-    id: 'PT-4903',
-    time: '09:05',
-    wait: '8 min',
-    waitColor: 'text-success',
-    payment: 'Insurance',
-    status: 'WITH DOCTOR',
-    statusBg: 'bg-success/10',
-    statusText: 'text-success',
-  },
-  {
-    pos: 5,
-    name: 'Linda Mtui',
-    id: 'PT-4911',
-    time: '07:50',
-    wait: '--',
-    waitColor: 'text-on-surface-variant',
-    payment: 'Exempt',
-    status: 'COMPLETE',
-    statusBg: 'bg-surface-container-high',
-    statusText: 'text-on-surface-variant',
-  },
-  {
-    pos: 6,
-    name: 'Amani Khatib',
-    id: 'PT-1029',
-    time: '09:20',
-    wait: '12 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    status: 'IN TRIAGE',
-    statusBg: 'bg-info/10',
-    statusText: 'text-info',
-  },
-  {
-    pos: 7,
-    name: 'Zuwena Salum',
-    id: 'PT-3841',
-    time: '09:30',
-    wait: '18 min',
-    waitColor: 'text-warning',
-    payment: 'Insurance',
-    status: 'WAITING',
-    statusBg: 'bg-warning/10',
-    statusText: 'text-warning',
-  },
-  {
-    pos: 8,
-    name: 'Joseph Mwinyi',
-    id: 'PT-9201',
-    time: '09:45',
-    wait: '24 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    status: 'WITH DOCTOR',
-    statusBg: 'bg-success/10',
-    statusText: 'text-success',
-  },
-]
+// ── KPI helpers ─────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 5
-
-function renumberQueue(items: QueueItem[]) {
-  return items.map((item, index) => ({ ...item, pos: index + 1 }))
+function waitMinutes(createdAt: string, completedAt?: string | null): number {
+  const end = completedAt ? new Date(completedAt).getTime() : Date.now()
+  return Math.floor((end - new Date(createdAt).getTime()) / 60000)
 }
 
+function computeKpis(items: QueueItem[]) {
+  const active = items.filter((i) => i.status !== 'COMPLETE' && i.status !== 'SKIPPED')
+  if (active.length === 0) return { avg: 0, longest: 0 }
+  const waits = active.map((i) => i._waitMinutes)
+  const avg = Math.round(waits.reduce((a, b) => a + b, 0) / waits.length)
+  const longest = Math.max(...waits)
+  return { avg, longest }
+}
+
+function formatWait(mins: number): string {
+  if (mins <= 0) return '--'
+  return `${mins} min`
+}
+
+function mapStatus(backendStatus: string): QueueItem['status'] {
+  switch (backendStatus?.toLowerCase()) {
+    case 'in_progress': return 'IN TRIAGE'
+    case 'completed': return 'COMPLETE'
+    case 'skipped': return 'SKIPPED'
+    default: return 'WAITING'
+  }
+}
+
+function statusStyles(status: QueueItem['status']): { statusBg: string; statusText: string } {
+  switch (status) {
+    case 'WAITING': return { statusBg: 'bg-warning/10', statusText: 'text-warning' }
+    case 'IN TRIAGE': return { statusBg: 'bg-info/10', statusText: 'text-info' }
+    case 'WITH DOCTOR': return { statusBg: 'bg-success/10', statusText: 'text-success' }
+    case 'COMPLETE': return { statusBg: 'bg-surface-container-high', statusText: 'text-on-surface-variant' }
+    case 'SKIPPED': return { statusBg: 'bg-error/10', statusText: 'text-error' }
+  }
+}
+
+function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
+  const mins = waitMinutes(entry.created_at, entry.completed_at)
+  const status = mapStatus(entry.status)
+  const { statusBg, statusText } = statusStyles(status)
+  const dateObj = new Date(entry.created_at)
+  const dateStr = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  const timeFormatted = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const timeStr = `${dateStr}, ${timeFormatted}`
+  const waitColor = mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success'
+
+  return {
+    pos,
+    ticketNumber: entry.queue_number,
+    name: entry.patient.full_name,
+    id: entry.patient.patient_number,
+    patientId: entry.patient.patient_id,
+    queueId: entry.queue_id,
+    time: timeStr,
+    wait: formatWait(mins),
+    waitColor,
+    payment: entry.visit?.payment_type
+      ? entry.visit.payment_type.charAt(0).toUpperCase() + entry.visit.payment_type.slice(1)
+      : 'Cash',
+    status,
+    statusBg,
+    statusText,
+    _waitMinutes: mins,
+  }
+}
+
+
+
 function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => void }) {
+  const [patient, setPatient] = useState<BackendPatient | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!item.patientId) return
+    const loadPatient = async () => {
+      setLoading(true)
+      try {
+        const data = await receptionService.getPatient(item.patientId!)
+        setPatient(data)
+      } catch (err) {
+        console.error('Failed to load patient details in queue modal', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadPatient()
+  }, [item.patientId])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-md"
@@ -139,15 +131,15 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
       role="presentation"
     >
       <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[480px] overflow-hidden"
+        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[500px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="queue-view-title"
       >
-        <div className="p-lg border-b border-border-subtle flex justify-between items-center">
+        <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
           <h2 id="queue-view-title" className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Queue Entry Details
+            Queue &amp; Patient Record
           </h2>
           <button
             type="button"
@@ -158,34 +150,95 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        <div className="p-lg grid grid-cols-2 gap-md">
+        <div className="p-lg max-h-[75vh] overflow-y-auto space-y-md">
+          {/* Queue entry details */}
           <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Position</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">#{item.pos}</p>
+            <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Queue Details</h3>
+            <div className="grid grid-cols-2 gap-sm bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Ticket Number</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.ticketNumber}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Triage Status</p>
+                <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>{item.status}</span>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient Name</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.name}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient #</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.id}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Registered At</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.time}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Wait Time</p>
+                <p className={`font-body-sm text-body-sm font-semibold m-0 ${item.waitColor}`}>{item.wait}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Payment Type</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.payment}</p>
+              </div>
+            </div>
           </div>
+
+          {/* Patient demographic details */}
           <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient Name</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.name}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.id}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Registered At</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.time}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Wait Time</p>
-            <p className={`font-body-sm text-body-sm font-semibold m-0 ${item.waitColor}`}>{item.wait}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Payment Type</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.payment}</p>
-          </div>
-          <div className="col-span-2">
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Triage Status</p>
-            <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>{item.status}</span>
+            <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Patient Demographics</h3>
+            {loading ? (
+              <div className="p-lg bg-surface-bright border border-border-subtle rounded-lg flex items-center justify-center min-h-[140px]">
+                <span className="material-symbols-outlined text-[32px] text-primary animate-spin">progress_activity</span>
+              </div>
+            ) : patient ? (
+              <div className="grid grid-cols-2 gap-sm bg-surface-bright border border-border-subtle p-md rounded-lg">
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Identification No</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.national_id ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Phone Number</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Gender</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0" style={{ textTransform: 'capitalize' }}>{patient.gender}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Date of Birth</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.date_of_birth}</p>
+                </div>
+                {patient.email && (
+                  <div className="col-span-2">
+                    <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Email</p>
+                    <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.email}</p>
+                  </div>
+                )}
+                {patient.next_of_kin_name && (
+                  <>
+                    <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                      <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Next of Kin</p>
+                      <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                        {patient.next_of_kin_name} ({patient.next_of_kin_relationship ?? '—'})
+                      </p>
+                    </div>
+                    <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                      <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Kin Contact</p>
+                      <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                        {patient.next_of_kin_phone ?? '—'}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="p-md text-center font-body-sm text-secondary bg-surface-bright border border-border-subtle rounded-lg">
+                Patient record details unavailable.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -195,28 +248,20 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
 
 function QueueActionsMenu({
   item,
-  queueLength,
   openMenuId,
   onOpenChange,
-  onMoveUp,
-  onMoveDown,
   onView,
   onRemove,
 }: {
   item: QueueItem
-  queueLength: number
   openMenuId: string | null
   onOpenChange: (id: string | null) => void
-  onMoveUp: () => void
-  onMoveDown: () => void
   onView: () => void
   onRemove: () => void
 }) {
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
-  const isOpen = openMenuId === item.id
-  const isComplete = item.status === 'COMPLETE'
-  const canMoveUp = item.pos > 1 && !isComplete
-  const canMoveDown = item.pos < queueLength && !isComplete
+  const isOpen = openMenuId === item.queueId
+  const isInactive = item.status === 'COMPLETE' || item.status === 'SKIPPED'
 
   useEffect(() => {
     if (!isOpen) return
@@ -234,7 +279,7 @@ function QueueActionsMenu({
     }
     const rect = e.currentTarget.getBoundingClientRect()
     setAnchor({ top: rect.bottom + 4, left: rect.right - 180 })
-    onOpenChange(item.id)
+    onOpenChange(item.queueId)
   }
 
   const menuItemClass =
@@ -267,42 +312,23 @@ function QueueActionsMenu({
             <button
               type="button"
               role="menuitem"
-              disabled={!canMoveUp}
-              className={`${menuItemClass} text-on-surface`}
-              onClick={onMoveUp}
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
-              Move Up
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={!canMoveDown}
-              className={`${menuItemClass} text-on-surface`}
-              onClick={onMoveDown}
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_downward</span>
-              Move Down
-            </button>
-            <div className="h-px bg-border-subtle my-xs" />
-            <button
-              type="button"
-              role="menuitem"
               className={`${menuItemClass} text-on-surface`}
               onClick={onView}
             >
               <span className="material-symbols-outlined text-[18px]">visibility</span>
               View
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={`${menuItemClass} text-error`}
-              onClick={onRemove}
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-              Remove
-            </button>
+            {!isInactive && (
+              <button
+                type="button"
+                role="menuitem"
+                className={`${menuItemClass} text-error`}
+                onClick={onRemove}
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+                Remove
+              </button>
+            )}
           </div>
         </>
       )}
@@ -311,231 +337,295 @@ function QueueActionsMenu({
 }
 
 export function VisitQueuePage() {
-  const [queueItems, setQueueItems] = useState(INITIAL_QUEUE)
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [viewTarget, setViewTarget] = useState<QueueItem | null>(null)
+  const [filterType, setFilterType] = useState<'active' | 'all'>('active')
+  const [pageSize, setPageSize] = useState(10)
 
-  const totalPages = Math.max(1, Math.ceil(queueItems.length / PAGE_SIZE))
-  const safePage = Math.min(currentPage, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const visibleItems = queueItems.slice(pageStart, pageStart + PAGE_SIZE)
-
-  const moveItem = (id: string, direction: 'up' | 'down') => {
-    setQueueItems((prev) => {
-      const index = prev.findIndex((item) => item.id === id)
-      if (index === -1) return prev
-
-      const swapIndex = direction === 'up' ? index - 1 : index + 1
-      if (swapIndex < 0 || swapIndex >= prev.length) return prev
-
-      const next = [...prev]
-      ;[next[index], next[swapIndex]] = [next[swapIndex], next[index]]
-      return renumberQueue(next)
-    })
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
   }
 
-  const removeItem = (id: string) => {
-    setQueueItems((prev) => renumberQueue(prev.filter((item) => item.id !== id)))
-    const newLength = queueItems.length - 1
-    const newTotalPages = Math.max(1, Math.ceil(newLength / PAGE_SIZE))
-    if (currentPage > newTotalPages) {
-      setCurrentPage(newTotalPages)
+  const fetchQueue = async () => {
+    try {
+      const data = await receptionService.getTriageQueue()
+      setQueueItems(data.map((entry, i) => toQueueItem(entry, i + 1)))
+    } catch {
+      // silently keep last known state on refresh errors
+    } finally {
+      setLoading(false)
     }
   }
 
-  const showingFrom = queueItems.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, queueItems.length)
+  useEffect(() => {
+    void fetchQueue()
+    const interval = setInterval(() => void fetchQueue(), 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const filteredItems = queueItems.filter((item) => {
+    if (filterType === 'active') {
+      return item.status === 'WAITING' || item.status === 'IN TRIAGE'
+    }
+    return true
+  })
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const pageStart = (safePage - 1) * pageSize
+  const visibleItems = filteredItems.slice(pageStart, pageStart + pageSize)
+
+  const removeItem = async (queueId: string, patientId: string, name: string) => {
+    try {
+      await receptionService.updateQueueStatus(queueId, 'skipped')
+      setQueueItems((prev) => {
+        const filtered = prev.filter((item) => item.queueId !== queueId)
+        return filtered.map((item, i) => ({ ...item, pos: i + 1 }))
+      })
+      toast.success(`${name} removed from queue.`)
+    } catch {
+      toast.error('Failed to remove patient from queue.')
+    }
+  }
+
+  const activeItems = queueItems.filter((i) => i.status === 'WAITING' || i.status === 'IN TRIAGE')
+  const { avg: avgWait, longest: longestWait } = computeKpis(activeItems)
+  const showingFrom = filteredItems.length === 0 ? 0 : pageStart + 1
+  const showingTo = Math.min(pageStart + pageSize, filteredItems.length)
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-lg">
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Total in Queue</p>
-              <h3 className={KPI_VALUE}>{queueItems.length}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
-              <span
-                className="material-symbols-outlined text-[24px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                group
-              </span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-success">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span className="text-[11px] font-medium">+2 since last hour</span>
-          </div>
+      {loading && (
+        <div className="flex items-center justify-center py-xl">
+          <span className="material-symbols-outlined text-[40px] text-primary animate-spin">progress_activity</span>
         </div>
+      )}
+      {!loading && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-lg">
+            <div className={KPI_CARD}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className={KPI_LABEL}>Total in Queue</p>
+                  <h3 className={KPI_VALUE}>{activeItems.length}</h3>
+                </div>
+                <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
+                  <span
+                    className="material-symbols-outlined text-[24px]"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    group
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-1 text-outline">
+                <span className="material-symbols-outlined text-[16px]">info</span>
+                <span className="text-[11px] font-medium">Live triage queue</span>
+              </div>
+            </div>
 
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Avg Wait Time</p>
-              <h3 className={KPI_VALUE}>
-                22<span className="text-outline text-headline-sm"> min</span>
+            <div className={KPI_CARD}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className={KPI_LABEL}>Avg Wait Time</p>
+                  <h3 className={KPI_VALUE}>
+                    {avgWait > 0 ? <>{avgWait}<span className="text-outline text-headline-sm"> min</span></> : <span className="text-outline text-headline-sm">--</span>}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
+                  <span className="material-symbols-outlined text-[24px]">schedule</span>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-1 text-outline">
+                <span className="material-symbols-outlined text-[16px]">info</span>
+                <span className="text-[11px] font-medium">Computed from live data</span>
+              </div>
+            </div>
+
+            <div className={KPI_CARD}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className={KPI_LABEL}>Longest Wait</p>
+                  <h3 className={`${KPI_VALUE} ${longestWait > 30 ? 'text-error' : 'text-on-surface'}`}>
+                    {longestWait > 0
+                      ? <>{longestWait}<span className="text-headline-sm" style={{ opacity: 0.7 }}> min</span></>
+                      : <span className="text-outline text-headline-sm">--</span>}
+                  </h3>
+                </div>
+                <div className={`w-10 h-10 rounded flex items-center justify-center ${longestWait > 30 ? 'bg-error/10 text-error' : 'bg-surface-container text-on-surface-variant'}`}>
+                  <span className="material-symbols-outlined text-[24px]">timer_off</span>
+                </div>
+              </div>
+              <div className={`mt-2 flex items-center gap-1 ${longestWait > 30 ? 'text-error' : 'text-outline'}`}>
+                <span className="material-symbols-outlined text-[16px]">{longestWait > 30 ? 'warning' : 'info'}</span>
+                <span className="text-[11px] font-medium">{longestWait > 30 ? 'Requires attention' : 'Within normal range'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
+            <div className="p-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
+              <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
+                {filterType === 'active' ? 'Active Queue' : 'Queue History'}
               </h3>
+              <div className="flex gap-sm items-center">
+                <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('active')
+                      setCurrentPage(1)
+                    }}
+                    className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${filterType === 'active'
+                        ? 'bg-surface-white text-primary font-bold shadow-sm'
+                        : 'bg-transparent text-secondary hover:text-on-surface'
+                      }`}
+                  >
+                    Active Queue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('all')
+                      setCurrentPage(1)
+                    }}
+                    className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${filterType === 'all'
+                        ? 'bg-surface-white text-primary font-bold shadow-sm'
+                        : 'bg-transparent text-secondary hover:text-on-surface'
+                      }`}
+                  >
+                    All History
+                  </button>
+                </div>
+                <button type="button" className={TOOLBAR_BTN}>
+                  <span className="material-symbols-outlined text-[18px]">print</span>
+                  Print List
+                </button>
+              </div>
             </div>
-            <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
-              <span className="material-symbols-outlined text-[24px]">schedule</span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-outline">
-            <span className="material-symbols-outlined text-[16px]">info</span>
-            <span className="text-[11px] font-medium">System standard: 15min</span>
-          </div>
-        </div>
 
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Longest Wait</p>
-              <h3 className={`${KPI_VALUE} text-error`}>
-                48<span className="text-error/70 text-headline-sm"> min</span>
-              </h3>
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead className="bg-surface-container-low">
+                  <tr>
+                    <th className={TH_CLASS}>Ticket #</th>
+                    <th className={TH_CLASS}>Patient Name</th>
+                    <th className={TH_CLASS}>Patient #</th>
+                    <th className={TH_CLASS}>Registered At</th>
+                    <th className={TH_CLASS}>Wait Time</th>
+                    <th className={TH_CLASS}>Payment Type</th>
+                    <th className={TH_CLASS}>Triage Status</th>
+                    <th className={`${TH_CLASS} text-right`}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {visibleItems.map((item) => (
+                    <tr key={item.queueId} className="hover:bg-hover-tint transition-colors group">
+                      <td className={TD_MUTED}>{item.ticketNumber}</td>
+                      <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
+                        {item.name}
+                      </td>
+                      <td className={TD_MUTED}>{item.id}</td>
+                      <td className={TD_MUTED}>{item.time}</td>
+                      <td className={`py-md px-md font-body-sm text-body-sm font-semibold ${item.waitColor}`}>
+                        {item.wait}
+                      </td>
+                      <td className={TD_MUTED}>{item.payment}</td>
+                      <td className="py-md px-md">
+                        <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="py-md px-md text-right">
+                        <div
+                          className={`flex justify-end ${item.status === 'COMPLETE' || item.status === 'SKIPPED' ? 'opacity-50' : ''}`}
+                        >
+                          <QueueActionsMenu
+                            item={item}
+                            openMenuId={openMenuId}
+                            onOpenChange={setOpenMenuId}
+                            onView={() => {
+                              setOpenMenuId(null)
+                              setViewTarget(item)
+                            }}
+                            onRemove={() => {
+                              setOpenMenuId(null)
+                              void removeItem(item.queueId, item.id, item.name)
+                            }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="w-10 h-10 rounded bg-error/10 flex items-center justify-center text-error">
-              <span className="material-symbols-outlined text-[24px]">timer_off</span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-error">
-            <span className="material-symbols-outlined text-[16px]">warning</span>
-            <span className="text-[11px] font-medium">Requires immediate attention</span>
-          </div>
-        </div>
-      </div>
 
-      <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
-        <div className="p-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
-          <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Active Queue
-          </h3>
-          <div className="flex gap-sm">
-            <button type="button" className={TOOLBAR_BTN}>
-              <span className="material-symbols-outlined text-[18px]">filter_list</span>
-              Filter
-            </button>
-            <button type="button" className={TOOLBAR_BTN}>
-              <span className="material-symbols-outlined text-[18px]">print</span>
-              Print List
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="bg-surface-container-low">
-              <tr>
-                <th className={TH_CLASS}>#</th>
-                <th className={TH_CLASS}>Patient Name</th>
-                <th className={TH_CLASS}>Patient #</th>
-                <th className={TH_CLASS}>Registered At</th>
-                <th className={TH_CLASS}>Wait Time</th>
-                <th className={TH_CLASS}>Payment Type</th>
-                <th className={TH_CLASS}>Triage Status</th>
-                <th className={`${TH_CLASS} text-right`}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {visibleItems.map((item) => (
-                <tr key={item.id} className="hover:bg-hover-tint transition-colors group">
-                  <td className={TD_MUTED}>{item.pos}</td>
-                  <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
-                    {item.name}
-                  </td>
-                  <td className={TD_MUTED}>{item.id}</td>
-                  <td className={TD_MUTED}>{item.time}</td>
-                  <td className={`py-md px-md font-body-sm text-body-sm font-semibold ${item.waitColor}`}>
-                    {item.wait}
-                  </td>
-                  <td className={TD_MUTED}>{item.payment}</td>
-                  <td className="py-md px-md">
-                    <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-md px-md text-right">
-                    <div
-                      className={`flex justify-end ${item.status === 'COMPLETE' ? 'opacity-50' : ''}`}
+            <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+              <div className="flex items-center gap-md">
+                <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+                  {filteredItems.length === 0
+                    ? 'No patients in queue'
+                    : `Showing ${showingFrom} to ${showingTo} of ${filteredItems.length} patients in queue`}
+                </p>
+                {filteredItems.length > 0 && (
+                  <div className="flex items-center gap-xs">
+                    <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
                     >
-                      <QueueActionsMenu
-                        item={item}
-                        queueLength={queueItems.length}
-                        openMenuId={openMenuId}
-                        onOpenChange={setOpenMenuId}
-                        onMoveUp={() => {
-                          setOpenMenuId(null)
-                          moveItem(item.id, 'up')
-                          toast.success(`${item.name} moved up in queue.`)
-                        }}
-                        onMoveDown={() => {
-                          setOpenMenuId(null)
-                          moveItem(item.id, 'down')
-                          toast.success(`${item.name} moved down in queue.`)
-                        }}
-                        onView={() => {
-                          setOpenMenuId(null)
-                          setViewTarget(item)
-                        }}
-                        onRemove={() => {
-                          setOpenMenuId(null)
-                          removeItem(item.id)
-                          toast.success(`${item.name} removed from queue.`)
-                        }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="p-md bg-surface-bright border-t border-border-subtle flex justify-between items-center">
-          <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-            {queueItems.length === 0
-              ? 'No patients in queue'
-              : `Showing ${showingFrom} to ${showingTo} of ${queueItems.length} patients in queue`}
-          </p>
-          <div className="flex items-center gap-xs">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safePage === 1}
-              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${
-                  safePage === page
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-border-subtle hover:bg-surface-white text-on-surface'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safePage === totalPages}
-              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-xs">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${safePage === page
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border-subtle hover:bg-surface-white text-on-surface'
+                      }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {viewTarget && <QueueViewModal item={viewTarget} onClose={() => setViewTarget(null)} />}
+          {viewTarget && <QueueViewModal item={viewTarget} onClose={() => setViewTarget(null)} />}
+        </>
+      )}
     </div>
   )
 }
