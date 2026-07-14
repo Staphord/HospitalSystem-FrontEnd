@@ -196,14 +196,29 @@ function PatientFoundCard({
 
       // Check active queue status
       const queue = await receptionService.getTriageQueue()
-      const activeQueueItem = queue.find(
-        (item) =>
-          item.patient.patient_id === patient.id &&
-          (item.status === 'waiting' || item.status === 'in_progress')
+      const patientQueueItem = queue.find(
+        (item) => item.patient.patient_id === patient.id
       )
-      if (activeQueueItem) {
-        setQueueStatus(activeQueueItem.status)
-        setQueueNumber(activeQueueItem.queue_number)
+      if (patientQueueItem) {
+        const itemStatus = patientQueueItem.status?.toLowerCase()
+        const isWaiting = itemStatus === 'waiting'
+        const isInProgress = itemStatus === 'in_progress'
+        const isCompleted = itemStatus === 'completed'
+        
+        const visitActive = patientQueueItem.visit && 
+          patientQueueItem.visit.status?.toLowerCase() !== 'completed' && 
+          patientQueueItem.visit.status?.toLowerCase() !== 'cancelled'
+
+        if (isWaiting || isInProgress) {
+          setQueueStatus(itemStatus)
+          setQueueNumber(patientQueueItem.queue_number)
+        } else if (isCompleted && visitActive) {
+          setQueueStatus('in_consultation')
+          setQueueNumber(patientQueueItem.queue_number)
+        } else {
+          setQueueStatus(null)
+          setQueueNumber(null)
+        }
       } else {
         setQueueStatus(null)
         setQueueNumber(null)
@@ -425,14 +440,26 @@ function PatientFoundCard({
               }
             }
             if (queueStatus) {
-              const isWaiting = queueStatus.toLowerCase() === 'waiting'
+              const statusLower = queueStatus.toLowerCase()
+              const isWaiting = statusLower === 'waiting'
+              const isInConsultation = statusLower === 'in_consultation'
               return {
-                text: isWaiting ? `Already Waiting (Queue #${queueNumber})` : 'Currently in Triage',
+                text: isWaiting 
+                  ? `Already Waiting (Queue #${queueNumber})` 
+                  : isInConsultation 
+                    ? 'Active Visit (With Doctor)' 
+                    : 'Currently in Triage',
                 className: isWaiting
                   ? 'bg-warning/10 text-warning border border-warning/30 cursor-not-allowed font-bold font-semibold'
-                  : 'bg-info/10 text-info border border-info/30 cursor-not-allowed font-bold font-semibold',
+                  : isInConsultation
+                    ? 'bg-success/10 text-success border border-success/30 cursor-not-allowed font-bold font-semibold'
+                    : 'bg-info/10 text-info border border-info/30 cursor-not-allowed font-bold font-semibold',
                 disabled: true,
-                icon: isWaiting ? 'hourglass_empty' : 'clinical_fe',
+                icon: isWaiting 
+                  ? 'hourglass_empty' 
+                  : isInConsultation 
+                    ? 'medical_services' 
+                    : 'clinical_fe',
               }
             }
             return {

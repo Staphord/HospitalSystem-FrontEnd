@@ -145,14 +145,29 @@ export function PatientRegistrationPage() {
         
         try {
           const queue = await receptionService.getTriageQueue()
-          const activeQueueItem = queue.find(
-            (item) =>
-              item.patient.patient_id === exactMatch.id &&
-              (item.status === 'waiting' || item.status === 'in_progress')
+          const patientQueueItem = queue.find(
+            (item) => item.patient.patient_id === exactMatch.id
           )
-          if (activeQueueItem) {
-            setDuplicateQueueStatus(activeQueueItem.status)
-            setDuplicateQueueNumber(activeQueueItem.queue_number)
+          if (patientQueueItem) {
+            const itemStatus = patientQueueItem.status?.toLowerCase()
+            const isWaiting = itemStatus === 'waiting'
+            const isInProgress = itemStatus === 'in_progress'
+            const isCompleted = itemStatus === 'completed'
+            
+            const visitActive = patientQueueItem.visit && 
+              patientQueueItem.visit.status?.toLowerCase() !== 'completed' && 
+              patientQueueItem.visit.status?.toLowerCase() !== 'cancelled'
+
+            if (isWaiting || isInProgress) {
+              setDuplicateQueueStatus(itemStatus)
+              setDuplicateQueueNumber(patientQueueItem.queue_number)
+            } else if (isCompleted && visitActive) {
+              setDuplicateQueueStatus('in_consultation')
+              setDuplicateQueueNumber(patientQueueItem.queue_number)
+            } else {
+              setDuplicateQueueStatus(null)
+              setDuplicateQueueNumber(null)
+            }
           } else {
             setDuplicateQueueStatus(null)
             setDuplicateQueueNumber(null)
@@ -680,7 +695,7 @@ export function PatientRegistrationPage() {
               <div className="mt-lg p-md bg-error/5 border border-error/20 rounded-lg flex items-center">
                 <span className="material-symbols-outlined text-error mr-md">info</span>
                 <p className="font-body-md text-error font-medium m-0">
-                  Patient <strong>{duplicatePatient.full_name}</strong> is already in the Triage Queue. You can view their details on the queue page.
+                  Patient <strong>{duplicatePatient.full_name}</strong> has an active visit today (status: {duplicateQueueStatus === 'in_consultation' ? 'With Doctor' : duplicateQueueStatus === 'in_progress' ? 'In Triage' : 'Waiting in Triage'}). You can view their details on the queue page.
                 </p>
               </div>
             ) : (
