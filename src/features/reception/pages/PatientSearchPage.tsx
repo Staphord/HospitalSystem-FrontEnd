@@ -155,6 +155,7 @@ function PatientFoundCard({
   onCheckIn,
   onViewQueue,
   onViewDetails,
+  onPatientUpdated,
 }: {
   patient: BackendPatient
   checkingIn: boolean
@@ -171,6 +172,7 @@ function PatientFoundCard({
   ) => void
   onViewQueue: () => void
   onViewDetails: () => void
+  onPatientUpdated?: (updatedPatient: BackendPatient) => void
 }) {
   const [policies, setPolicies] = useState<BackendInsurancePolicy[]>([])
   const [loadingPolicies, setLoadingPolicies] = useState(false)
@@ -286,6 +288,80 @@ function PatientFoundCard({
     }
   }
 
+  const handleSaveName = async () => {
+    if (!patientName.trim()) {
+      toast.error('Patient name cannot be empty')
+      return
+    }
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        full_name: patientName.trim(),
+      })
+      setIsEditingName(false)
+      toast.success('Patient name updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update patient name')
+    }
+  }
+
+  const handleSavePhone = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        phone_primary: patientPhone.trim() || null,
+      })
+      setIsEditingPhone(false)
+      toast.success('Patient phone updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update phone number')
+    }
+  }
+
+  const handleSaveKinName = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        next_of_kin_name: kinName.trim() || null,
+      })
+      setIsEditingKinName(false)
+      toast.success('Next of kin name updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update next of kin name')
+    }
+  }
+
+  const handleSaveKinRelation = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        next_of_kin_relationship: kinRelation.trim() || null,
+      })
+      setIsEditingKinRelation(false)
+      toast.success('Next of kin relationship updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update next of kin relationship')
+    }
+  }
+
+  const handleSaveKinPhone = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        next_of_kin_phone: kinPhone.trim() || null,
+      })
+      setIsEditingKinPhone(false)
+      toast.success('Next of kin contact updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update next of kin contact')
+    }
+  }
+
   return (
     <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
       <div className="p-md border-b border-border-subtle bg-surface-bright flex justify-between items-center gap-md">
@@ -314,7 +390,7 @@ function PatientFoundCard({
               />
               <button
                 type="button"
-                onClick={() => setIsEditingName(false)}
+                onClick={handleSaveName}
                 className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
                 title="Save Name"
               >
@@ -323,11 +399,14 @@ function PatientFoundCard({
             </div>
           ) : (
             <div className="flex items-center gap-xs">
-              <span className="font-body-md text-body-md font-semibold text-on-surface">{patientName}</span>
+              <span className="font-body-md text-body-md font-semibold text-on-surface">{patient.full_name}</span>
               {!queueStatus && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingName(true)}
+                  onClick={() => {
+                    setPatientName(patient.full_name || '')
+                    setIsEditingName(true)
+                  }}
                   className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
                   title="Edit Name"
                 >
@@ -358,7 +437,7 @@ function PatientFoundCard({
               />
               <button
                 type="button"
-                onClick={() => setIsEditingPhone(false)}
+                onClick={handleSavePhone}
                 className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
                 title="Save Contact"
               >
@@ -367,11 +446,14 @@ function PatientFoundCard({
             </div>
           ) : (
             <div className="flex items-center gap-xs">
-              <span className="font-body-md text-body-md text-on-surface font-semibold">{patientPhone || '—'}</span>
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.phone_primary || '—'}</span>
               {!queueStatus && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingPhone(true)}
+                  onClick={() => {
+                    setPatientPhone(patient.phone_primary || '')
+                    setIsEditingPhone(true)
+                  }}
                   className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
                   title="Edit Contact"
                 >
@@ -404,7 +486,7 @@ function PatientFoundCard({
               />
               <button
                 type="button"
-                onClick={() => setIsEditingKinName(false)}
+                onClick={handleSaveKinName}
                 className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
                 title="Save Kin Name"
               >
@@ -413,11 +495,14 @@ function PatientFoundCard({
             </div>
           ) : (
             <div className="flex items-center gap-xs">
-              <span className="font-body-md text-body-md text-on-surface font-semibold">{kinName || '—'}</span>
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.next_of_kin_name || '—'}</span>
               {!queueStatus && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingKinName(true)}
+                  onClick={() => {
+                    setKinName(patient.next_of_kin_name || '')
+                    setIsEditingKinName(true)
+                  }}
                   className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
                   title="Edit Kin Name"
                 >
@@ -447,7 +532,7 @@ function PatientFoundCard({
               </select>
               <button
                 type="button"
-                onClick={() => setIsEditingKinRelation(false)}
+                onClick={handleSaveKinRelation}
                 className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
                 title="Save Relationship"
               >
@@ -456,11 +541,14 @@ function PatientFoundCard({
             </div>
           ) : (
             <div className="flex items-center gap-xs">
-              <span className="font-body-md text-body-md text-on-surface font-semibold">{kinRelation || '—'}</span>
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.next_of_kin_relationship || '—'}</span>
               {!queueStatus && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingKinRelation(true)}
+                  onClick={() => {
+                    setKinRelation(patient.next_of_kin_relationship || '')
+                    setIsEditingKinRelation(true)
+                  }}
                   className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
                   title="Edit Relationship"
                 >
@@ -483,7 +571,7 @@ function PatientFoundCard({
               />
               <button
                 type="button"
-                onClick={() => setIsEditingKinPhone(false)}
+                onClick={handleSaveKinPhone}
                 className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
                 title="Save Kin Contact"
               >
@@ -492,11 +580,14 @@ function PatientFoundCard({
             </div>
           ) : (
             <div className="flex items-center gap-xs">
-              <span className="font-body-md text-body-md text-on-surface font-semibold">{kinPhone || '—'}</span>
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.next_of_kin_phone || '—'}</span>
               {!queueStatus && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingKinPhone(true)}
+                  onClick={() => {
+                    setKinPhone(patient.next_of_kin_phone || '')
+                    setIsEditingKinPhone(true)
+                  }}
                   className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
                   title="Edit Kin Contact"
                 >
@@ -1026,6 +1117,18 @@ export function PatientSearchPage() {
           }
           onViewQueue={() => navigate('/reception/queue')}
           onViewDetails={() => setDetailPatient(displayPatient)}
+          onPatientUpdated={(updatedPatient) => {
+            setSelectedPatient(updatedPatient)
+            setSearchState((prev) => {
+              if (!prev) return null
+              return {
+                ...prev,
+                results: prev.results.map((p) =>
+                  p.id === updatedPatient.id ? updatedPatient : p
+                ),
+              }
+            })
+          }}
         />
       )}
 
