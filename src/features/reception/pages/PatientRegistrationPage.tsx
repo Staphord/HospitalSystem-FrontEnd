@@ -108,7 +108,6 @@ export function PatientRegistrationPage() {
       }
     }
     if (gender === 'Select Gender') next.gender = 'Please select a gender'
-    if (!nationalId.trim()) next.nationalId = 'National ID or passport number is required'
     if (!phone.trim()) next.phone = 'Contact phone is required'
     if (!nokName.trim()) next.nokName = 'Next of kin full name is required'
     if (nokRelationship === 'Select Relationship') {
@@ -478,14 +477,14 @@ export function PatientRegistrationPage() {
               <InlineError message={errors.gender} />
             </div>
             <div>
-              <RequiredLabel className="flex items-center gap-xs">
-                National ID / Passport #
+              <label className={`${FIELD_LABEL} flex items-center gap-xs`}>
+                National ID / Passport # (Optional)
                 {checkingDuplicate && (
                   <span className="material-symbols-outlined text-[14px] text-primary animate-spin">
                     progress_activity
                   </span>
                 )}
-              </RequiredLabel>
+              </label>
               <input
                 className={fieldInputClass(Boolean(errors.nationalId || duplicatePatient))}
                 type="text"

@@ -33,8 +33,9 @@ const STATUS_BADGE =
 
 // ── KPI helpers ─────────────────────────────────────────────────────────────
 
-function waitMinutes(createdAt: string): number {
-  return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000)
+function waitMinutes(createdAt: string, completedAt?: string | null): number {
+  const end = completedAt ? new Date(completedAt).getTime() : Date.now()
+  return Math.floor((end - new Date(createdAt).getTime()) / 60000)
 }
 
 function computeKpis(items: QueueItem[]) {
@@ -71,7 +72,7 @@ function statusStyles(status: QueueItem['status']): { statusBg: string; statusTe
 }
 
 function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
-  const mins = waitMinutes(entry.created_at)
+  const mins = waitMinutes(entry.created_at, entry.completed_at)
   const status = mapStatus(entry.status)
   const { statusBg, statusText } = statusStyles(status)
   const dateObj = new Date(entry.created_at)
@@ -99,7 +100,7 @@ function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
   }
 }
 
-const PAGE_SIZE = 5
+
 
 function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => void }) {
   const [patient, setPatient] = useState<BackendPatient | null>(null)
@@ -340,6 +341,12 @@ export function VisitQueuePage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [viewTarget, setViewTarget] = useState<QueueItem | null>(null)
   const [filterType, setFilterType] = useState<'active' | 'all'>('active')
+  const [pageSize, setPageSize] = useState(10)
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
 
   const fetchQueue = async () => {
     try {
@@ -365,10 +372,10 @@ export function VisitQueuePage() {
     return true
   })
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const visibleItems = filteredItems.slice(pageStart, pageStart + PAGE_SIZE)
+  const pageStart = (safePage - 1) * pageSize
+  const visibleItems = filteredItems.slice(pageStart, pageStart + pageSize)
 
   const removeItem = async (queueId: string, patientId: string, name: string) => {
     try {
@@ -386,7 +393,7 @@ export function VisitQueuePage() {
   const activeItems = queueItems.filter((i) => i.status === 'WAITING' || i.status === 'IN TRIAGE')
   const { avg: avgWait, longest: longestWait } = computeKpis(activeItems)
   const showingFrom = filteredItems.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, filteredItems.length)
+  const showingTo = Math.min(pageStart + pageSize, filteredItems.length)
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
@@ -501,7 +508,7 @@ export function VisitQueuePage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto max-h-[440px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
           <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead className="bg-surface-container-low">
               <tr>
@@ -558,12 +565,30 @@ export function VisitQueuePage() {
           </table>
         </div>
 
-        <div className="p-md bg-surface-bright border-t border-border-subtle flex justify-between items-center">
-          <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-            {filteredItems.length === 0
-              ? 'No patients in queue'
-              : `Showing ${showingFrom} to ${showingTo} of ${filteredItems.length} patients in queue`}
-          </p>
+        <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+          <div className="flex items-center gap-md">
+            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+              {filteredItems.length === 0
+                ? 'No patients in queue'
+                : `Showing ${showingFrom} to ${showingTo} of ${filteredItems.length} patients in queue`}
+            </p>
+            {filteredItems.length > 0 && (
+              <div className="flex items-center gap-xs">
+                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-xs">
             <button
               type="button"

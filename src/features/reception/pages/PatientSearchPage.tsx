@@ -819,7 +819,7 @@ function SearchResultsTable({
         </h3>
         <p className="font-body-sm text-body-sm text-secondary m-0 mt-xs">Select a patient to continue</p>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead className="bg-surface-container-low">
             <tr>

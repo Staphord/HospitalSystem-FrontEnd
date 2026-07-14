@@ -99,6 +99,8 @@ export interface QueueWorklistItem {
   priority: string
   status: string
   created_at: string
+  called_at?: string
+  completed_at?: string
   patient: {
     patient_id: string
     patient_number: string
