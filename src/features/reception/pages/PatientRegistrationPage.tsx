@@ -406,6 +406,7 @@ export function PatientRegistrationPage() {
               <input
                 className={fieldInputClass(Boolean(errors.dob))}
                 type="date"
+                max={new Date().toLocaleDateString('en-CA')}
                 value={dob}
                 onChange={(e) => {
                   setDob(e.target.value)
