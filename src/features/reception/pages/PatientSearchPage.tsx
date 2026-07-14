@@ -219,30 +219,17 @@ function PatientFoundCard({
       }
 
       // Check active queue status
-      const queue = await receptionService.getTriageQueue()
-      const patientQueueItem = queue.find(
-        (item) => item.patient.patient_id === patient.id
-      )
-      if (patientQueueItem) {
-        const itemStatus = patientQueueItem.status?.toLowerCase()
-        const isWaiting = itemStatus === 'waiting'
-        const isInProgress = itemStatus === 'in_progress'
-        const isCompleted = itemStatus === 'completed'
-        
-        const visitActive = patientQueueItem.visit && 
-          patientQueueItem.visit.status?.toLowerCase() !== 'completed' && 
-          patientQueueItem.visit.status?.toLowerCase() !== 'cancelled'
+      const activeStatus = await receptionService.getActiveVisit(patient.id)
+      if (activeStatus.active) {
+        const qStatus = activeStatus.queue_status?.toLowerCase()
+        const qType = activeStatus.queue_type?.toLowerCase()
 
-        if (isWaiting || isInProgress) {
-          setQueueStatus(itemStatus)
-          setQueueNumber(patientQueueItem.queue_number)
-        } else if (isCompleted && visitActive) {
-          setQueueStatus('in_consultation')
-          setQueueNumber(patientQueueItem.queue_number)
+        if (qType === 'triage' && (qStatus === 'waiting' || qStatus === 'in_progress')) {
+          setQueueStatus(qStatus)
         } else {
-          setQueueStatus(null)
-          setQueueNumber(null)
+          setQueueStatus('in_consultation')
         }
+        setQueueNumber(activeStatus.queue_number || null)
       } else {
         setQueueStatus(null)
         setQueueNumber(null)
@@ -256,7 +243,16 @@ function PatientFoundCard({
   }
 
   useEffect(() => {
-    void loadPatientStatus()
+    let active = true
+    const init = async () => {
+      await Promise.resolve()
+      if (!active) return
+      void loadPatientStatus()
+    }
+    void init()
+    return () => {
+      active = false
+    }
   }, [patient.id])
 
   const handleAddPolicy = async (e: React.FormEvent) => {

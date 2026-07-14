@@ -169,30 +169,17 @@ export function PatientRegistrationPage() {
         setErrors({})
         
         try {
-          const queue = await receptionService.getTriageQueue()
-          const patientQueueItem = queue.find(
-            (item) => item.patient.patient_id === exactMatch.id
-          )
-          if (patientQueueItem) {
-            const itemStatus = patientQueueItem.status?.toLowerCase()
-            const isWaiting = itemStatus === 'waiting'
-            const isInProgress = itemStatus === 'in_progress'
-            const isCompleted = itemStatus === 'completed'
-            
-            const visitActive = patientQueueItem.visit && 
-              patientQueueItem.visit.status?.toLowerCase() !== 'completed' && 
-              patientQueueItem.visit.status?.toLowerCase() !== 'cancelled'
+          const activeStatus = await receptionService.getActiveVisit(exactMatch.id)
+          if (activeStatus.active) {
+            const qStatus = activeStatus.queue_status?.toLowerCase()
+            const qType = activeStatus.queue_type?.toLowerCase()
 
-            if (isWaiting || isInProgress) {
-              setDuplicateQueueStatus(itemStatus)
-              setDuplicateQueueNumber(patientQueueItem.queue_number)
-            } else if (isCompleted && visitActive) {
-              setDuplicateQueueStatus('in_consultation')
-              setDuplicateQueueNumber(patientQueueItem.queue_number)
+            if (qType === 'triage' && (qStatus === 'waiting' || qStatus === 'in_progress')) {
+              setDuplicateQueueStatus(qStatus)
             } else {
-              setDuplicateQueueStatus(null)
-              setDuplicateQueueNumber(null)
+              setDuplicateQueueStatus('in_consultation')
             }
+            setDuplicateQueueNumber(activeStatus.queue_number || null)
           } else {
             setDuplicateQueueStatus(null)
             setDuplicateQueueNumber(null)
@@ -450,6 +437,7 @@ export function PatientRegistrationPage() {
                   clearError('fullName')
                 }}
                 aria-invalid={Boolean(errors.fullName)}
+                disabled={Boolean(duplicateQueueStatus)}
               />
               <InlineError message={errors.fullName} />
             </div>
@@ -465,6 +453,7 @@ export function PatientRegistrationPage() {
                   clearError('dob')
                 }}
                 aria-invalid={Boolean(errors.dob)}
+                disabled={Boolean(duplicateQueueStatus)}
               />
               <InlineError message={errors.dob} />
             </div>
@@ -479,6 +468,7 @@ export function PatientRegistrationPage() {
                   clearError('gender')
                 }}
                 aria-invalid={Boolean(errors.gender)}
+                disabled={Boolean(duplicateQueueStatus)}
               >
                 <option>Select Gender</option>
                 <option>Male</option>
@@ -516,7 +506,10 @@ export function PatientRegistrationPage() {
               {duplicatePatient && (
                 <div className="text-warning font-label-sm text-label-sm font-semibold mt-xs flex items-center flex-wrap gap-xs">
                   <span className="material-symbols-outlined text-[16px]">warning</span>
-                  <span>Patient &quot;{duplicatePatient.full_name}&quot; already exists.</span>
+                  <span>
+                    Patient &quot;{duplicatePatient.full_name}&quot; already exists
+                    {duplicateQueueNumber ? ` (Queue #${duplicateQueueNumber})` : ''}.
+                  </span>
                   {duplicateQueueStatus ? (
                     <button
                       type="button"
@@ -549,6 +542,7 @@ export function PatientRegistrationPage() {
                   clearError('phone')
                 }}
                 aria-invalid={Boolean(errors.phone)}
+                disabled={Boolean(duplicateQueueStatus)}
               />
               <InlineError message={errors.phone} />
             </div>
@@ -560,6 +554,7 @@ export function PatientRegistrationPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={Boolean(duplicateQueueStatus)}
               />
             </div>
           </div>
@@ -587,6 +582,7 @@ export function PatientRegistrationPage() {
                   clearError('nokName')
                 }}
                 aria-invalid={Boolean(errors.nokName)}
+                disabled={Boolean(duplicateQueueStatus)}
               />
               <InlineError message={errors.nokName} />
             </div>
@@ -601,6 +597,7 @@ export function PatientRegistrationPage() {
                   clearError('nokRelationship')
                 }}
                 aria-invalid={Boolean(errors.nokRelationship)}
+                disabled={Boolean(duplicateQueueStatus)}
               >
                 <option>Select Relationship</option>
                 <option>Spouse</option>
@@ -621,6 +618,7 @@ export function PatientRegistrationPage() {
                   clearError('nokPhone')
                 }}
                 aria-invalid={Boolean(errors.nokPhone)}
+                disabled={Boolean(duplicateQueueStatus)}
               />
               <InlineError message={errors.nokPhone} />
             </div>
@@ -640,15 +638,18 @@ export function PatientRegistrationPage() {
           <label className={`${FIELD_LABEL} mb-md`}>Payment Type</label>
           <div className="grid grid-cols-2 gap-md mb-lg">
             <label
-              className={`relative flex items-center p-md border rounded-xl cursor-pointer hover:bg-surface-container-low transition-colors ${
-                paymentType === 'cash' ? 'border-2 border-primary bg-hover-tint' : 'border-border-subtle bg-white'
+              className={`relative flex items-center p-md border rounded-xl transition-colors ${
+                duplicateQueueStatus ? 'cursor-not-allowed opacity-60 border-border-subtle bg-surface-container-low' : 'cursor-pointer hover:bg-surface-container-low'
+              } ${
+                paymentType === 'cash' && !duplicateQueueStatus ? 'border-2 border-primary bg-hover-tint' : 'border-border-subtle bg-white'
               }`}
             >
               <input
-                className="w-4 h-4 text-primary focus:ring-primary border-border-subtle"
+                className="w-4 h-4 text-primary focus:ring-primary border-border-subtle disabled:opacity-50"
                 name="payment_type"
                 type="radio"
                 checked={paymentType === 'cash'}
+                disabled={Boolean(duplicateQueueStatus)}
                 onChange={() => {
                   setPaymentType('cash')
                   clearError('policyNumber')
@@ -673,15 +674,18 @@ export function PatientRegistrationPage() {
             </label>
 
             <label
-              className={`relative flex items-center p-md border rounded-xl cursor-pointer hover:bg-surface-container-low transition-colors ${
-                paymentType === 'insurance' ? 'border-2 border-primary bg-hover-tint' : 'border-border-subtle bg-white'
+              className={`relative flex items-center p-md border rounded-xl transition-colors ${
+                duplicateQueueStatus ? 'cursor-not-allowed opacity-60 border-border-subtle bg-surface-container-low' : 'cursor-pointer hover:bg-surface-container-low'
+              } ${
+                paymentType === 'insurance' && !duplicateQueueStatus ? 'border-2 border-primary bg-hover-tint' : 'border-border-subtle bg-white'
               }`}
             >
               <input
-                className="w-4 h-4 text-primary focus:ring-primary border-border-subtle"
+                className="w-4 h-4 text-primary focus:ring-primary border-border-subtle disabled:opacity-50"
                 name="payment_type"
                 type="radio"
                 checked={paymentType === 'insurance'}
+                disabled={Boolean(duplicateQueueStatus)}
                 onChange={() => setPaymentType('insurance')}
               />
               <div className="ml-md">
@@ -714,6 +718,7 @@ export function PatientRegistrationPage() {
                     className={fieldInputClass(false)}
                     value={insurerName}
                     onChange={(e) => setInsurerName(e.target.value)}
+                    disabled={Boolean(duplicateQueueStatus)}
                     list="insurer-suggestions"
                   />
                   <datalist id="insurer-suggestions">
@@ -736,6 +741,7 @@ export function PatientRegistrationPage() {
                       clearError('policyNumber')
                     }}
                     aria-invalid={Boolean(errors.policyNumber)}
+                    disabled={Boolean(duplicateQueueStatus)}
                   />
                   <InlineError message={errors.policyNumber} />
                 </div>

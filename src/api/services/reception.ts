@@ -92,4 +92,17 @@ export const receptionService = {
     apiClient
       .patch<any>(`/visits/queues/${queueId}/status`, { status })
       .then((r) => r.data),
+
+  /** Check if patient has an active visit and get their active queue info */
+  getActiveVisit: (patientId: string) =>
+    apiClient
+      .get<{
+        active: boolean
+        visit_id?: string
+        visit_status?: string
+        queue_status?: string | null
+        queue_number?: string | null
+        queue_type?: string | null
+      }>(`/visits/active-patient/${patientId}`)
+      .then((r) => r.data),
 }
