@@ -55,19 +55,19 @@ function formatWait(mins: number): string {
 function mapStatus(backendStatus: string): QueueItem['status'] {
   switch (backendStatus?.toLowerCase()) {
     case 'in_progress': return 'IN TRIAGE'
-    case 'completed':   return 'COMPLETE'
-    case 'skipped':     return 'SKIPPED'
-    default:            return 'WAITING'
+    case 'completed': return 'COMPLETE'
+    case 'skipped': return 'SKIPPED'
+    default: return 'WAITING'
   }
 }
 
 function statusStyles(status: QueueItem['status']): { statusBg: string; statusText: string } {
   switch (status) {
-    case 'WAITING':     return { statusBg: 'bg-warning/10',           statusText: 'text-warning' }
-    case 'IN TRIAGE':   return { statusBg: 'bg-info/10',              statusText: 'text-info' }
-    case 'WITH DOCTOR': return { statusBg: 'bg-success/10',           statusText: 'text-success' }
-    case 'COMPLETE':    return { statusBg: 'bg-surface-container-high', statusText: 'text-on-surface-variant' }
-    case 'SKIPPED':     return { statusBg: 'bg-error/10',             statusText: 'text-error' }
+    case 'WAITING': return { statusBg: 'bg-warning/10', statusText: 'text-warning' }
+    case 'IN TRIAGE': return { statusBg: 'bg-info/10', statusText: 'text-info' }
+    case 'WITH DOCTOR': return { statusBg: 'bg-success/10', statusText: 'text-success' }
+    case 'COMPLETE': return { statusBg: 'bg-surface-container-high', statusText: 'text-on-surface-variant' }
+    case 'SKIPPED': return { statusBg: 'bg-error/10', statusText: 'text-error' }
   }
 }
 
@@ -404,227 +404,224 @@ export function VisitQueuePage() {
       )}
       {!loading && (
         <>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-lg">
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Total in Queue</p>
-              <h3 className={KPI_VALUE}>{activeItems.length}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
-              <span
-                className="material-symbols-outlined text-[24px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                group
-              </span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-outline">
-            <span className="material-symbols-outlined text-[16px]">info</span>
-            <span className="text-[11px] font-medium">Live triage queue</span>
-          </div>
-        </div>
-
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Avg Wait Time</p>
-              <h3 className={KPI_VALUE}>
-                {avgWait > 0 ? <>{avgWait}<span className="text-outline text-headline-sm"> min</span></> : <span className="text-outline text-headline-sm">--</span>}
-              </h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
-              <span className="material-symbols-outlined text-[24px]">schedule</span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-outline">
-            <span className="material-symbols-outlined text-[16px]">info</span>
-            <span className="text-[11px] font-medium">Computed from live data</span>
-          </div>
-        </div>
-
-        <div className={KPI_CARD}>
-          <div className="flex justify-between items-start">
-            <div>
-              <p className={KPI_LABEL}>Longest Wait</p>
-              <h3 className={`${KPI_VALUE} ${longestWait > 30 ? 'text-error' : 'text-on-surface'}`}>
-                {longestWait > 0
-                  ? <>{longestWait}<span className="text-headline-sm" style={{ opacity: 0.7 }}> min</span></>
-                  : <span className="text-outline text-headline-sm">--</span>}
-              </h3>
-            </div>
-            <div className={`w-10 h-10 rounded flex items-center justify-center ${longestWait > 30 ? 'bg-error/10 text-error' : 'bg-surface-container text-on-surface-variant'}`}>
-              <span className="material-symbols-outlined text-[24px]">timer_off</span>
-            </div>
-          </div>
-          <div className={`mt-2 flex items-center gap-1 ${longestWait > 30 ? 'text-error' : 'text-outline'}`}>
-            <span className="material-symbols-outlined text-[16px]">{longestWait > 30 ? 'warning' : 'info'}</span>
-            <span className="text-[11px] font-medium">{longestWait > 30 ? 'Requires attention' : 'Within normal range'}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
-        <div className="p-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
-          <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            {filterType === 'active' ? 'Active Queue' : 'Queue History'}
-          </h3>
-          <div className="flex gap-sm items-center">
-            <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterType('active')
-                  setCurrentPage(1)
-                }}
-                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
-                  filterType === 'active'
-                    ? 'bg-surface-white text-primary font-bold shadow-sm'
-                    : 'bg-transparent text-secondary hover:text-on-surface'
-                }`}
-              >
-                Active Queue
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFilterType('all')
-                  setCurrentPage(1)
-                }}
-                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
-                  filterType === 'all'
-                    ? 'bg-surface-white text-primary font-bold shadow-sm'
-                    : 'bg-transparent text-secondary hover:text-on-surface'
-                }`}
-              >
-                All History
-              </button>
-            </div>
-            <button type="button" className={TOOLBAR_BTN}>
-              <span className="material-symbols-outlined text-[18px]">print</span>
-              Print List
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="bg-surface-container-low">
-              <tr>
-                <th className={TH_CLASS}>#</th>
-                <th className={TH_CLASS}>Patient Name</th>
-                <th className={TH_CLASS}>Patient #</th>
-                <th className={TH_CLASS}>Registered At</th>
-                <th className={TH_CLASS}>Wait Time</th>
-                <th className={TH_CLASS}>Payment Type</th>
-                <th className={TH_CLASS}>Triage Status</th>
-                <th className={`${TH_CLASS} text-right`}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {visibleItems.map((item) => (
-                <tr key={item.queueId} className="hover:bg-hover-tint transition-colors group">
-                  <td className={TD_MUTED}>{item.pos}</td>
-                  <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
-                    {item.name}
-                  </td>
-                  <td className={TD_MUTED}>{item.id}</td>
-                  <td className={TD_MUTED}>{item.time}</td>
-                  <td className={`py-md px-md font-body-sm text-body-sm font-semibold ${item.waitColor}`}>
-                    {item.wait}
-                  </td>
-                  <td className={TD_MUTED}>{item.payment}</td>
-                  <td className="py-md px-md">
-                    <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-md px-md text-right">
-                    <div
-                      className={`flex justify-end ${item.status === 'COMPLETE' || item.status === 'SKIPPED' ? 'opacity-50' : ''}`}
-                    >
-                      <QueueActionsMenu
-                        item={item}
-                        openMenuId={openMenuId}
-                        onOpenChange={setOpenMenuId}
-                        onView={() => {
-                          setOpenMenuId(null)
-                          setViewTarget(item)
-                        }}
-                        onRemove={() => {
-                          setOpenMenuId(null)
-                          void removeItem(item.queueId, item.id, item.name)
-                        }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
-          <div className="flex items-center gap-md">
-            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-              {filteredItems.length === 0
-                ? 'No patients in queue'
-                : `Showing ${showingFrom} to ${showingTo} of ${filteredItems.length} patients in queue`}
-            </p>
-            {filteredItems.length > 0 && (
-              <div className="flex items-center gap-xs">
-                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-lg">
+            <div className={KPI_CARD}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className={KPI_LABEL}>Total in Queue</p>
+                  <h3 className={KPI_VALUE}>{activeItems.length}</h3>
+                </div>
+                <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
+                  <span
+                    className="material-symbols-outlined text-[24px]"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    group
+                  </span>
+                </div>
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-xs">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safePage === 1}
-              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${
-                  safePage === page
-                    ? 'border-primary bg-primary text-white'
-                    : 'border-border-subtle hover:bg-surface-white text-on-surface'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safePage === totalPages}
-              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
-          </div>
-        </div>
-      </div>
+              <div className="mt-2 flex items-center gap-1 text-outline">
+                <span className="material-symbols-outlined text-[16px]">info</span>
+                <span className="text-[11px] font-medium">Live triage queue</span>
+              </div>
+            </div>
 
-      {viewTarget && <QueueViewModal item={viewTarget} onClose={() => setViewTarget(null)} />}
+            <div className={KPI_CARD}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className={KPI_LABEL}>Avg Wait Time</p>
+                  <h3 className={KPI_VALUE}>
+                    {avgWait > 0 ? <>{avgWait}<span className="text-outline text-headline-sm"> min</span></> : <span className="text-outline text-headline-sm">--</span>}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
+                  <span className="material-symbols-outlined text-[24px]">schedule</span>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-1 text-outline">
+                <span className="material-symbols-outlined text-[16px]">info</span>
+                <span className="text-[11px] font-medium">Computed from live data</span>
+              </div>
+            </div>
+
+            <div className={KPI_CARD}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className={KPI_LABEL}>Longest Wait</p>
+                  <h3 className={`${KPI_VALUE} ${longestWait > 30 ? 'text-error' : 'text-on-surface'}`}>
+                    {longestWait > 0
+                      ? <>{longestWait}<span className="text-headline-sm" style={{ opacity: 0.7 }}> min</span></>
+                      : <span className="text-outline text-headline-sm">--</span>}
+                  </h3>
+                </div>
+                <div className={`w-10 h-10 rounded flex items-center justify-center ${longestWait > 30 ? 'bg-error/10 text-error' : 'bg-surface-container text-on-surface-variant'}`}>
+                  <span className="material-symbols-outlined text-[24px]">timer_off</span>
+                </div>
+              </div>
+              <div className={`mt-2 flex items-center gap-1 ${longestWait > 30 ? 'text-error' : 'text-outline'}`}>
+                <span className="material-symbols-outlined text-[16px]">{longestWait > 30 ? 'warning' : 'info'}</span>
+                <span className="text-[11px] font-medium">{longestWait > 30 ? 'Requires attention' : 'Within normal range'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
+            <div className="p-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
+              <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
+                {filterType === 'active' ? 'Active Queue' : 'Queue History'}
+              </h3>
+              <div className="flex gap-sm items-center">
+                <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('active')
+                      setCurrentPage(1)
+                    }}
+                    className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${filterType === 'active'
+                        ? 'bg-surface-white text-primary font-bold shadow-sm'
+                        : 'bg-transparent text-secondary hover:text-on-surface'
+                      }`}
+                  >
+                    Active Queue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterType('all')
+                      setCurrentPage(1)
+                    }}
+                    className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${filterType === 'all'
+                        ? 'bg-surface-white text-primary font-bold shadow-sm'
+                        : 'bg-transparent text-secondary hover:text-on-surface'
+                      }`}
+                  >
+                    All History
+                  </button>
+                </div>
+                <button type="button" className={TOOLBAR_BTN}>
+                  <span className="material-symbols-outlined text-[18px]">print</span>
+                  Print List
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+              <table className="w-full text-left border-collapse min-w-[1000px]">
+                <thead className="bg-surface-container-low">
+                  <tr>
+                    <th className={TH_CLASS}>#</th>
+                    <th className={TH_CLASS}>Patient Name</th>
+                    <th className={TH_CLASS}>Patient #</th>
+                    <th className={TH_CLASS}>Registered At</th>
+                    <th className={TH_CLASS}>Wait Time</th>
+                    <th className={TH_CLASS}>Payment Type</th>
+                    <th className={TH_CLASS}>Triage Status</th>
+                    <th className={`${TH_CLASS} text-right`}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {visibleItems.map((item) => (
+                    <tr key={item.queueId} className="hover:bg-hover-tint transition-colors group">
+                      <td className={TD_MUTED}>{item.pos}</td>
+                      <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
+                        {item.name}
+                      </td>
+                      <td className={TD_MUTED}>{item.id}</td>
+                      <td className={TD_MUTED}>{item.time}</td>
+                      <td className={`py-md px-md font-body-sm text-body-sm font-semibold ${item.waitColor}`}>
+                        {item.wait}
+                      </td>
+                      <td className={TD_MUTED}>{item.payment}</td>
+                      <td className="py-md px-md">
+                        <span className={`${STATUS_BADGE} ${item.statusBg} ${item.statusText}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="py-md px-md text-right">
+                        <div
+                          className={`flex justify-end ${item.status === 'COMPLETE' || item.status === 'SKIPPED' ? 'opacity-50' : ''}`}
+                        >
+                          <QueueActionsMenu
+                            item={item}
+                            openMenuId={openMenuId}
+                            onOpenChange={setOpenMenuId}
+                            onView={() => {
+                              setOpenMenuId(null)
+                              setViewTarget(item)
+                            }}
+                            onRemove={() => {
+                              setOpenMenuId(null)
+                              void removeItem(item.queueId, item.id, item.name)
+                            }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+              <div className="flex items-center gap-md">
+                <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+                  {filteredItems.length === 0
+                    ? 'No patients in queue'
+                    : `Showing ${showingFrom} to ${showingTo} of ${filteredItems.length} patients in queue`}
+                </p>
+                {filteredItems.length > 0 && (
+                  <div className="flex items-center gap-xs">
+                    <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-xs">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${safePage === page
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border-subtle hover:bg-surface-white text-on-surface'
+                      }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {viewTarget && <QueueViewModal item={viewTarget} onClose={() => setViewTarget(null)} />}
         </>
       )}
     </div>
