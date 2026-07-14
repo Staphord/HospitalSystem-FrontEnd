@@ -95,7 +95,7 @@ export const masterService = {
     apiClient
       .post<unknown>(`/tenants/${tenantId}/upgrade`, {
         plan: mapPlanIdToName(data.plan_id),
-        billing_cycle: data.billing_cycle || 'monthly',
+        billing_cycle: data.billing_cycle,
         effective_at_end: data.effective_at_end || false
       })
       .then((r) => r.data),
@@ -104,7 +104,7 @@ export const masterService = {
     apiClient
       .post<unknown>(`/tenants/${tenantId}/downgrade`, {
         plan: mapPlanIdToName(data.plan_id),
-        billing_cycle: data.billing_cycle || 'monthly',
+        billing_cycle: data.billing_cycle,
         effective_at_end: data.effective_at_end || false
       })
       .then((r) => r.data),
