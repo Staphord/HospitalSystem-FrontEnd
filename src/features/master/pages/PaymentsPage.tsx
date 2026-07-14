@@ -16,6 +16,8 @@ export function PaymentsPage() {
   const [selectedHospital, setSelectedHospital] = useState('')
   const [selectedMethod, setSelectedMethod] = useState('')
   const [selectedCurrency, setSelectedCurrency] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
 
   const fetchData = useCallback(async () => {
     try {
@@ -38,6 +40,10 @@ export function PaymentsPage() {
     fetchData()
   }, [fetchData])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, selectedHospital, selectedMethod, selectedCurrency])
+
   const getHospitalName = (tenantId: string) => {
     return tenants.find((t) => t.tenant_id === tenantId)?.hospital_name || tenantId
   }
@@ -46,9 +52,9 @@ export function PaymentsPage() {
     return tenants.find((t) => t.tenant_id === tenantId)?.currency || 'USD'
   }
 
-  // Filter payments (invoices that have some payment recorded)
+  // Filter payments (invoices that have some positive payment recorded)
   const payments = invoices.filter(
-    (i) => i.status === 'paid' || i.status === 'partially_paid' || (i.amount_paid && i.amount_paid > 0)
+    (i) => (Number(i.amount) > 0 && (i.status === 'paid' || i.status === 'partially_paid')) || (Number(i.amount_paid) > 0)
   )
 
   const filteredPayments = payments.filter((p) => {
@@ -66,6 +72,13 @@ export function PaymentsPage() {
     return matchesSearch && matchesHospital && matchesMethod && matchesCurrency
   })
 
+  // Pagination calculations
+  const totalItems = filteredPayments.length
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalItems)
+  const paginatedPayments = filteredPayments.slice(startIndex, endIndex)
+
   // Calculate KPI values
   const now = new Date()
   const mtdTotal = payments
@@ -74,7 +87,10 @@ export function PaymentsPage() {
       const d = new Date(p.payment_date)
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
     })
-    .reduce((sum, p) => sum + (p.amount_paid || p.amount), 0)
+    .reduce((sum, p) => {
+      const val = Number(p.amount_paid || p.amount) || 0
+      return sum + (val > 0 ? val : 0)
+    }, 0)
 
   const ytdTotal = payments
     .filter((p) => {
@@ -82,11 +98,19 @@ export function PaymentsPage() {
       const d = new Date(p.payment_date)
       return d.getFullYear() === now.getFullYear()
     })
-    .reduce((sum, p) => sum + (p.amount_paid || p.amount), 0)
+    .reduce((sum, p) => {
+      const val = Number(p.amount_paid || p.amount) || 0
+      return sum + (val > 0 ? val : 0)
+    }, 0)
 
   const overdueTotal = invoices
     .filter((i) => i.status === 'overdue')
-    .reduce((sum, i) => sum + (i.amount - (i.amount_paid || 0)), 0)
+    .reduce((sum, i) => {
+      const amt = Number(i.amount) || 0
+      const paid = Number(i.amount_paid) || 0
+      const diff = amt - paid
+      return sum + (diff > 0 ? diff : 0)
+    }, 0)
 
   // Get Payment Method icons
   const getMethodIconName = (method: string) => {
@@ -197,7 +221,7 @@ export function PaymentsPage() {
     ])
     const csvContent = 'data:text/csv;charset=utf-8,'
       + [headers.join(','), ...rows.map((e) => e.map(val => `"${val}"`).join(','))].join('\n')
-    
+
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
@@ -266,56 +290,74 @@ export function PaymentsPage() {
 
           {/* Payments Filter Toolbar */}
           <div className="card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', alignItems: 'center' }}>
-              <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
-                <span className="material-symbols-outlined search-input-icon">search</span>
-                <input
-                  type="text"
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', flex: 1, maxWidth: '850px' }}>
+                <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
+                  <span className="material-symbols-outlined search-input-icon">search</span>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search by Hospital, Invoice Number, Reference..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+
+                <select
                   className="form-control"
-                  placeholder="Search by Hospital, Invoice Number, Reference..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                  style={{ width: '180px' }}
+                  value={selectedHospital}
+                  onChange={(e) => setSelectedHospital(e.target.value)}
+                >
+                  <option value="">-- All Hospitals --</option>
+                  {tenants.map((t) => (
+                    <option key={t.tenant_id} value={t.tenant_id}>
+                      {t.hospital_name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  className="form-control"
+                  style={{ width: '180px' }}
+                  value={selectedMethod}
+                  onChange={(e) => setSelectedMethod(e.target.value)}
+                >
+                  <option value="">-- All Methods --</option>
+                  <option value="Bank Transfer">Bank Wire Transfer</option>
+                  <option value="Credit Card">Credit/Debit Card Online</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="Cheque">Corporate Cheque</option>
+                </select>
+
+                <select
+                  className="form-control"
+                  style={{ width: '150px' }}
+                  value={selectedCurrency}
+                  onChange={(e) => setSelectedCurrency(e.target.value)}
+                >
+                  <option value="">-- All Currencies --</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="TSH">TSH (Sh)</option>
+                  <option value="GHS">GHS (₵)</option>
+                  <option value="NGN">NGN (₦)</option>
+                </select>
               </div>
 
               <select
                 className="form-control"
-                style={{ width: '180px' }}
-                value={selectedHospital}
-                onChange={(e) => setSelectedHospital(e.target.value)}
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                style={{ maxWidth: '150px', width: 'auto' }}
+                title="Page Size"
               >
-                <option value="">-- All Hospitals --</option>
-                {tenants.map((t) => (
-                  <option key={t.tenant_id} value={t.tenant_id}>
-                    {t.hospital_name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="form-control"
-                style={{ width: '180px' }}
-                value={selectedMethod}
-                onChange={(e) => setSelectedMethod(e.target.value)}
-              >
-                <option value="">-- All Methods --</option>
-                <option value="Bank Transfer">Bank Wire Transfer</option>
-                <option value="Credit Card">Credit/Debit Card Online</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="Cheque">Corporate Cheque</option>
-              </select>
-
-              <select
-                className="form-control"
-                style={{ width: '150px' }}
-                value={selectedCurrency}
-                onChange={(e) => setSelectedCurrency(e.target.value)}
-              >
-                <option value="">-- All Currencies --</option>
-                <option value="USD">USD ($)</option>
-                <option value="TSH">TSH (Sh)</option>
-                <option value="GHS">GHS (₵)</option>
-                <option value="NGN">NGN (₦)</option>
+                <option value={10}>Show: 10</option>
+                <option value={25}>Show: 25</option>
+                <option value={50}>Show: 50</option>
+                <option value={100}>Show: 100</option>
               </select>
             </div>
 
@@ -324,60 +366,110 @@ export function PaymentsPage() {
                 No recorded payments matching your filters.
               </div>
             ) : (
-              <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Payment Date</th>
-                      <th>Reference Number</th>
-                      <th>Invoice Number</th>
-                      <th>Hospital</th>
-                      <th>Method</th>
-                      <th style={{ textAlign: 'right' }}>Amount Settled</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPayments.map((p) => {
-                      const currency = getHospitalCurrency(p.tenant_id)
-                      const isPartial = p.status === 'partially_paid'
-                      return (
-                        <tr key={p.id}>
-                          <td>{p.payment_date ? new Date(p.payment_date).toLocaleDateString() : 'N/A'}</td>
-                          <td>
-                            <strong><code>#{p.reference_number || `PAY-${p.id}`}</code></strong>
-                          </td>
-                          <td>
-                            <code>{p.invoice_number || `#${p.id}`}</code>
-                          </td>
-                          <td>
-                            <strong>{getHospitalName(p.tenant_id)}</strong>
-                          </td>
-                          <td>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '0.25rem', verticalAlign: 'middle' }}>
-                              {getMethodIconName(p.payment_method || '')}
-                            </span>
-                            <span style={{ verticalAlign: 'middle' }}>{p.payment_method || 'N/A'}</span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <strong style={{ color: '#36b37e' }}>
-                              {currency} {(p.amount_paid || p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </strong>
-                            <div style={{ fontSize: '0.7rem' }}>
-                              {isPartial ? (
-                                <span className="badge badge-warning" style={{ transform: 'scale(0.85)', transformOrigin: 'right' }}>
-                                  Partial Payment
-                                </span>
-                              ) : (
-                                <span style={{ color: 'var(--text-secondary)' }}>{currency} Base</span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="table-responsive">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Payment Date</th>
+                        <th>Reference Number</th>
+                        <th>Invoice Number</th>
+                        <th>Hospital</th>
+                        <th>Method</th>
+                        <th style={{ textAlign: 'right' }}>Amount Settled</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedPayments.map((p) => {
+                        const currency = getHospitalCurrency(p.tenant_id)
+                        const isPartial = p.status === 'partially_paid'
+                        return (
+                          <tr key={p.id}>
+                            <td>{p.payment_date ? new Date(p.payment_date).toLocaleDateString() : 'N/A'}</td>
+                            <td>
+                              <strong><code>#{p.reference_number || `PAY-${p.id}`}</code></strong>
+                            </td>
+                            <td>
+                              <code>{p.invoice_number || `#${p.id}`}</code>
+                            </td>
+                            <td>
+                              <strong>{getHospitalName(p.tenant_id)}</strong>
+                            </td>
+                            <td>
+                              <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '0.25rem', verticalAlign: 'middle' }}>
+                                {getMethodIconName(p.payment_method || '')}
+                              </span>
+                              <span style={{ verticalAlign: 'middle' }}>{p.payment_method || 'N/A'}</span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <strong style={{ color: '#36b37e' }}>
+                                {currency} {(p.amount_paid || p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </strong>
+                              <div style={{ fontSize: '0.7rem' }}>
+                                {isPartial ? (
+                                  <span className="badge badge-warning" style={{ transform: 'scale(0.85)', transformOrigin: 'right' }}>
+                                    Partial Payment
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-secondary)' }}>{currency} Base</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {totalItems > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', borderTop: '1px solid var(--outline-variant)', paddingTop: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of{' '}
+                      <strong>{totalItems}</strong> entries
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
+                      </button>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        if (page === 1 || page === totalPages || (page >= currentPage - 2 && page <= currentPage + 2)) {
+                          return (
+                            <button
+                              key={page}
+                              className={`btn ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ padding: '0.25rem 0.5rem', minWidth: '32px' }}
+                              onClick={() => setCurrentPage(page)}
+                            >
+                              {page}
+                            </button>
+                          )
+                        }
+                        if (page === currentPage - 3 || page === currentPage + 3) {
+                          return <span key={`ellipsis-${page}`} style={{ padding: '0.25rem 0.5rem', color: 'var(--text-secondary)' }}>...</span>
+                        }
+                        return null
+                      })}
+
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

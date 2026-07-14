@@ -20,7 +20,26 @@ export function SubscriptionDetailPage() {
   const [invoices, setInvoices] = useState<any[]>([])
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [historyTab, setHistoryTab] = useState<'invoices' | 'plan-events'>('invoices')
+
+  // Invoices Tab Pagination & Filters State
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all')
+  const [invoicePage, setInvoicePage] = useState(1)
+  const [invoicePageSize, setInvoicePageSize] = useState(25)
+
+  // Plan Events Tab Pagination & Filters State
+  const [eventFilter, setEventFilter] = useState('all')
+  const [eventPage, setEventPage] = useState(1)
+  const [eventPageSize, setEventPageSize] = useState(25)
+
   const safeLower = (value: string | null | undefined) => String(value || '').toLowerCase()
+
+  useEffect(() => {
+    setInvoicePage(1)
+  }, [invoiceStatusFilter])
+
+  useEffect(() => {
+    setEventPage(1)
+  }, [eventFilter])
 
   useEffect(() => {
     if (!id) return
@@ -81,16 +100,16 @@ export function SubscriptionDetailPage() {
     }
   }
 
-  const handleChangePlan = async (newPlanName: string, effectiveAtEnd: boolean) => {
+  const handleChangePlan = async (newPlanName: string, billingCycle: 'monthly' | 'annual', effectiveAtEnd: boolean) => {
     if (!subscription || !id) return
     const planSlug = newPlanName.toLowerCase()
-
+ 
     const targetPlan = plans.find((p) => p.plan_name.toLowerCase() === planSlug)
     if (!targetPlan) {
       toast.error('Selected plan was not found.')
       return
     }
-
+ 
     // Map plan names to their rankings
     const PLAN_RANKS: Record<string, number> = {
       'free trial': 0,
@@ -100,24 +119,30 @@ export function SubscriptionDetailPage() {
       'standard': 2,
       'premium': 3
     }
-
+ 
     const currentRank = PLAN_RANKS[subscription.plan_name.toLowerCase()] ?? 0
     const targetRank = PLAN_RANKS[planSlug] ?? 0
+ 
+    const isBillingCycleUpgrade = subscription.billing_cycle === 'monthly' && billingCycle === 'annual'
+    const isUpgradeChange = targetRank > currentRank || (targetRank === currentRank && isBillingCycleUpgrade)
 
     try {
       if (subscription.status.toLowerCase() === 'trial') {
         await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
           plan_id: targetPlan.plan_id,
+          billing_cycle: billingCycle,
           effective_at_end: effectiveAtEnd
         })
-      } else if (targetRank > currentRank) {
+      } else if (isUpgradeChange) {
         await masterService.upgradeSubscriptionEndpoint(subscription.tenant_id, {
           plan_id: targetPlan.plan_id,
+          billing_cycle: billingCycle,
           effective_at_end: effectiveAtEnd
         })
       } else {
         await masterService.downgradeSubscriptionEndpoint(subscription.tenant_id, {
           plan_id: targetPlan.plan_id,
+          billing_cycle: billingCycle,
           effective_at_end: effectiveAtEnd
         })
       }
@@ -180,6 +205,28 @@ export function SubscriptionDetailPage() {
     ? activePlanDetails.modules_included
     : []
 
+  // Filter and Paginate Invoices
+  const filteredInvoices = invoices.filter((inv) => {
+    if (invoiceStatusFilter === 'all') return true
+    return safeLower(inv.status) === invoiceStatusFilter.toLowerCase()
+  })
+  const totalInvoices = filteredInvoices.length
+  const totalInvoicePages = Math.ceil(totalInvoices / invoicePageSize) || 1
+  const startInvoiceIndex = (invoicePage - 1) * invoicePageSize
+  const endInvoiceIndex = Math.min(startInvoiceIndex + invoicePageSize, totalInvoices)
+  const paginatedInvoices = filteredInvoices.slice(startInvoiceIndex, endInvoiceIndex)
+
+  // Filter and Paginate Plan Events
+  const filteredAuditLogs = auditLogs.filter((log) => {
+    if (eventFilter === 'all') return true
+    return safeLower(log.event_type) === eventFilter.toLowerCase()
+  })
+  const totalEvents = filteredAuditLogs.length
+  const totalEventPages = Math.ceil(totalEvents / eventPageSize) || 1
+  const startEventIndex = (eventPage - 1) * eventPageSize
+  const endEventIndex = Math.min(startEventIndex + eventPageSize, totalEvents)
+  const paginatedEvents = filteredAuditLogs.slice(startEventIndex, endEventIndex)
+
   // Determine styles and labels for countdown display
   let countdownBg = 'rgba(54, 179, 126, 0.1)'
   let countdownColor = '#36b37e'
@@ -215,12 +262,14 @@ export function SubscriptionDetailPage() {
           title={`Subscription Details: ${tenant.hospital_name}`}
           description={`Manage active plan logs and auto-billing configurations for tenant: ${tenant.hospital_name}.`}
         />
-        <button
-          className="btn btn-primary"
-          onClick={() => setIsChangePlanOpen(true)}
-        >
-          Change Plan Tiers
-        </button>
+        {['active', 'trial', 'grace'].includes(safeLower(subscription.status)) && (
+          <button
+            className="btn btn-primary"
+            onClick={() => setIsChangePlanOpen(true)}
+          >
+            Change Plan Tiers
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
@@ -359,79 +408,252 @@ export function SubscriptionDetailPage() {
 
             {/* Tab Content */}
             {historyTab === 'invoices' ? (
-              <div style={{ overflowX: 'auto' }}>
-                {invoices.length === 0 ? (
-                  <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.875rem' }}>
-                    No invoice history records found.
-                  </div>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-light)' }}>
-                        <th style={{ padding: '0.5rem' }}>Invoice Number</th>
-                        <th style={{ padding: '0.5rem' }}>Billing Period</th>
-                        <th style={{ padding: '0.5rem' }}>Plan</th>
-                        <th style={{ padding: '0.5rem' }}>Amount</th>
-                        <th style={{ padding: '0.5rem' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoices.map((inv) => (
-                        <tr key={inv.invoice_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                          <td style={{ padding: '0.75rem 0.5rem', fontWeight: 500 }}>{inv.invoice_number}</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>
-                            {new Date(inv.billing_period_start).toLocaleDateString()} - {new Date(inv.billing_period_end).toLocaleDateString()}
-                          </td>
-                          <td style={{ padding: '0.75rem 0.5rem', textTransform: 'capitalize' }}>{inv.plan_name}</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>${Number(inv.amount).toFixed(2)}</td>
-                          <td style={{ padding: '0.75rem 0.5rem' }}>
-                            <span
-                              className={`badge ${
-                                inv.status === 'paid' ? 'badge-success' : inv.status === 'overdue' ? 'badge-danger' : 'badge-warning'
-                              }`}
-                              style={{ fontSize: '0.75rem' }}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
+                  <select
+                    className="form-control"
+                    value={invoiceStatusFilter}
+                    onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                    style={{ maxWidth: '200px', width: 'auto' }}
+                    aria-label="Filter Invoices by Status"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="paid">Paid</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="partially_paid">Partially Paid</option>
+                  </select>
+
+                  <select
+                    className="form-control"
+                    value={invoicePageSize}
+                    onChange={(e) => {
+                      setInvoicePageSize(Number(e.target.value))
+                      setInvoicePage(1)
+                    }}
+                    style={{ maxWidth: '150px', width: 'auto' }}
+                    title="Page Size"
+                  >
+                    <option value={10}>Show: 10</option>
+                    <option value={25}>Show: 25</option>
+                    <option value={50}>Show: 50</option>
+                    <option value={100}>Show: 100</option>
+                  </select>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  {filteredInvoices.length === 0 ? (
+                    <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.875rem' }}>
+                      No invoice history records found matching your filters.
+                    </div>
+                  ) : (
+                    <>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-light)' }}>
+                            <th style={{ padding: '0.5rem' }}>Invoice Number</th>
+                            <th style={{ padding: '0.5rem' }}>Billing Period</th>
+                            <th style={{ padding: '0.5rem' }}>Plan</th>
+                            <th style={{ padding: '0.5rem' }}>Amount</th>
+                            <th style={{ padding: '0.5rem' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedInvoices.map((inv) => (
+                            <tr key={inv.invoice_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                              <td style={{ padding: '0.75rem 0.5rem', fontWeight: 500 }}>{inv.invoice_number}</td>
+                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                                {new Date(inv.billing_period_start).toLocaleDateString()} - {new Date(inv.billing_period_end).toLocaleDateString()}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textTransform: 'capitalize' }}>{inv.plan_name}</td>
+                              <td style={{ padding: '0.75rem 0.5rem' }}>${Number(inv.amount).toFixed(2)}</td>
+                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                                <span
+                                  className={`badge ${
+                                    inv.status === 'paid' ? 'badge-success' : inv.status === 'overdue' ? 'badge-danger' : 'badge-warning'
+                                  }`}
+                                  style={{ fontSize: '0.75rem' }}
+                                >
+                                  {inv.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {/* Pagination Controls */}
+                      {totalInvoices > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', borderTop: '1px solid var(--outline-variant)', paddingTop: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                            Showing <strong>{startInvoiceIndex + 1}</strong> to <strong>{endInvoiceIndex}</strong> of{' '}
+                            <strong>{totalInvoices}</strong> entries
+                          </span>
+                          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              disabled={invoicePage === 1}
+                              onClick={() => setInvoicePage(invoicePage - 1)}
                             >
-                              {inv.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
+                            </button>
+
+                            {Array.from({ length: totalInvoicePages }, (_, i) => i + 1).map((page) => {
+                              if (page === 1 || page === totalInvoicePages || (page >= invoicePage - 2 && page <= invoicePage + 2)) {
+                                return (
+                                  <button
+                                    key={page}
+                                    type="button"
+                                    className={`btn ${invoicePage === page ? 'btn-primary' : 'btn-secondary'}`}
+                                    style={{ padding: '0.25rem 0.5rem', minWidth: '32px' }}
+                                    onClick={() => setInvoicePage(page)}
+                                  >
+                                    {page}
+                                  </button>
+                                )
+                              }
+                              if (page === invoicePage - 3 || page === invoicePage + 3) {
+                                return <span key={`ellipsis-${page}`} style={{ padding: '0.25rem 0.5rem', color: 'var(--text-secondary)' }}>...</span>
+                              }
+                              return null
+                            })}
+
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              disabled={invoicePage === totalInvoicePages}
+                              onClick={() => setInvoicePage(invoicePage + 1)}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
-              <div>
-                {auditLogs.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
+                  <select
+                    className="form-control"
+                    value={eventFilter}
+                    onChange={(e) => setEventFilter(e.target.value)}
+                    style={{ maxWidth: '200px', width: 'auto' }}
+                    aria-label="Filter Events by Type"
+                  >
+                    <option value="all">All Events</option>
+                    {Array.from(new Set(auditLogs.map((log) => log.event_type))).map((t) => (
+                      <option key={t} value={t}>
+                        {String(t).replace('_', ' ')}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="form-control"
+                    value={eventPageSize}
+                    onChange={(e) => {
+                      setEventPageSize(Number(e.target.value))
+                      setEventPage(1)
+                    }}
+                    style={{ maxWidth: '150px', width: 'auto' }}
+                    title="Page Size"
+                  >
+                    <option value={10}>Show: 10</option>
+                    <option value={25}>Show: 25</option>
+                    <option value={50}>Show: 50</option>
+                    <option value={100}>Show: 100</option>
+                  </select>
+                </div>
+
+                {filteredAuditLogs.length === 0 ? (
                   <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.875rem' }}>
-                    No subscription logs found.
+                    No subscription logs found matching your filters.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {auditLogs.map((log) => (
-                      <div
-                        key={log.log_id || log.id}
-                        style={{
-                          padding: '1rem',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: '8px',
-                          backgroundColor: 'var(--color-background-light, #fdfdfd)'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'capitalize' }}>
-                            {log.event_type.replace('_', ' ')}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
-                            {new Date(log.created_at).toLocaleString()}
-                          </span>
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {paginatedEvents.map((log) => (
+                        <div
+                          key={log.log_id || log.id}
+                          style={{
+                            padding: '1rem',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '8px',
+                            backgroundColor: 'var(--color-background-light, #fdfdfd)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'capitalize' }}>
+                              {log.event_type.replace('_', ' ')}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
+                              {new Date(log.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-text)' }}>
+                            {log.reason || 'No description provided.'}
+                          </p>
                         </div>
-                        <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-text)' }}>
-                          {log.reason || 'No description provided.'}
-                        </p>
+                      ))}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalEvents > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', borderTop: '1px solid var(--outline-variant)', paddingTop: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                          Showing <strong>{startEventIndex + 1}</strong> to <strong>{endEventIndex}</strong> of{' '}
+                          <strong>{totalEvents}</strong> entries
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            disabled={eventPage === 1}
+                            onClick={() => setEventPage(eventPage - 1)}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
+                          </button>
+
+                          {Array.from({ length: totalEventPages }, (_, i) => i + 1).map((page) => {
+                            if (page === 1 || page === totalEventPages || (page >= eventPage - 2 && page <= eventPage + 2)) {
+                              return (
+                                <button
+                                  key={page}
+                                  type="button"
+                                  className={`btn ${eventPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                                  style={{ padding: '0.25rem 0.5rem', minWidth: '32px' }}
+                                  onClick={() => setEventPage(page)}
+                                >
+                                  {page}
+                                </button>
+                              )
+                            }
+                            if (page === eventPage - 3 || page === eventPage + 3) {
+                              return <span key={`ellipsis-${page}`} style={{ padding: '0.25rem 0.5rem', color: 'var(--text-secondary)' }}>...</span>
+                            }
+                            return null
+                          })}
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            disabled={eventPage === totalEventPages}
+                            onClick={() => setEventPage(eventPage + 1)}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -511,6 +733,7 @@ export function SubscriptionDetailPage() {
       {isChangePlanOpen && (
         <ChangePlanModal
           currentPlanName={subscription.plan_name}
+          currentBillingCycle={subscription.billing_cycle}
           onClose={() => setIsChangePlanOpen(false)}
           onSelectPlan={handleChangePlan}
         />

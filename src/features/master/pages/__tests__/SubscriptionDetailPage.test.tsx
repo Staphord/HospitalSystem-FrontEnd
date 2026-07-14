@@ -172,6 +172,7 @@ describe('SubscriptionDetailPage', () => {
       start_date: '2026-06-01T00:00:00Z',
       end_date: '2026-07-01T00:00:00Z',
       auto_renew: true,
+      billing_cycle: 'monthly',
     }
 
     const mockTenant = {
@@ -249,6 +250,7 @@ describe('SubscriptionDetailPage', () => {
     await waitFor(() => {
       expect(mockUpgrade).toHaveBeenCalledWith('aga-khan', {
         plan_id: 'premium',
+        billing_cycle: 'monthly',
         effective_at_end: false,
       })
     })
@@ -333,5 +335,154 @@ describe('SubscriptionDetailPage', () => {
 
     // Expect mock audit logs to be rendered
     expect(screen.getByText('Initial standard subscription')).toBeInTheDocument()
+  })
+
+  it('hides change plan button for superseded subscriptions', async () => {
+    const mockSubscription = {
+      id: 'sub-1',
+      subscription_id: 'sub-1',
+      tenant_id: 'aga-khan',
+      plan_name: 'Premium',
+      status: 'superseded',
+      start_date: '2026-06-01T00:00:00Z',
+      end_date: '2026-07-01T00:00:00Z',
+      auto_renew: true,
+    }
+
+    const mockTenant = {
+      tenant_id: 'aga-khan',
+      hospital_name: 'Aga Khan Hospital',
+      status: 'active',
+    }
+
+    const mockPlans: any = [
+      {
+        plan_id: 'premium',
+        plan_name: 'Premium',
+        monthly_price: 1199,
+        max_users: 50,
+        max_patients: 100000,
+        storage_gb: 200,
+        uptime_sla_pct: 99.99,
+        modules_included: [],
+      },
+    ]
+
+    vi.mocked(masterService.listSubscriptions).mockResolvedValue([mockSubscription])
+    vi.mocked(masterService.getTenant).mockResolvedValue(mockTenant)
+    vi.mocked(masterService.listPlans).mockResolvedValue(mockPlans)
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Aga Khan Hospital/i)).toBeInTheDocument()
+    })
+
+    // Change plan button should not be rendered
+    const changePlanBtn = screen.queryByRole('button', { name: /change plan tiers/i })
+    expect(changePlanBtn).not.toBeInTheDocument()
+  })
+
+  it('changes subscription plan to annual billing cycle via modal selection', async () => {
+    const mockSubscription = {
+      id: 'sub-1',
+      subscription_id: 'sub-1',
+      tenant_id: 'aga-khan',
+      plan_name: 'Basic',
+      status: 'active',
+      start_date: '2026-06-01T00:00:00Z',
+      end_date: '2026-07-01T00:00:00Z',
+      auto_renew: true,
+      billing_cycle: 'monthly',
+    }
+
+    const mockTenant = {
+      tenant_id: 'aga-khan',
+      hospital_name: 'Aga Khan Hospital',
+      status: 'active',
+    }
+
+    const mockPlans: any = [
+      {
+        plan_id: 'basic',
+        plan_name: 'Basic',
+        monthly_price: 299,
+        annual_price: 2990,
+        max_users: 10,
+        max_patients: 10000,
+        storage_gb: 10,
+        uptime_sla_pct: 99.9,
+        modules_included: [],
+      },
+      {
+        plan_id: 'premium',
+        plan_name: 'Premium',
+        monthly_price: 1199,
+        annual_price: 11990,
+        max_users: 50,
+        max_patients: 100000,
+        storage_gb: 200,
+        uptime_sla_pct: 99.99,
+        modules_included: [],
+      },
+    ]
+
+    vi.mocked(masterService.listSubscriptions).mockResolvedValue([mockSubscription])
+    vi.mocked(masterService.getTenant).mockResolvedValue(mockTenant)
+    vi.mocked(masterService.listPlans).mockResolvedValue(mockPlans)
+
+    const mockUpgrade = vi.fn().mockResolvedValue({
+      id: 'sub-1',
+      subscription_id: 'sub-1',
+      tenant_id: 'aga-khan',
+      plan_name: 'Premium',
+      status: 'active',
+      start_date: '2026-06-01T00:00:00Z',
+      end_date: '2026-07-01T00:00:00Z',
+      auto_renew: true,
+    })
+    vi.mocked(masterService.upgradeSubscriptionEndpoint).mockImplementation(mockUpgrade)
+    vi.mocked(masterService.createInvoice).mockResolvedValue({
+      id: 'inv-adj',
+      invoice_id: 'inv-adj',
+      tenant_id: 'aga-khan',
+      amount: 0,
+      status: 'paid'
+    })
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Aga Khan Hospital/i)).toBeInTheDocument()
+    })
+
+    const changePlanBtn = screen.getByRole('button', { name: /change plan tiers/i })
+    await act(async () => {
+      fireEvent.click(changePlanBtn)
+    })
+
+    // Verify modal is open
+    expect(screen.getByText('Change Subscription Plan')).toBeInTheDocument()
+
+    // Find the annual billing cycle radio option and click it
+    const annualRadio = screen.getByLabelText(/Annual Billing/i)
+    await act(async () => {
+      fireEvent.click(annualRadio)
+    })
+
+    // Select the premium upgrade button
+    const upgradeBtns = screen.getAllByRole('button', { name: /upgrade/i })
+    await act(async () => {
+      fireEvent.click(upgradeBtns[0])
+    })
+
+    // Verify upgrade plan call is made with billing_cycle: 'annual'
+    await waitFor(() => {
+      expect(mockUpgrade).toHaveBeenCalledWith('aga-khan', {
+        plan_id: 'basic',
+        billing_cycle: 'annual',
+        effective_at_end: false,
+      })
+    })
   })
 })
