@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { triageService } from '@/api/services/triage'
@@ -24,10 +24,10 @@ interface TriageAssessContentProps {
 }
 
 const VITAL_FIELDS: {
-  key: keyof TriageVitals
-  label: string
-  unit: string
-  hint: string
+  key: keyof TriageVitals;
+  label: string;
+  unit: string;
+  hint: string;
 }[] = [
   { key: 'bpSystolic', label: 'BP Systolic', unit: 'mmHg', hint: 'Normal: 90-120 mmHg' },
   { key: 'bpDiastolic', label: 'BP Diastolic', unit: 'mmHg', hint: 'Normal: 60-80 mmHg' },
@@ -64,6 +64,7 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
   const navigate = useNavigate()
   const parent = getTriageAssessParent(from)
   const initialCategory = getDefaultTriageCategory(visit)
+  
   const [form, setForm] = useState<TriageAssessmentForm>({
     visitId: visit.visitId,
     vitals: { ...EMPTY_VITALS },
@@ -71,11 +72,56 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
     clinicalNotes: '',
     triageCategory: initialCategory,
   })
+  
   const [touchedVitals, setTouchedVitals] = useState<Partial<Record<keyof TriageVitals, boolean>>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [suggestion, setSuggestion] = useState<{ suggested_category: TriageCategory; reason: string } | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
 
   const dirty = useMemo(() => isFormDirty(form, initialCategory), [form, initialCategory])
 
+  // Query Backend Category Suggestions as Vitals are recorded
+  useEffect(() => {
+    const hasAnyVitals = Object.values(form.vitals).some((v) => v.trim() !== '')
+    if (!hasAnyVitals) {
+      setSuggestion(null)
+      return
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setSuggesting(true)
+      try {
+        const sys = parseInt(form.vitals.bpSystolic) || null
+        const dia = parseInt(form.vitals.bpDiastolic) || null
+        const temp = parseFloat(form.vitals.temperature) || null
+        const pulse = parseInt(form.vitals.pulseRate) || null
+        const spo2 = parseFloat(form.vitals.spo2) || null
+        const rr = parseInt(form.vitals.respiratoryRate) || null
+        const wt = parseFloat(form.vitals.weight) || null
+
+        const res = await triageService.suggestCategory({
+          blood_pressure_systolic: sys,
+          blood_pressure_diastolic: dia,
+          temperature: temp,
+          pulse_rate: pulse,
+          oxygen_saturation: spo2,
+          respiratory_rate: rr,
+          weight_kg: wt,
+        })
+
+        setSuggestion({
+          suggested_category: res.suggested_category as TriageCategory,
+          reason: res.reason,
+        })
+      } catch (err) {
+        console.error('Failed to get triage suggestion:', err)
+      } finally {
+        setSuggesting(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(delayDebounce)
+  }, [form.vitals])
 
   const updateVital = (key: keyof TriageVitals, value: string) => {
     setForm((prev) => ({
@@ -116,11 +162,46 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
 
     setIsSaving(true)
     try {
-      await triageService.saveAssessment(form)
+      const sys = parseInt(form.vitals.bpSystolic) || null
+      const dia = parseInt(form.vitals.bpDiastolic) || null
+      const temp = parseFloat(form.vitals.temperature) || null
+      const pulse = parseInt(form.vitals.pulseRate) || null
+      const spo2 = parseFloat(form.vitals.spo2) || null
+      const rr = parseInt(form.vitals.respiratoryRate) || null
+      const wt = parseFloat(form.vitals.weight) || null
+
+      let complaint = form.symptoms.join(', ')
+      if (form.clinicalNotes.trim()) {
+        complaint = complaint
+          ? `${complaint}. Notes: ${form.clinicalNotes.trim()}`
+          : form.clinicalNotes.trim()
+      }
+
+      if (!complaint) {
+        complaint = 'Patient check-in assessment'
+      }
+
+      await triageService.createAssessment({
+        visit_id: visit.visitId,
+        patient_id: visit.patientId,
+        blood_pressure_systolic: sys,
+        blood_pressure_diastolic: dia,
+        temperature: temp,
+        pulse_rate: pulse,
+        oxygen_saturation: spo2,
+        respiratory_rate: rr,
+        weight_kg: wt,
+        chief_complaint: complaint,
+        triage_category: form.triageCategory,
+        triage_notes: form.clinicalNotes.trim() || null,
+      })
+
       toast.success(`${visit.name} added to doctor queue.`)
       navigate('/triage/queue')
-    } catch {
-      toast.error('Failed to save assessment. Please try again.')
+    } catch (err: any) {
+      console.error('Failed to submit triage assessment:', err)
+      const detail = err.response?.data?.detail || 'Please try again.'
+      toast.error(`Failed to save assessment: ${detail}`)
     } finally {
       setIsSaving(false)
     }
@@ -144,7 +225,7 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
       </nav>
 
       <div className="space-y-lg">
-        <section className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-wrap items-center justify-between gap-md">
+        <section className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-wrap items-center justify-between gap-md shadow-sm">
           <div className="flex items-center gap-md min-w-0">
             <div className="w-16 h-16 rounded-full border border-border-subtle p-1 shrink-0">
               {visit.avatarUrl ? (
@@ -188,7 +269,7 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
           </div>
         </section>
 
-        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg">
+        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg shadow-sm">
           <TriageSectionHeader icon="monitoring" title="Patient Vitals" />
           <div className="grid gap-md [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
             {VITAL_FIELDS.map((field) => {
@@ -207,7 +288,7 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
                       onChange={(e) => updateVital(field.key, e.target.value)}
                       onBlur={() => setTouchedVitals((prev) => ({ ...prev, [field.key]: true }))}
                       placeholder="--"
-                      className={`w-full h-10 border rounded px-md pr-12 font-body-md text-body-md bg-surface-white ${
+                      className={`w-full h-10 border rounded px-md pr-12 font-body-md text-body-md bg-surface-white outline-none focus:ring-1 focus:ring-primary ${
                         showSuccess ? 'border-success' : 'border-border-subtle'
                       }`}
                     />
@@ -222,7 +303,7 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
           </div>
         </section>
 
-        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg">
+        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg shadow-sm">
           <TriageSectionHeader icon="medical_information" title="Chief Complaint" />
           <div className="space-y-lg">
             <div>
@@ -261,14 +342,47 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
                 onChange={(e) => setForm((prev) => ({ ...prev, clinicalNotes: e.target.value }))}
                 rows={4}
                 placeholder="Enter detailed observations, patient history related to current visit, or other symptoms..."
-                className="w-full border border-border-subtle rounded p-md font-body-md text-body-md resize-none bg-surface-white"
+                className="w-full border border-border-subtle rounded p-md font-body-md text-body-md resize-none bg-surface-white outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
         </section>
 
-        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg">
+        <section className="bg-surface-white border border-border-subtle rounded-xl p-lg shadow-sm">
           <TriageSectionHeader icon="priority_high" title="Triage Category Assignment" />
+          
+          {/* Real-time backend suggestion banner */}
+          {suggestion && (
+            <div className="mb-lg p-md border border-primary/25 bg-hover-tint rounded-xl flex items-start gap-md animate-fade-in shadow-sm">
+              <span className="material-symbols-outlined text-primary text-2xl mt-0.5">clinical_trial</span>
+              <div className="flex-1">
+                <h4 className="font-headline-sm text-headline-sm text-primary m-0 mb-xs">
+                  Clinical Recommendation
+                </h4>
+                <p className="font-body-sm text-body-sm text-on-surface m-0 mb-sm">
+                  Based on current vital signs, the system suggests **{suggestion.suggested_category.toUpperCase().replace('_', ' ')}**.
+                  <br />
+                  <span className="text-secondary font-medium text-xs">Reason: {suggestion.reason}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, triageCategory: suggestion.suggested_category }))}
+                  className="bg-primary text-white px-md h-8 rounded font-label-md text-label-md hover:bg-opacity-90 border-0 cursor-pointer flex items-center gap-xs"
+                >
+                  <span className="material-symbols-outlined text-[16px]">check</span>
+                  Apply Suggested Category
+                </button>
+              </div>
+            </div>
+          )}
+
+          {suggesting && (
+            <div className="mb-lg flex items-center gap-xs text-secondary font-label-sm text-xs">
+              <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+              Analyzing vitals for suggestion...
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-md">
             {TRIAGE_CATEGORIES.map((category) => (
               <label key={category.value} className="relative cursor-pointer group">
@@ -282,7 +396,6 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
                   }
                   className="peer sr-only"
                 />
-                {/* checkmark badge — visible only when selected */}
                 <span
                   className={`absolute top-3 right-3 z-10 w-5 h-5 rounded-full flex items-center justify-center text-white transition-all pointer-events-none
                     opacity-0 peer-checked:opacity-100 ${category.bgClass}`}

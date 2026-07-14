@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { TriageHistorySearchResult, TriageVisitRecord, VisitOutcome } from '@/features/triage/types/triageHistory'
 import { getPatientVisitHistory } from '@/features/triage/data/mockTriageHistory'
+import { triageService } from '@/api/services/triage'
 
 const PAGE_SIZE = 5
 
@@ -64,11 +65,51 @@ interface VisitDetailModalProps {
 }
 
 function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps) {
+  const [realAssessment, setRealAssessment] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
+    
+    const fetchReal = async () => {
+      try {
+        const data = await triageService.getAssessment(visit.visitId)
+        setRealAssessment(data)
+      } catch (err) {
+        console.log('No real assessment found for visit in database, using local/mock history data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void fetchReal()
+
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [visit.visitId, onClose])
+
+  const vitalsText = useMemo(() => {
+    if (!realAssessment) return visit.vitals || ''
+    const v = realAssessment.vitals
+    const parts = [
+      v.blood_pressure_systolic && v.blood_pressure_diastolic ? `BP: ${v.blood_pressure_systolic}/${v.blood_pressure_diastolic} mmHg` : '',
+      v.temperature ? `Temp: ${v.temperature} °C` : '',
+      v.pulse_rate ? `Pulse: ${v.pulse_rate} BPM` : '',
+      v.oxygen_saturation ? `SpO2: ${v.oxygen_saturation} %` : '',
+      v.respiratory_rate ? `RR: ${v.respiratory_rate} BPM` : '',
+      v.weight_kg ? `Weight: ${v.weight_kg} kg` : ''
+    ].filter(Boolean)
+    return parts.join(' | ')
+  }, [realAssessment, visit.vitals])
+
+  const complaintText = realAssessment ? realAssessment.chief_complaint : visit.chiefComplaint
+  const notesText = realAssessment ? realAssessment.triage_notes : visit.doctorNotes
+  const nurseName = realAssessment ? realAssessment.triage_nurse.full_name : null
+
+  const categoryLabel = useMemo((): any => {
+    if (!realAssessment) return visit.triageCategory
+    const cat = realAssessment.triage_category.replace('_', '-').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    return cat
+  }, [realAssessment, visit.triageCategory])
 
   return (
     <div
@@ -102,67 +143,78 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-xl py-lg space-y-lg">
-          {/* Meta row */}
-          <div className="flex flex-wrap gap-md">
-            <div className="flex items-center gap-xs text-outline font-body-sm text-body-sm">
-              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-              {visit.date}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-sm">
+              <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+              <p className="font-label-md text-secondary m-0">Loading assessment details...</p>
             </div>
-            <span
-              className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${categoryBadgeClass(visit.triageCategory)}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${categoryDotClass(visit.triageCategory)}`} />
-              {visit.triageCategory}
-            </span>
-            <span
-              className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${outcomeBadge(visit.outcome)}`}
-            >
-              <span className="material-symbols-outlined text-[14px]">{outcomeIcon(visit.outcome)}</span>
-              {visit.outcome}
-            </span>
-          </div>
-
-          {/* Chief Complaint */}
-          <div className="bg-surface-container-low rounded-xl p-md">
-            <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Chief Complaint</p>
-            <p className="font-body-md text-body-md text-on-surface m-0">{visit.chiefComplaint}</p>
-          </div>
-
-          {/* Two-col grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
-            <div className="bg-surface-container-low rounded-xl p-md">
-              <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Attending Doctor</p>
-              <div className="flex items-center gap-xs">
-                <span className="material-symbols-outlined text-primary text-[18px]">stethoscope</span>
-                <p className="font-body-md text-body-md text-on-surface m-0">{visit.attendingDoctor}</p>
+          ) : (
+            <>
+              {/* Meta row */}
+              <div className="flex flex-wrap gap-md">
+                <div className="flex items-center gap-xs text-outline font-body-sm text-body-sm">
+                  <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+                  {realAssessment ? new Date(realAssessment.assessed_at).toLocaleDateString() : visit.date}
+                </div>
+                <span
+                  className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${categoryBadgeClass(categoryLabel)}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${categoryDotClass(categoryLabel)}`} />
+                  {categoryLabel}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${outcomeBadge(visit.outcome)}`}
+                >
+                  <span className="material-symbols-outlined text-[14px]">{outcomeIcon(visit.outcome)}</span>
+                  {visit.outcome}
+                </span>
               </div>
-            </div>
-            <div className="bg-surface-container-low rounded-xl p-md">
-              <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Diagnosis</p>
-              <p className="font-body-md text-body-md text-on-surface m-0">{visit.diagnosis}</p>
-            </div>
-          </div>
 
-          {/* Vitals */}
-          {visit.vitals && (
-            <div className="bg-surface-container-low rounded-xl p-md">
-              <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0 flex items-center gap-xs">
-                <span className="material-symbols-outlined text-[16px]">monitor_heart</span>
-                Vitals
-              </p>
-              <p className="font-body-md text-body-md text-on-surface m-0">{visit.vitals}</p>
-            </div>
-          )}
+              {/* Chief Complaint */}
+              <div className="bg-surface-container-low rounded-xl p-md">
+                <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Chief Complaint</p>
+                <p className="font-body-md text-body-md text-on-surface m-0">{complaintText}</p>
+              </div>
 
-          {/* Doctor Notes */}
-          {visit.doctorNotes && (
-            <div className="border border-border-subtle rounded-xl p-md">
-              <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0 flex items-center gap-xs">
-                <span className="material-symbols-outlined text-[16px]">notes</span>
-                Doctor's Notes
-              </p>
-              <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed m-0">{visit.doctorNotes}</p>
-            </div>
+              {/* Two-col grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                <div className="bg-surface-container-low rounded-xl p-md">
+                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Attending Doctor / Staff</p>
+                  <div className="flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-primary text-[18px]">stethoscope</span>
+                    <p className="font-body-md text-body-md text-on-surface m-0">
+                      {nurseName ? `Nurse: ${nurseName}` : visit.attendingDoctor}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-surface-container-low rounded-xl p-md">
+                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Diagnosis</p>
+                  <p className="font-body-md text-body-md text-on-surface m-0">{visit.diagnosis}</p>
+                </div>
+              </div>
+
+              {/* Vitals */}
+              {vitalsText && (
+                <div className="bg-surface-container-low rounded-xl p-md">
+                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0 flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-[16px]">monitor_heart</span>
+                    Vitals
+                  </p>
+                  <p className="font-body-md text-body-md text-on-surface m-0">{vitalsText}</p>
+                </div>
+              )}
+
+              {/* Doctor / Nurse Notes */}
+              {notesText && (
+                <div className="border border-border-subtle rounded-xl p-md">
+                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0 flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-[16px]">notes</span>
+                    Triage & Clinical Notes
+                  </p>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed m-0">{notesText}</p>
+                </div>
+              )}
+            </>
           )}
         </div>
 

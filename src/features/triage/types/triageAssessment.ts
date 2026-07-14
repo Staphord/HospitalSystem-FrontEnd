@@ -3,8 +3,11 @@ export type TriageQueuePriority = 'emergency' | 'urgent' | 'routine'
 export type TriageCategory = 'emergency' | 'urgent' | 'semi_urgent' | 'non_urgent'
 
 export interface TriageVisit {
+  queueId: string
+  status: 'waiting' | 'in_progress' | 'completed' | 'skipped'
   visitId: string
-  queueNumber: number
+  patientId: string
+  queueNumber: string
   name: string
   initials: string
   patientNumber: string

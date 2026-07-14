@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { MOCK_TRIAGE_VISITS } from '@/features/triage/data/mockTriageVisits'
+import { toast } from 'sonner'
+import { triageService } from '@/api/services/triage'
 import type { TriageQueuePriority, TriageVisit } from '@/features/triage/types/triageAssessment'
 import {
   buildAssessNavigateState,
@@ -20,12 +21,12 @@ function SummaryCard({
   icon,
   variant = 'default',
 }: {
-  label: string
-  value: string
-  subtext: string
-  subtextClassName?: string
-  icon: string
-  variant?: 'default' | 'emergency'
+  label: string;
+  value: string;
+  subtext: string;
+  subtextClassName?: string;
+  icon: string;
+  variant?: 'default' | 'emergency';
 }) {
   const isEmergency = variant === 'emergency'
 
@@ -33,8 +34,8 @@ function SummaryCard({
     <div
       className={
         isEmergency
-          ? 'bg-white border-2 border-error p-md rounded-xl shadow-sm'
-          : 'bg-surface-white border border-border-subtle p-md rounded-xl'
+          ? 'bg-white border-2 border-error p-md rounded-xl shadow-sm animate-pulse'
+          : 'bg-surface-white border border-border-subtle p-md rounded-xl shadow-sm'
       }
     >
       <div className="flex justify-between items-start mb-sm">
@@ -66,19 +67,93 @@ function matchesPaymentFilter(payment: string, filter: PaymentFilter): boolean {
 export function TriageQueueContent() {
   const navigate = useNavigate()
   const location = useLocation()
+  
+  const [patients, setPatients] = useState<TriageVisit[]>([])
+  const [loading, setLoading] = useState(true)
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [previewPatient, setPreviewPatient] = useState<TriageVisit | null>(null)
   const [activeVisitId, setActiveVisitId] = useState<string | null>(null)
 
+  const fetchQueue = async (showLoading = false) => {
+    if (showLoading) setLoading(true)
+    try {
+      const data = await triageService.getQueue()
+      const mapped = data.queue.map((item): TriageVisit => {
+        const initials = item.patient.full_name
+          .split(' ')
+          .filter(Boolean)
+          .map((n) => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2)
+        
+        const dob = new Date(item.patient.date_of_birth)
+        const age = isNaN(dob.getTime())
+          ? 0
+          : Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)
+        
+        const arrivalDate = new Date(item.created_at)
+        const arrival = isNaN(arrivalDate.getTime())
+          ? '--'
+          : arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          
+        const diffMins = isNaN(arrivalDate.getTime())
+          ? 0
+          : Math.floor((Date.now() - arrivalDate.getTime()) / 60000)
+          
+        const waitTime = `${diffMins}m`
+        
+        let waitColor = 'text-success'
+        if (item.priority === 'emergency') {
+          waitColor = 'text-error font-bold'
+        } else if (diffMins > 30) {
+          waitColor = 'text-warning'
+        }
+        
+        return {
+          queueId: item.queue_id,
+          status: item.status,
+          visitId: item.visit.visit_id,
+          patientId: item.patient.patient_id,
+          queueNumber: item.queue_number,
+          name: item.patient.full_name,
+          initials,
+          patientNumber: item.patient.patient_number,
+          gender: item.patient.gender,
+          age,
+          arrival,
+          waitTime,
+          waitColor,
+          waitWarningIcon: diffMins > 30,
+          payment: item.visit.payment_type,
+          source: item.visit.visit_type,
+          priority: item.priority === 'emergency' ? 'emergency' : item.priority === 'urgent' ? 'urgent' : 'routine',
+          isEmergency: item.priority === 'emergency'
+        }
+      })
+      setPatients(mapped)
+    } catch (err) {
+      console.error('Failed to fetch triage queue:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void fetchQueue(true)
+    const interval = setInterval(() => void fetchQueue(), 15000)
+    return () => clearInterval(interval)
+  }, [])
+
   const filteredPatients = useMemo(() => {
-    return MOCK_TRIAGE_VISITS.filter((patient) => {
+    return patients.filter((patient) => {
       const priorityMatch = priorityFilter === 'all' || patient.priority === priorityFilter
       const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
       return priorityMatch && paymentMatch
     })
-  }, [priorityFilter, paymentFilter])
+  }, [patients, priorityFilter, paymentFilter])
 
   useEffect(() => {
     const highlight = (location.state as TriageQueueLocationState | null)?.highlightVisitId
@@ -99,6 +174,27 @@ export function TriageQueueContent() {
     return () => window.clearTimeout(timeout)
   }, [activeVisitId])
 
+  const handleCall = async (queueId: string, name: string) => {
+    try {
+      await triageService.callPatient(queueId)
+      toast.success(`Called ${name} to triage bay`)
+      void fetchQueue()
+    } catch (err) {
+      toast.error(`Failed to call ${name}`)
+    }
+  }
+
+  const handleSkip = async (queueId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to skip ${name}?`)) return
+    try {
+      await triageService.skipPatient(queueId)
+      toast.success(`Skipped ${name}`)
+      void fetchQueue()
+    } catch (err) {
+      toast.error(`Failed to skip ${name}`)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
   const pageStart = (safePage - 1) * PAGE_SIZE
@@ -106,21 +202,48 @@ export function TriageQueueContent() {
   const showingFrom = filteredPatients.length === 0 ? 0 : pageStart + 1
   const showingTo = Math.min(pageStart + PAGE_SIZE, filteredPatients.length)
 
-  const handleAssess = (visitId: string) => {
+  const handleAssess = (patient: TriageVisit) => {
     setPreviewPatient(null)
-    navigate(`/triage/assess/${visitId}`, { state: buildAssessNavigateState(visitId) })
+    navigate(`/triage/assess/${patient.visitId}`, { state: { visit: patient, from: 'queue' } })
   }
+
+  // Dashboard Stats Calculations
+  const awaitingCount = patients.filter((p) => p.status === 'waiting').length
+  const inProgressCount = patients.filter((p) => p.status === 'in_progress').length
+  const emergencyCount = patients.filter((p) => p.priority === 'emergency').length
+
+  const avgWaitTimeStr = useMemo(() => {
+    if (patients.length === 0) return '0m'
+    const totalWait = patients.reduce((sum, p) => sum + (parseInt(p.waitTime) || 0), 0)
+    return `${Math.round(totalWait / patients.length)}m`
+  }, [patients])
 
   return (
     <div className="flex flex-col gap-lg max-w-container-max mx-auto w-full min-h-[calc(100vh-7rem)]">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md shrink-0">
-        <SummaryCard label="Awaiting" value="6" subtext="Avg Wait: 14m" subtextClassName="text-success" icon="hourglass_empty" />
-        <SummaryCard label="In Progress" value="1" subtext="Room 4 Active" icon="sync" />
-        <SummaryCard label="Assessed Today" value="18" subtext="+3 since 08:00" icon="check_circle" />
         <SummaryCard
-          label="Emergency Now"
-          value="1"
-          subtext="Immediate attention required"
+          label="Awaiting Triage"
+          value={String(awaitingCount)}
+          subtext={`Avg Wait: ${avgWaitTimeStr}`}
+          subtextClassName="text-success"
+          icon="hourglass_empty"
+        />
+        <SummaryCard
+          label="Active Assessments"
+          value={String(inProgressCount)}
+          subtext="In triage bay"
+          icon="sync"
+        />
+        <SummaryCard
+          label="Total Checked-In"
+          value={String(patients.length)}
+          subtext="Active in queue"
+          icon="group"
+        />
+        <SummaryCard
+          label="Emergency Priority"
+          value={String(emergencyCount)}
+          subtext="Requires immediate call"
           subtextClassName="text-error font-bold"
           icon="emergency"
           variant="emergency"
@@ -163,122 +286,165 @@ export function TriageQueueContent() {
         <div className="border-b border-border-subtle" />
 
         <div className="flex-1 overflow-auto min-h-[28rem]">
-          <table className="w-full border-collapse min-w-[900px]">
-            <thead className="bg-surface-container-low sticky top-0 z-10">
-              <tr>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Position
-                </th>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Patient Name
-                </th>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Patient #
-                </th>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Arrival Time
-                </th>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Wait Time
-                </th>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Payment
-                </th>
-                <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Source
-                </th>
-                <th className="px-md py-sm text-right font-label-md text-label-md text-secondary uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {filteredPatients.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full py-20 gap-sm">
+              <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+              <p className="font-label-md text-secondary m-0">Loading triage queue...</p>
+            </div>
+          ) : (
+            <table className="w-full border-collapse min-w-[900px]">
+              <thead className="bg-surface-container-low sticky top-0 z-10">
                 <tr>
-                  <td colSpan={8} className="px-md py-xl text-center font-body-sm text-secondary">
-                    No patients match the selected filters.
-                  </td>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Pos
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Patient Name
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Patient #
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Arrival Time
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Wait Time
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Payment
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Source
+                  </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-md py-sm text-right font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ) : (
-                visiblePatients.map((patient) => (
-                  <tr
-                    key={patient.visitId}
-                    className={`hover:bg-hover-tint transition-colors ${
-                      patient.isEmergency ? 'bg-[#FFF4F4]' : ''
-                    } ${
-                      activeVisitId === patient.visitId
-                        ? 'ring-2 ring-inset ring-primary bg-hover-tint'
-                        : ''
-                    }`}
-                  >
-                    <td
-                      className={`px-md py-md font-body-sm text-body-sm ${
-                        patient.isEmergency ? 'font-bold text-error' : 'text-secondary'
-                      }`}
-                    >
-                      {patient.queueNumber}
-                    </td>
-                    <td className="px-md py-md">
-                      <div className="flex items-center gap-sm">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                            patient.isEmergency
-                              ? 'bg-error-container text-error'
-                              : 'bg-secondary-container text-primary'
-                          }`}
-                        >
-                          {patient.initials}
-                        </div>
-                        <div>
-                          <p className="font-label-md text-label-md text-on-surface m-0">{patient.name}</p>
-                          {patient.isEmergency && (
-                            <p className="text-[10px] text-error font-bold uppercase tracking-widest m-0">
-                              Emergency
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-md py-md font-body-sm text-body-sm text-secondary">
-                      {patient.patientNumber}
-                    </td>
-                    <td className="px-md py-md font-body-sm text-body-sm text-secondary">{patient.arrival}</td>
-                    <td className="px-md py-md">
-                      <span
-                        className={`font-body-sm text-body-sm font-semibold flex items-center gap-xs ${patient.waitColor}`}
-                      >
-                        {patient.waitWarningIcon && (
-                          <span className="material-symbols-outlined text-[16px]">warning</span>
-                        )}
-                        {patient.waitTime}
-                      </span>
-                    </td>
-                    <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.payment}</td>
-                    <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.source}</td>
-                    <td className="px-md py-md text-right">
-                      <div className="flex justify-end gap-sm items-center">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewPatient(patient)}
-                          className="p-1.5 hover:bg-surface-container rounded transition-colors text-secondary bg-transparent border-0 cursor-pointer"
-                          title="View patient"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">visibility</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAssess(patient.visitId)}
-                          className="bg-primary-container text-on-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer"
-                        >
-                          Assess
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {filteredPatients.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-md py-xl text-center font-body-sm text-secondary">
+                      No patients match the selected filters.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  visiblePatients.map((patient, index) => (
+                    <tr
+                      key={patient.visitId}
+                      className={`hover:bg-hover-tint transition-colors ${
+                        patient.isEmergency ? 'bg-[#FFF4F4]' : ''
+                      } ${
+                        activeVisitId === patient.visitId
+                          ? 'ring-2 ring-inset ring-primary bg-hover-tint'
+                          : ''
+                      }`}
+                    >
+                      <td
+                        className={`px-md py-md font-body-sm text-body-sm ${
+                          patient.isEmergency ? 'font-bold text-error' : 'text-secondary'
+                        }`}
+                      >
+                        {pageStart + index + 1}
+                      </td>
+                      <td className="px-md py-md">
+                        <div className="flex items-center gap-sm">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                              patient.isEmergency
+                                ? 'bg-error-container text-error'
+                                : 'bg-secondary-container text-primary'
+                            }`}
+                          >
+                            {patient.initials}
+                          </div>
+                          <div>
+                            <p className="font-label-md text-label-md text-on-surface m-0">{patient.name}</p>
+                            {patient.isEmergency && (
+                              <p className="text-[10px] text-error font-bold uppercase tracking-widest m-0">
+                                Emergency
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-md py-md font-body-sm text-body-sm text-secondary">
+                        {patient.patientNumber}
+                      </td>
+                      <td className="px-md py-md font-body-sm text-body-sm text-secondary">{patient.arrival}</td>
+                      <td className="px-md py-md">
+                        <span
+                          className={`font-body-sm text-body-sm font-semibold flex items-center gap-xs ${patient.waitColor}`}
+                        >
+                          {patient.waitWarningIcon && (
+                            <span className="material-symbols-outlined text-[16px]">warning</span>
+                          )}
+                          {patient.waitTime}
+                        </span>
+                      </td>
+                      <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.payment}</td>
+                      <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.source}</td>
+                      <td className="px-md py-md font-body-sm text-body-sm">
+                        <span
+                          className={`px-2 py-0.5 rounded font-label-md text-[10px] uppercase ${
+                            patient.status === 'in_progress'
+                              ? 'bg-primary-container text-white'
+                              : 'bg-surface-container text-secondary'
+                          }`}
+                        >
+                          {patient.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-md py-md text-right">
+                        <div className="flex justify-end gap-sm items-center">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPatient(patient)}
+                            className="p-1.5 hover:bg-surface-container rounded transition-colors text-secondary bg-transparent border-0 cursor-pointer"
+                            title="View Patient Info"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">visibility</span>
+                          </button>
+                          
+                          {patient.status === 'waiting' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleCall(patient.queueId, patient.name)}
+                              className="bg-secondary-container text-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-hover-tint border-0 cursor-pointer flex items-center gap-xs"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">volume_up</span>
+                              Call
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleAssess(patient)}
+                              className="bg-primary-container text-white px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer flex items-center gap-xs"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">rate_review</span>
+                              Assess
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleSkip(patient.queueId, patient.name)}
+                            className="p-1.5 hover:bg-error-container text-secondary hover:text-error rounded transition-colors bg-transparent border-0 cursor-pointer"
+                            title="Skip Patient"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">block</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-sm shrink-0">
@@ -336,7 +502,7 @@ export function TriageQueueContent() {
             aria-labelledby="patient-preview-title"
           >
             <h3 id="patient-preview-title" className="font-headline-sm text-on-surface m-0 mb-md">
-              Patient preview
+              Patient Preview
             </h3>
             <div className="space-y-sm font-body-sm text-body-sm">
               <p className="m-0">
@@ -346,13 +512,20 @@ export function TriageQueueContent() {
                 <span className="text-secondary">Patient #:</span> {previewPatient.patientNumber}
               </p>
               <p className="m-0">
+                <span className="text-secondary">Age/Gender:</span> {previewPatient.age} Y / {previewPatient.gender}
+              </p>
+              <p className="m-0">
                 <span className="text-secondary">Arrival:</span> {previewPatient.arrival}
               </p>
               <p className="m-0">
-                <span className="text-secondary">Wait:</span> {previewPatient.waitTime}
+                <span className="text-secondary">Wait Time:</span> {previewPatient.waitTime}
               </p>
               <p className="m-0">
-                <span className="text-secondary">Source:</span> {previewPatient.source}
+                <span className="text-secondary">Payment:</span> {previewPatient.payment}
+              </p>
+              <p className="m-0">
+                <span className="text-secondary">Status:</span>{' '}
+                <span className="font-semibold text-primary uppercase">{previewPatient.status.replace('_', ' ')}</span>
               </p>
             </div>
             <div className="flex gap-sm mt-lg justify-end">
@@ -363,13 +536,29 @@ export function TriageQueueContent() {
               >
                 Close
               </button>
-              <button
-                type="button"
-                onClick={() => handleAssess(previewPatient.visitId)}
-                className="px-md py-sm bg-primary-container text-on-primary rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90"
-              >
-                Start assessment
-              </button>
+              
+              {previewPatient.status === 'waiting' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleCall(previewPatient.queueId, previewPatient.name)
+                    setPreviewPatient(null)
+                  }}
+                  className="px-md py-sm bg-primary-container text-white rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90 flex items-center gap-xs"
+                >
+                  <span className="material-symbols-outlined text-[16px]">volume_up</span>
+                  Call Patient
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleAssess(previewPatient)}
+                  className="px-md py-sm bg-primary-container text-white rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90 flex items-center gap-xs"
+                >
+                  <span className="material-symbols-outlined text-[16px]">rate_review</span>
+                  Start Assessment
+                </button>
+              )}
             </div>
           </div>
         </div>
