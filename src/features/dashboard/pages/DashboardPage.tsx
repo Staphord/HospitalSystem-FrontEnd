@@ -17,6 +17,7 @@ import type { BackendPatient } from '@/api/types/reception'
 
 interface ReceptionQueuePreviewItem {
   pos: number
+  ticketNumber: string
   name: string
   patientNumber: string
   registeredAt: string
@@ -92,8 +93,8 @@ function ReceptionQueueViewModal({
             <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Queue Details</h3>
             <div className="grid grid-cols-2 gap-sm bg-surface-container-low p-md rounded-lg border border-border-subtle">
               <div>
-                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Position</p>
-                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">#{item.pos}</p>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Ticket Number</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.ticketNumber}</p>
               </div>
               <div>
                 <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Status</p>
@@ -240,6 +241,7 @@ export function DashboardPage() {
       const activeEntries = currentQueue.filter(
         (entry) => entry.status === 'waiting' || entry.status === 'in_progress'
       )
+      console.log('Active Entries fetched:', activeEntries)
       setInQueueCount(activeEntries.length)
 
       // Calculate Average Wait Time of current active entries
@@ -261,6 +263,7 @@ export function DashboardPage() {
         const mins = waitMinutes(entry.created_at)
         return {
           pos: index + 1,
+          ticketNumber: entry.queue_number,
           name: entry.patient.full_name,
           patientNumber: entry.patient.patient_number,
           registeredAt: new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -411,7 +414,7 @@ export function DashboardPage() {
                 <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
                     <tr className="font-label-md text-label-md text-secondary border-b border-border-subtle bg-surface-bright text-[11px] uppercase tracking-wider">
-                      <th className="py-3 px-4 font-semibold">Pos</th>
+                      <th className="py-3 px-4 font-semibold">Ticket #</th>
                       <th className="py-3 px-4 font-semibold">Patient Name</th>
                       <th className="py-3 px-4 font-semibold">Patient #</th>
                       <th className="py-3 px-4 font-semibold">Wait Time</th>
@@ -440,7 +443,7 @@ export function DashboardPage() {
                           className="border-b border-border-subtle hover:bg-hover-tint transition-colors cursor-pointer"
                           onClick={() => setQueueViewItem(item)}
                         >
-                          <td className="py-3 px-4 font-medium text-secondary">{item.pos}</td>
+                          <td className="py-3 px-4 font-medium text-secondary">{item.ticketNumber}</td>
                           <td className="py-3 px-4 font-medium">{item.name}</td>
                           <td className="py-3 px-4 text-outline">{item.patientNumber}</td>
                           <td className={`py-3 px-4 font-medium ${item.waitColor}`}>{item.wait}</td>

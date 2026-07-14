@@ -5,6 +5,7 @@ import type { QueueWorklistItem, BackendPatient } from '@/api/types/reception'
 
 interface QueueItem {
   pos: number
+  ticketNumber: string
   name: string
   id: string          // patient_number for display
   patientId?: string  // patient UUID
@@ -83,6 +84,7 @@ function toQueueItem(entry: QueueWorklistItem, pos: number): QueueItem {
 
   return {
     pos,
+    ticketNumber: entry.queue_number,
     name: entry.patient.full_name,
     id: entry.patient.patient_number,
     patientId: entry.patient.patient_id,
@@ -154,8 +156,8 @@ function QueueViewModal({ item, onClose }: { item: QueueItem; onClose: () => voi
             <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Queue Details</h3>
             <div className="grid grid-cols-2 gap-sm bg-surface-container-low p-md rounded-lg border border-border-subtle">
               <div>
-                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Position</p>
-                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">#{item.pos}</p>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Ticket Number</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.ticketNumber}</p>
               </div>
               <div>
                 <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Triage Status</p>
@@ -510,7 +512,7 @@ export function VisitQueuePage() {
               <table className="w-full text-left border-collapse min-w-[1000px]">
                 <thead className="bg-surface-container-low">
                   <tr>
-                    <th className={TH_CLASS}>#</th>
+                    <th className={TH_CLASS}>Ticket #</th>
                     <th className={TH_CLASS}>Patient Name</th>
                     <th className={TH_CLASS}>Patient #</th>
                     <th className={TH_CLASS}>Registered At</th>
@@ -523,7 +525,7 @@ export function VisitQueuePage() {
                 <tbody className="divide-y divide-border-subtle">
                   {visibleItems.map((item) => (
                     <tr key={item.queueId} className="hover:bg-hover-tint transition-colors group">
-                      <td className={TD_MUTED}>{item.pos}</td>
+                      <td className={TD_MUTED}>{item.ticketNumber}</td>
                       <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
                         {item.name}
                       </td>
