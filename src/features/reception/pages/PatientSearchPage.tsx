@@ -158,7 +158,17 @@ function PatientFoundCard({
 }: {
   patient: BackendPatient
   checkingIn: boolean
-  onCheckIn: (paymentType: 'cash' | 'insurance', insuranceId?: string) => void
+  onCheckIn: (
+    paymentType: 'cash' | 'insurance',
+    insuranceId?: string,
+    contactDetails?: {
+      name: string
+      phone: string
+      kinName: string
+      kinRelation: string
+      kinPhone: string
+    }
+  ) => void
   onViewQueue: () => void
   onViewDetails: () => void
 }) {
@@ -166,6 +176,18 @@ function PatientFoundCard({
   const [loadingPolicies, setLoadingPolicies] = useState(false)
   const [paymentType, setPaymentType] = useState<'cash' | 'insurance'>('cash')
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>('')
+
+  // Contact & Next of Kin states
+  const [patientPhone, setPatientPhone] = useState(patient.phone_primary || '')
+  const [kinName, setKinName] = useState(patient.next_of_kin_name || '')
+  const [kinRelation, setKinRelation] = useState(patient.next_of_kin_relationship || '')
+  const [kinPhone, setKinPhone] = useState(patient.next_of_kin_phone || '')
+  const [isEditingPhone, setIsEditingPhone] = useState(false)
+  const [patientName, setPatientName] = useState(patient.full_name || '')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [isEditingKinName, setIsEditingKinName] = useState(false)
+  const [isEditingKinRelation, setIsEditingKinRelation] = useState(false)
+  const [isEditingKinPhone, setIsEditingKinPhone] = useState(false)
 
   // Queue Status States
   const [queueStatus, setQueueStatus] = useState<string | null>(null)
@@ -281,7 +303,39 @@ function PatientFoundCard({
       <div className="p-lg grid grid-cols-1 md:grid-cols-2 gap-md">
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient Name</p>
-          <p className="font-body-md text-body-md font-semibold text-on-surface m-0">{patient.full_name}</p>
+          {isEditingName ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-md font-semibold bg-white outline-none w-48"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setIsEditingName(false)}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Name"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md font-semibold text-on-surface">{patientName}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingName(true)}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Name"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
@@ -293,7 +347,39 @@ function PatientFoundCard({
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Phone</p>
-          <p className="font-body-md text-body-md text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
+          {isEditingPhone ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={patientPhone}
+                onChange={(e) => setPatientPhone(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-36"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setIsEditingPhone(false)}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Contact"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patientPhone || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingPhone(true)}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Contact"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Date of Birth</p>
@@ -304,6 +390,121 @@ function PatientFoundCard({
           <p className="font-body-md text-body-md text-on-surface m-0">
             {new Date(patient.created_at).toLocaleDateString()}
           </p>
+        </div>
+        <div>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin Name</p>
+          {isEditingKinName ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={kinName}
+                onChange={(e) => setKinName(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-36"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setIsEditingKinName(false)}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Kin Name"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{kinName || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingKinName(true)}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Kin Name"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin Relationship</p>
+          {isEditingKinRelation ? (
+            <div className="flex items-center gap-xs">
+              <select
+                value={kinRelation}
+                onChange={(e) => setKinRelation(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-48"
+                autoFocus
+              >
+                <option value="">-- Choose Relationship --</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Child">Child</option>
+                <option value="Parent">Parent</option>
+                <option value="Sibling">Sibling</option>
+                <option value="Guardian">Guardian</option>
+                <option value="Other">Other</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsEditingKinRelation(false)}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Relationship"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{kinRelation || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingKinRelation(true)}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Relationship"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin Contact</p>
+          {isEditingKinPhone ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={kinPhone}
+                onChange={(e) => setKinPhone(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-36"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setIsEditingKinPhone(false)}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Kin Contact"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{kinPhone || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingKinPhone(true)}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Kin Contact"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -335,7 +536,7 @@ function PatientFoundCard({
           </div>
 
           {paymentType === 'insurance' && (
-            <div className="space-y-sm mb-md mt-sm">
+            <div className="space-y-sm mb-md mt-sm max-w-md">
               {loadingPolicies ? (
                 <p className="text-body-sm text-secondary animate-pulse m-0">Loading insurance policies...</p>
               ) : policies.length === 0 ? (
@@ -373,7 +574,7 @@ function PatientFoundCard({
           )}
 
           {showAddPolicy && (
-            <form onSubmit={handleAddPolicy} className="p-md bg-white rounded-lg border border-border-subtle space-y-md mb-md mt-sm">
+            <form onSubmit={handleAddPolicy} className="p-md bg-white rounded-lg border border-border-subtle space-y-md mb-md mt-sm max-w-md">
               <div className="flex justify-between items-center pb-xs border-b border-border-subtle">
                 <span className="font-label-md text-label-md font-semibold text-on-surface">Add Insurance Policy</span>
                 <button
@@ -389,7 +590,7 @@ function PatientFoundCard({
                   <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Insurer Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Jubilee Insurance"
+                    placeholder="e.g. Jubilee"
                     value={insurerName}
                     onChange={(e) => setInsurerName(e.target.value)}
                     className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
@@ -475,7 +676,16 @@ function PatientFoundCard({
           return (
             <button
               type="button"
-              onClick={() => !btnConfig.disabled && onCheckIn(paymentType, selectedPolicyId || undefined)}
+              onClick={() =>
+                !btnConfig.disabled &&
+                onCheckIn(paymentType, selectedPolicyId || undefined, {
+                  name: patientName,
+                  phone: patientPhone,
+                  kinName,
+                  kinRelation,
+                  kinPhone,
+                })
+              }
               disabled={btnConfig.disabled}
               className={`h-10 px-lg rounded font-body-sm text-body-sm flex items-center gap-sm ${btnConfig.className}`}
             >
@@ -652,10 +862,34 @@ export function PatientSearchPage() {
   const handleCheckIn = async (
     patient: BackendPatient,
     paymentType: 'cash' | 'insurance',
-    insuranceId?: string
+    insuranceId?: string,
+    contactDetails?: {
+      phone: string
+      kinName: string
+      kinRelation: string
+      kinPhone: string
+    }
   ) => {
     setCheckingIn(true)
     try {
+      if (contactDetails) {
+        const hasContactChanges =
+          contactDetails.phone.trim() !== (patient.phone_primary || '') ||
+          contactDetails.kinName.trim() !== (patient.next_of_kin_name || '') ||
+          contactDetails.kinRelation.trim() !== (patient.next_of_kin_relationship || '') ||
+          contactDetails.kinPhone.trim() !== (patient.next_of_kin_phone || '')
+
+        if (hasContactChanges) {
+          await receptionService.updatePatient(patient.id, {
+            phone_primary: contactDetails.phone.trim() || null,
+            next_of_kin_name: contactDetails.kinName.trim() || null,
+            next_of_kin_relationship: contactDetails.kinRelation.trim() || null,
+            next_of_kin_phone: contactDetails.kinPhone.trim() || null,
+          })
+          toast.success('Patient contact & Next of Kin updated!')
+        }
+      }
+
       const result = await receptionService.createVisit({
         patient_id: patient.id,
         visit_type: 'outpatient',
@@ -787,7 +1021,9 @@ export function PatientSearchPage() {
           key={displayPatient.id}
           patient={displayPatient}
           checkingIn={checkingIn}
-          onCheckIn={(payType, insId) => handleCheckIn(displayPatient, payType, insId)}
+          onCheckIn={(payType, insId, contactDetails) =>
+            handleCheckIn(displayPatient, payType, insId, contactDetails)
+          }
           onViewQueue={() => navigate('/reception/queue')}
           onViewDetails={() => setDetailPatient(displayPatient)}
         />

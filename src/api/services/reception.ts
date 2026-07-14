@@ -35,6 +35,10 @@ export const receptionService = {
   getPatient: (patientId: string) =>
     apiClient.get<BackendPatient>(`/patients/${patientId}`).then((r) => r.data),
 
+  /** Update a patient's profile details */
+  updatePatient: (patientId: string, data: Partial<BackendPatient>) =>
+    apiClient.patch<BackendPatient>(`/patients/${patientId}`, data).then((r) => r.data),
+
   // ── Insurance ───────────────────────────────────────────────────────────
 
   /** Add an insurance policy to an existing patient */
