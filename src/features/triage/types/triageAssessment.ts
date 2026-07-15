@@ -14,6 +14,8 @@ export interface TriageVisit {
   gender: string
   age: number
   arrival: string
+  created_at: string
+  completed_at: string | null
   waitTime: string
   waitColor: string
   waitWarningIcon?: boolean

@@ -19,6 +19,7 @@ export interface BackendTriageQueueItem {
   priority: 'emergency' | 'urgent' | 'semi_urgent' | 'non_urgent'
   status: 'waiting' | 'in_progress' | 'completed' | 'skipped'
   called_at: string | null
+  completed_at: string | null
   created_at: string
   patient: BackendPatientSummary
   visit: BackendVisitSummary

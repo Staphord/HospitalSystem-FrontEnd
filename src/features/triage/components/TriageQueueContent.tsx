@@ -80,6 +80,133 @@ function categoryBadgeClass(category?: string) {
   }
 }
 
+function TriageQueueActionsMenu({
+  patient,
+  openMenuId,
+  onOpenChange,
+  onViewDetails,
+  onPreview,
+  onAssess,
+  onSkip,
+}: {
+  patient: TriageVisit
+  openMenuId: string | null
+  onOpenChange: (id: string | null) => void
+  onViewDetails: () => void
+  onPreview: () => void
+  onAssess: () => void
+  onSkip: () => void
+}) {
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
+  const isOpen = openMenuId === patient.visitId
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(null)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, onOpenChange])
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isOpen) {
+      onOpenChange(null)
+      return
+    }
+    const rect = e.currentTarget.getBoundingClientRect()
+    setAnchor({ top: rect.bottom + 4, left: rect.right - 180 })
+    onOpenChange(patient.visitId)
+  }
+
+  const menuItemClass =
+    'w-full flex items-center gap-sm px-md py-sm font-body-sm text-body-sm text-left bg-transparent border-0 cursor-pointer hover:bg-surface-container-low transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent'
+
+  const isCompleted = patient.status === 'completed'
+  const isSkipped = patient.status === 'skipped'
+
+  return (
+    <>
+      <button
+        type="button"
+        title="More actions"
+        onClick={handleToggle}
+        className="w-8 h-8 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container transition-colors border-0 bg-transparent cursor-pointer"
+      >
+        <span className="material-symbols-outlined">more_vert</span>
+      </button>
+
+      {isOpen && anchor && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default border-0 bg-transparent p-0"
+            aria-label="Close menu"
+            onClick={() => onOpenChange(null)}
+          />
+          <div
+            className="fixed z-50 min-w-[180px] py-xs bg-surface-white border border-border-subtle rounded shadow-lg"
+            style={{ top: anchor.top, left: Math.max(8, anchor.left) }}
+            role="menu"
+          >
+            {isCompleted ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={`${menuItemClass} text-success`}
+                onClick={onViewDetails}
+              >
+                <span className="material-symbols-outlined text-[18px]">pageview</span>
+                View Details
+              </button>
+            ) : isSkipped ? (
+              <button
+                type="button"
+                role="menuitem"
+                className={`${menuItemClass} text-on-surface`}
+                onClick={onPreview}
+              >
+                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                Preview
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`${menuItemClass} text-on-surface`}
+                  onClick={onPreview}
+                >
+                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`${menuItemClass} text-primary`}
+                  onClick={onAssess}
+                >
+                  <span className="material-symbols-outlined text-[18px]">assignment_ind</span>
+                  Assess
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`${menuItemClass} text-error`}
+                  onClick={onSkip}
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                  Close
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
 export function TriageQueueContent() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -101,6 +228,14 @@ export function TriageQueueContent() {
   const [viewAssessmentVisit, setViewAssessmentVisit] = useState<TriageVisit | null>(null)
   const [assessmentDetails, setAssessmentDetails] = useState<any | null>(null)
   const [loadingAssessment, setLoadingAssessment] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+
+  // Live clock — ticks every 60s so active patients' wait times update in real-time
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   const handleViewDetails = async (patient: TriageVisit) => {
     setViewAssessmentVisit(patient)
@@ -120,7 +255,7 @@ export function TriageQueueContent() {
   const fetchQueue = async (showLoading = false) => {
     if (showLoading) setLoading(true)
     try {
-      const data = await triageService.getQueue('waiting,in_progress,completed')
+      const data = await triageService.getQueue('waiting,in_progress,completed,skipped')
       const mapped = data.queue.map((item): TriageVisit => {
         const initials = item.patient.full_name
           .split(' ')
@@ -143,9 +278,17 @@ export function TriageQueueContent() {
           arrival = `${dateStr}, ${timeFormatted}`
         }
           
-        const diffMins = isNaN(arrivalDate.getTime())
-          ? 0
-          : Math.floor((Date.now() - arrivalDate.getTime()) / 60000)
+        const completedDate = item.completed_at ? new Date(item.completed_at) : null
+        let diffMins = 0
+        if (!isNaN(arrivalDate.getTime())) {
+          const isDone = item.status === 'completed' || item.status === 'skipped'
+          if (isDone && completedDate && !isNaN(completedDate.getTime())) {
+            diffMins = Math.floor((completedDate.getTime() - arrivalDate.getTime()) / 60000)
+          } else {
+            diffMins = Math.floor((Date.now() - arrivalDate.getTime()) / 60000)
+          }
+        }
+        diffMins = Math.max(0, diffMins)
           
         const waitTime = `${diffMins}m`
         
@@ -168,6 +311,8 @@ export function TriageQueueContent() {
           gender: item.patient.gender,
           age,
           arrival,
+          created_at: item.created_at,
+          completed_at: item.completed_at ?? null,
           waitTime,
           waitColor,
           waitWarningIcon: diffMins > 30,
@@ -203,7 +348,8 @@ export function TriageQueueContent() {
         return (
           patient.status === 'waiting' ||
           patient.status === 'in_progress' ||
-          patient.status === 'completed'
+          patient.status === 'completed' ||
+          patient.status === 'skipped'
         )
       })
       .filter((patient) => {
@@ -243,16 +389,35 @@ export function TriageQueueContent() {
     setPreviewPatient(null)
     const patient = patients.find((p) => p.visitId === visitId)
     if (patient) {
+      // Guard: cannot assess a skipped patient
+      if (patient.status === 'skipped') {
+        toast.error('This patient has been closed/skipped and cannot be assessed.')
+        return
+      }
       if (patient.status === 'waiting') {
         try {
           await triageService.callPatient(patient.queueId)
+          setPatients((prev) =>
+            prev.map((p) => (p.visitId === visitId ? { ...p, status: 'in_progress' } : p))
+          )
         } catch (err) {
           console.error('Failed to auto-call patient on assess click:', err)
         }
       }
-      navigate(`/triage/assess/${visitId}`, { state: { visit: patient, from: 'queue' } })
+      navigate(`/triage/assess/${visitId}`, { state: { visit: { ...patient, status: 'in_progress' }, from: 'queue' } })
     } else {
       navigate(`/triage/assess/${visitId}`, { state: buildAssessNavigateState(visitId) })
+    }
+  }
+
+  const handleSkip = async (patient: TriageVisit) => {
+    try {
+      await triageService.skipPatient(patient.queueId)
+      setPatients((prev) => prev.filter((p) => p.visitId !== patient.visitId))
+      toast.success(`${patient.name} has been closed/skipped.`)
+    } catch (err) {
+      console.error('Failed to skip patient:', err)
+      toast.error('Failed to close patient triage queue item.')
     }
   }
 
@@ -475,14 +640,31 @@ export function TriageQueueContent() {
                       </td>
                       <td className="px-md py-md font-body-sm text-body-sm text-secondary">{patient.arrival}</td>
                       <td className="px-md py-md">
-                        <span
-                          className={`font-body-sm text-body-sm font-semibold flex items-center gap-xs ${patient.waitColor}`}
-                        >
-                          {patient.waitWarningIcon && (
-                            <span className="material-symbols-outlined text-[16px]">warning</span>
-                          )}
-                          {patient.waitTime}
-                        </span>
+                        {(() => {
+                          const arrDate = new Date(patient.created_at)
+                          const doneDate = patient.completed_at ? new Date(patient.completed_at) : null
+                          const isDone = patient.status === 'completed' || patient.status === 'skipped'
+                          let mins = 0
+                          if (!isNaN(arrDate.getTime())) {
+                            if (isDone && doneDate && !isNaN(doneDate.getTime())) {
+                              mins = Math.floor((doneDate.getTime() - arrDate.getTime()) / 60000)
+                            } else {
+                              mins = Math.floor((now - arrDate.getTime()) / 60000)
+                            }
+                          }
+                          mins = Math.max(0, mins)
+                          const liveColor = patient.priority === 'emergency'
+                            ? 'text-error'
+                            : mins > 30 ? 'text-warning' : 'text-success'
+                          return (
+                            <span className={`font-body-sm text-body-sm font-semibold flex items-center gap-xs ${liveColor}`}>
+                              {mins > 30 && patient.status !== 'completed' && patient.status !== 'skipped' && (
+                                <span className="material-symbols-outlined text-[16px]">warning</span>
+                              )}
+                              {mins}m
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.payment}</td>
                       <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.source}</td>
@@ -493,6 +675,8 @@ export function TriageQueueContent() {
                               ? 'bg-success/10 text-success'
                               : patient.status === 'waiting'
                               ? 'bg-surface-container-high text-on-surface-variant'
+                              : patient.status === 'skipped'
+                              ? 'bg-surface-container-high text-outline'
                               : 'bg-primary/10 text-primary'
                           }`}
                         >
@@ -500,35 +684,28 @@ export function TriageQueueContent() {
                         </span>
                       </td>
                       <td className="px-md py-md text-right">
-                        <div className="flex justify-end gap-sm items-center">
-                          {patient.status === 'completed' ? (
-                            <button
-                              type="button; button-view-triage"
-                              onClick={() => handleViewDetails(patient)}
-                              className="border border-solid border-success text-success px-sm h-8 rounded font-label-md text-label-md hover:bg-success/10 bg-transparent cursor-pointer flex items-center gap-xs"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">pageview</span>
-                              View Details
-                            </button>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setPreviewPatient(patient)}
-                                className="p-1.5 hover:bg-surface-container rounded transition-colors text-secondary bg-transparent border-0 cursor-pointer"
-                                title="View patient"
-                              >
-                                <span className="material-symbols-outlined text-[20px]">visibility</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleAssess(patient.visitId)}
-                                className="bg-primary-container text-on-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer"
-                              >
-                                Assess
-                              </button>
-                            </>
-                          )}
+                        <div className="flex justify-end">
+                          <TriageQueueActionsMenu
+                            patient={patient}
+                            openMenuId={openMenuId}
+                            onOpenChange={setOpenMenuId}
+                            onViewDetails={() => {
+                              setOpenMenuId(null)
+                              handleViewDetails(patient)
+                            }}
+                            onPreview={() => {
+                              setOpenMenuId(null)
+                              setPreviewPatient(patient)
+                            }}
+                            onAssess={() => {
+                              setOpenMenuId(null)
+                              handleAssess(patient.visitId)
+                            }}
+                            onSkip={() => {
+                              setOpenMenuId(null)
+                              handleSkip(patient)
+                            }}
+                          />
                         </div>
                       </td>
                     </tr>
