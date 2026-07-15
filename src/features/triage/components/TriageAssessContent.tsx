@@ -73,6 +73,15 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
     triageCategory: initialCategory,
   })
   
+  // Automatically call/activate patient in the queue on load if status is still waiting
+  useEffect(() => {
+    if (visit.status === 'waiting') {
+      void triageService.callPatient(visit.queueId).catch((err) => {
+        console.error('Failed to auto-call patient on assessment form mount:', err)
+      })
+    }
+  }, [visit.queueId, visit.status])
+  
   const [touchedVitals, setTouchedVitals] = useState<Partial<Record<keyof TriageVitals, boolean>>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [suggestion, setSuggestion] = useState<{ suggested_category: TriageCategory; reason: string } | null>(null)

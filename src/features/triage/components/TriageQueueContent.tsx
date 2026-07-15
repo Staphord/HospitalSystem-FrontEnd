@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
 import { triageService } from '@/api/services/triage'
 import type { TriageQueuePriority, TriageVisit } from '@/features/triage/types/triageAssessment'
 import {
@@ -34,8 +33,8 @@ function SummaryCard({
     <div
       className={
         isEmergency
-          ? 'bg-white border-2 border-error p-md rounded-xl shadow-sm animate-pulse'
-          : 'bg-surface-white border border-border-subtle p-md rounded-xl shadow-sm'
+          ? 'bg-white border-2 border-error p-md rounded-xl shadow-sm'
+          : 'bg-surface-white border border-border-subtle p-md rounded-xl'
       }
     >
       <div className="flex justify-between items-start mb-sm">
@@ -107,7 +106,7 @@ export function TriageQueueContent() {
         
         let waitColor = 'text-success'
         if (item.priority === 'emergency') {
-          waitColor = 'text-error font-bold'
+          waitColor = 'text-error'
         } else if (diffMins > 30) {
           waitColor = 'text-warning'
         }
@@ -174,27 +173,6 @@ export function TriageQueueContent() {
     return () => window.clearTimeout(timeout)
   }, [activeVisitId])
 
-  const handleCall = async (queueId: string, name: string) => {
-    try {
-      await triageService.callPatient(queueId)
-      toast.success(`Called ${name} to triage bay`)
-      void fetchQueue()
-    } catch (err) {
-      toast.error(`Failed to call ${name}`)
-    }
-  }
-
-  const handleSkip = async (queueId: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to skip ${name}?`)) return
-    try {
-      await triageService.skipPatient(queueId)
-      toast.success(`Skipped ${name}`)
-      void fetchQueue()
-    } catch (err) {
-      toast.error(`Failed to skip ${name}`)
-    }
-  }
-
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
   const pageStart = (safePage - 1) * PAGE_SIZE
@@ -202,9 +180,21 @@ export function TriageQueueContent() {
   const showingFrom = filteredPatients.length === 0 ? 0 : pageStart + 1
   const showingTo = Math.min(pageStart + PAGE_SIZE, filteredPatients.length)
 
-  const handleAssess = (patient: TriageVisit) => {
+  const handleAssess = async (visitId: string) => {
     setPreviewPatient(null)
-    navigate(`/triage/assess/${patient.visitId}`, { state: { visit: patient, from: 'queue' } })
+    const patient = patients.find((p) => p.visitId === visitId)
+    if (patient) {
+      if (patient.status === 'waiting') {
+        try {
+          await triageService.callPatient(patient.queueId)
+        } catch (err) {
+          console.error('Failed to auto-call patient on assess click:', err)
+        }
+      }
+      navigate(`/triage/assess/${visitId}`, { state: { visit: patient, from: 'queue' } })
+    } else {
+      navigate(`/triage/assess/${visitId}`, { state: buildAssessNavigateState(visitId) })
+    }
   }
 
   // Dashboard Stats Calculations
@@ -222,28 +212,28 @@ export function TriageQueueContent() {
     <div className="flex flex-col gap-lg max-w-container-max mx-auto w-full min-h-[calc(100vh-7rem)]">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md shrink-0">
         <SummaryCard
-          label="Awaiting Triage"
+          label="Awaiting"
           value={String(awaitingCount)}
           subtext={`Avg Wait: ${avgWaitTimeStr}`}
           subtextClassName="text-success"
           icon="hourglass_empty"
         />
         <SummaryCard
-          label="Active Assessments"
+          label="In Progress"
           value={String(inProgressCount)}
-          subtext="In triage bay"
+          subtext="Room 4 Active"
           icon="sync"
         />
         <SummaryCard
-          label="Total Checked-In"
-          value={String(patients.length)}
-          subtext="Active in queue"
-          icon="group"
+          label="Assessed Today"
+          value="18"
+          subtext="+3 since 08:00"
+          icon="check_circle"
         />
         <SummaryCard
-          label="Emergency Priority"
+          label="Emergency Now"
           value={String(emergencyCount)}
-          subtext="Requires immediate call"
+          subtext="Immediate attention required"
           subtextClassName="text-error font-bold"
           icon="emergency"
           variant="emergency"
@@ -296,7 +286,7 @@ export function TriageQueueContent() {
               <thead className="bg-surface-container-low sticky top-0 z-10">
                 <tr>
                   <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                    Pos
+                    Position
                   </th>
                   <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
                     Patient Name
@@ -316,9 +306,6 @@ export function TriageQueueContent() {
                   <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
-                    Status
-                  </th>
                   <th className="px-md py-sm text-right font-label-md text-label-md text-secondary uppercase tracking-wider">
                     Actions
                   </th>
@@ -327,12 +314,12 @@ export function TriageQueueContent() {
               <tbody className="divide-y divide-border-subtle">
                 {filteredPatients.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-md py-xl text-center font-body-sm text-secondary">
+                    <td colSpan={8} className="px-md py-xl text-center font-body-sm text-secondary">
                       No patients match the selected filters.
                     </td>
                   </tr>
                 ) : (
-                  visiblePatients.map((patient, index) => (
+                  visiblePatients.map((patient) => (
                     <tr
                       key={patient.visitId}
                       className={`hover:bg-hover-tint transition-colors ${
@@ -348,7 +335,7 @@ export function TriageQueueContent() {
                           patient.isEmergency ? 'font-bold text-error' : 'text-secondary'
                         }`}
                       >
-                        {pageStart + index + 1}
+                        {patient.queueNumber}
                       </td>
                       <td className="px-md py-md">
                         <div className="flex items-center gap-sm">
@@ -387,55 +374,22 @@ export function TriageQueueContent() {
                       </td>
                       <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.payment}</td>
                       <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.source}</td>
-                      <td className="px-md py-md font-body-sm text-body-sm">
-                        <span
-                          className={`px-2 py-0.5 rounded font-label-md text-[10px] uppercase ${
-                            patient.status === 'in_progress'
-                              ? 'bg-primary-container text-white'
-                              : 'bg-surface-container text-secondary'
-                          }`}
-                        >
-                          {patient.status.replace('_', ' ')}
-                        </span>
-                      </td>
                       <td className="px-md py-md text-right">
                         <div className="flex justify-end gap-sm items-center">
                           <button
                             type="button"
                             onClick={() => setPreviewPatient(patient)}
                             className="p-1.5 hover:bg-surface-container rounded transition-colors text-secondary bg-transparent border-0 cursor-pointer"
-                            title="View Patient Info"
+                            title="View patient"
                           >
                             <span className="material-symbols-outlined text-[20px]">visibility</span>
                           </button>
-                          
-                          {patient.status === 'waiting' ? (
-                            <button
-                              type="button"
-                              onClick={() => handleCall(patient.queueId, patient.name)}
-                              className="bg-secondary-container text-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-hover-tint border-0 cursor-pointer flex items-center gap-xs"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">volume_up</span>
-                              Call
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleAssess(patient)}
-                              className="bg-primary-container text-white px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer flex items-center gap-xs"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">rate_review</span>
-                              Assess
-                            </button>
-                          )}
-
                           <button
                             type="button"
-                            onClick={() => handleSkip(patient.queueId, patient.name)}
-                            className="p-1.5 hover:bg-error-container text-secondary hover:text-error rounded transition-colors bg-transparent border-0 cursor-pointer"
-                            title="Skip Patient"
+                            onClick={() => handleAssess(patient.visitId)}
+                            className="bg-primary-container text-on-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer"
                           >
-                            <span className="material-symbols-outlined text-[20px]">block</span>
+                            Assess
                           </button>
                         </div>
                       </td>
@@ -502,7 +456,7 @@ export function TriageQueueContent() {
             aria-labelledby="patient-preview-title"
           >
             <h3 id="patient-preview-title" className="font-headline-sm text-on-surface m-0 mb-md">
-              Patient Preview
+              Patient preview
             </h3>
             <div className="space-y-sm font-body-sm text-body-sm">
               <p className="m-0">
@@ -512,20 +466,13 @@ export function TriageQueueContent() {
                 <span className="text-secondary">Patient #:</span> {previewPatient.patientNumber}
               </p>
               <p className="m-0">
-                <span className="text-secondary">Age/Gender:</span> {previewPatient.age} Y / {previewPatient.gender}
-              </p>
-              <p className="m-0">
                 <span className="text-secondary">Arrival:</span> {previewPatient.arrival}
               </p>
               <p className="m-0">
-                <span className="text-secondary">Wait Time:</span> {previewPatient.waitTime}
+                <span className="text-secondary">Wait:</span> {previewPatient.waitTime}
               </p>
               <p className="m-0">
-                <span className="text-secondary">Payment:</span> {previewPatient.payment}
-              </p>
-              <p className="m-0">
-                <span className="text-secondary">Status:</span>{' '}
-                <span className="font-semibold text-primary uppercase">{previewPatient.status.replace('_', ' ')}</span>
+                <span className="text-secondary">Source:</span> {previewPatient.source}
               </p>
             </div>
             <div className="flex gap-sm mt-lg justify-end">
@@ -536,29 +483,13 @@ export function TriageQueueContent() {
               >
                 Close
               </button>
-              
-              {previewPatient.status === 'waiting' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCall(previewPatient.queueId, previewPatient.name)
-                    setPreviewPatient(null)
-                  }}
-                  className="px-md py-sm bg-primary-container text-white rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90 flex items-center gap-xs"
-                >
-                  <span className="material-symbols-outlined text-[16px]">volume_up</span>
-                  Call Patient
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleAssess(previewPatient)}
-                  className="px-md py-sm bg-primary-container text-white rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90 flex items-center gap-xs"
-                >
-                  <span className="material-symbols-outlined text-[16px]">rate_review</span>
-                  Start Assessment
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => handleAssess(previewPatient.visitId)}
+                className="px-md py-sm bg-primary-container text-on-primary rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90"
+              >
+                Start assessment
+              </button>
             </div>
           </div>
         </div>
