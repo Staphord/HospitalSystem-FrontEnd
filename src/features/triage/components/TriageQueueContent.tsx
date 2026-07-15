@@ -10,8 +10,7 @@ import {
 
 type PriorityFilter = 'all' | TriageQueuePriority
 type PaymentFilter = 'all' | 'cash' | 'insurance' | 'exempt'
-
-const PAGE_SIZE = 5
+type StatusFilter = 'active' | 'completed' | 'all'
 
 function SummaryCard({
   label,
@@ -89,7 +88,14 @@ export function TriageQueueContent() {
   const [loading, setLoading] = useState(true)
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
   const [previewPatient, setPreviewPatient] = useState<TriageVisit | null>(null)
   const [activeVisitId, setActiveVisitId] = useState<string | null>(null)
   const [viewAssessmentVisit, setViewAssessmentVisit] = useState<TriageVisit | null>(null)
@@ -187,18 +193,25 @@ export function TriageQueueContent() {
 
   const filteredPatients = useMemo(() => {
     return patients
-      .filter(
-        (patient) =>
+      .filter((patient) => {
+        if (statusFilter === 'active') {
+          return patient.status === 'waiting' || patient.status === 'in_progress'
+        }
+        if (statusFilter === 'completed') {
+          return patient.status === 'completed'
+        }
+        return (
           patient.status === 'waiting' ||
           patient.status === 'in_progress' ||
           patient.status === 'completed'
-      )
+        )
+      })
       .filter((patient) => {
         const priorityMatch = priorityFilter === 'all' || patient.priority === priorityFilter
         const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
         return priorityMatch && paymentMatch
       })
-  }, [patients, priorityFilter, paymentFilter])
+  }, [patients, priorityFilter, paymentFilter, statusFilter])
 
   useEffect(() => {
     const highlight = (location.state as TriageQueueLocationState | null)?.highlightVisitId
@@ -206,7 +219,7 @@ export function TriageQueueContent() {
 
     const index = filteredPatients.findIndex((patient) => patient.visitId === highlight)
     if (index >= 0) {
-      setCurrentPage(Math.floor(index / PAGE_SIZE) + 1)
+      setCurrentPage(Math.floor(index / pageSize) + 1)
       setActiveVisitId(highlight)
     }
 
@@ -219,12 +232,12 @@ export function TriageQueueContent() {
     return () => window.clearTimeout(timeout)
   }, [activeVisitId])
 
-  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const visiblePatients = filteredPatients.slice(pageStart, pageStart + PAGE_SIZE)
+  const pageStart = (safePage - 1) * pageSize
+  const visiblePatients = filteredPatients.slice(pageStart, pageStart + pageSize)
   const showingFrom = filteredPatients.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, filteredPatients.length)
+  const showingTo = Math.min(pageStart + pageSize, filteredPatients.length)
 
   const handleAssess = async (visitId: string) => {
     setPreviewPatient(null)
@@ -292,8 +305,54 @@ export function TriageQueueContent() {
 
       <div className="bg-surface-white border border-border-subtle rounded-xl shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="px-md py-lg flex flex-col md:flex-row justify-between items-center gap-md">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Awaiting Triage</h3>
+          <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">
+            {statusFilter === 'active' ? 'Active Queue' : statusFilter === 'completed' ? 'Completed Queue' : 'Queue History'}
+          </h3>
           <div className="flex flex-wrap items-center gap-sm">
+            <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('active')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  statusFilter === 'active'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('completed')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  statusFilter === 'completed'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                Completed
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('all')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  statusFilter === 'all'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                All
+              </button>
+            </div>
             <select
               value={priorityFilter}
               onChange={(e) => {
@@ -481,11 +540,29 @@ export function TriageQueueContent() {
         </div>
 
         <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-sm shrink-0">
-          <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-            {filteredPatients.length === 0
-              ? 'No patients awaiting triage'
-              : `Showing ${showingFrom} to ${showingTo} of ${filteredPatients.length} patients awaiting triage`}
-          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-md">
+            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+              {filteredPatients.length === 0
+                ? 'No patients in queue'
+                : `Showing ${showingFrom} to ${showingTo} of ${filteredPatients.length} patients in queue`}
+            </p>
+            {filteredPatients.length > 0 && (
+              <div className="flex items-center gap-xs">
+                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-xs">
             <button
               type="button"

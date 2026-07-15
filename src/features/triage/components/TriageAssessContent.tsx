@@ -357,20 +357,20 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
           {/* Real-time backend suggestion banner */}
           {suggestion && (
             <div className="mb-lg p-md border border-primary/25 bg-hover-tint rounded-xl flex items-start gap-md animate-fade-in shadow-sm">
-              <span className="material-symbols-outlined text-primary text-2xl mt-0.5">clinical_trial</span>
+              <span className="material-symbols-outlined text-primary text-2xl mt-0.5">medical_services</span>
               <div className="flex-1">
                 <h4 className="font-headline-sm text-headline-sm text-primary m-0 mb-xs">
-                  Clinical Recommendation
+                  Category Recommendation
                 </h4>
-                <p className="font-body-sm text-body-sm text-on-surface m-0 mb-sm">
-                  Based on current vital signs, the system suggests **{suggestion.suggested_category.toUpperCase().replace('_', ' ')}**.
+                <p className="font-body-sm text-body-sm text-on-surface m-0 mb-sm leading-relaxed">
+                  Based on vital signs, the system recommends **{suggestion.suggested_category.toUpperCase().replace('_', ' ')}**.
                   <br />
                   <span className="text-secondary font-medium text-xs">Reason: {suggestion.reason}</span>
                 </p>
                 <button
                   type="button"
                   onClick={() => setForm((prev) => ({ ...prev, triageCategory: suggestion.suggested_category }))}
-                  className="bg-primary text-white px-md h-8 rounded font-label-md text-label-md hover:bg-opacity-90 border-0 cursor-pointer flex items-center gap-xs"
+                  className="bg-primary text-white px-md h-8 rounded font-label-md text-label-md hover:bg-opacity-90 border-0 cursor-pointer flex items-center gap-xs transition-colors shadow-sm"
                 >
                   <span className="material-symbols-outlined text-[16px]">check</span>
                   Apply Suggested Category
@@ -387,51 +387,65 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-md">
-            {TRIAGE_CATEGORIES.map((category) => (
-              <label key={category.value} className="relative cursor-pointer group">
-                <input
-                  type="radio"
-                  name="triageCategory"
-                  value={category.value}
-                  checked={form.triageCategory === category.value}
-                  onChange={() =>
-                    setForm((prev) => ({ ...prev, triageCategory: category.value }))
-                  }
-                  className="peer sr-only"
-                />
-                <span
-                  className={`absolute top-3 right-3 z-10 w-5 h-5 rounded-full flex items-center justify-center text-white transition-all pointer-events-none
-                    opacity-0 peer-checked:opacity-100 ${category.bgClass}`}
-                >
-                  <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    check
-                  </span>
-                </span>
-                <div
-                  className={`h-full border-[3px] border-border-subtle rounded-xl p-md flex flex-col items-center text-center transition-all group-hover:bg-surface-container-low ${category.borderClass}`}
-                >
-                  <div
-                    className={`w-12 h-12 rounded-full ${category.bgClass} flex items-center justify-center mb-md text-white`}
+            {TRIAGE_CATEGORIES.map((category) => {
+              const isSelected = form.triageCategory === category.value
+              return (
+                <label key={category.value} className="relative cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="triageCategory"
+                    value={category.value}
+                    checked={isSelected}
+                    onChange={() =>
+                      setForm((prev) => ({ ...prev, triageCategory: category.value }))
+                    }
+                    className="peer sr-only"
+                  />
+                  <span
+                    className={`absolute top-3 right-3 z-10 w-5 h-5 rounded-full flex items-center justify-center text-white transition-all pointer-events-none ${
+                      isSelected ? 'opacity-100' : 'opacity-0'
+                    } ${category.bgClass}`}
                   >
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      {category.icon}
+                    <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      check
                     </span>
+                  </span>
+                  <div
+                    className={`h-full border-[3px] rounded-xl p-md flex flex-col items-center text-center transition-all group-hover:bg-surface-container-low ${
+                      isSelected
+                        ? category.value === 'emergency'
+                          ? 'border-error bg-error/10 shadow-[0_0_0_1px_#FF5630]'
+                          : category.value === 'urgent'
+                          ? 'border-warning bg-warning/15 shadow-[0_0_0_1px_#FFAB00]'
+                          : category.value === 'semi_urgent'
+                          ? 'border-primary bg-primary/10 shadow-[0_0_0_1px_#0052CC]'
+                          : 'border-success bg-success/10 shadow-[0_0_0_1px_#36B37E]'
+                        : 'border-border-subtle bg-transparent'
+                    }`}
+                  >
+                    <div
+                      className={`w-12 h-12 rounded-full ${category.bgClass} flex items-center justify-center mb-md text-white`}
+                    >
+                      <span
+                        className="material-symbols-outlined"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        {category.icon}
+                      </span>
+                    </div>
+                    <h4 className={`font-headline-sm text-headline-sm mb-xs m-0 ${category.colorClass}`}>
+                      {category.label}
+                    </h4>
+                    <p className="font-label-sm text-label-sm text-outline mb-md uppercase tracking-tighter m-0">
+                      {category.level}
+                    </p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+                      {category.description}
+                    </p>
                   </div>
-                  <h4 className={`font-headline-sm text-headline-sm mb-xs m-0 ${category.colorClass}`}>
-                    {category.label}
-                  </h4>
-                  <p className="font-label-sm text-label-sm text-outline mb-md uppercase tracking-tighter m-0">
-                    {category.level}
-                  </p>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-                    {category.description}
-                  </p>
-                </div>
-              </label>
-            ))}
+                </label>
+              )
+            })}
           </div>
         </section>
       </div>
