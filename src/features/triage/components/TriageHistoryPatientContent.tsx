@@ -545,7 +545,7 @@ export function TriageHistoryPatientContent({ patient }: Props) {
                         >
                           {visit.outcome}
                         </span>
-                        <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="material-symbols-outlined text-[16px] text-outline">
                           open_in_new
                         </span>
                       </div>

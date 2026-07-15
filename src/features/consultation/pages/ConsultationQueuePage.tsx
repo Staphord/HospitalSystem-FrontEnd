@@ -1,5 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { consultationService } from '@/api/services/consultation'
+import type { ConsultationQueueItem } from '@/api/types/consultation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,76 +22,7 @@ interface QueueEntry {
   vitalsTooltip?: string
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_QUEUE: QueueEntry[] = [
-  {
-    id: 'v-001',
-    name: 'Fatuma Said',
-    patientNumber: 'MNH-2024-0892',
-    chiefComplaint: 'Severe Dyspnea, Chest Pain',
-    priority: 'emergency',
-    waitTime: '48 min',
-    vitals: 'critical',
-    vitalsTooltip: 'O2 Sat: 88% | HR: 112 bpm',
-  },
-  {
-    id: 'v-002',
-    name: 'Hassan Mwita',
-    patientNumber: 'MNH-2024-1104',
-    chiefComplaint: 'High Grade Fever, Lethargy',
-    priority: 'urgent',
-    waitTime: '28 min',
-    vitals: 'stable',
-  },
-  {
-    id: 'v-003',
-    name: 'Grace Kimaro',
-    patientNumber: 'MNH-2024-0755',
-    chiefComplaint: 'Routine Post-Op Review',
-    priority: 'non-urgent',
-    waitTime: '8 min',
-    vitals: 'normal',
-  },
-  {
-    id: 'v-004',
-    name: 'John Doe',
-    patientNumber: 'MNH-2024-1234',
-    chiefComplaint: 'Mild Headache, Chronic',
-    priority: 'general',
-    waitTime: '15 min',
-    vitals: 'normal',
-  },
-  {
-    id: 'v-005',
-    name: 'Aisha Bakari',
-    patientNumber: 'MNH-2024-1456',
-    chiefComplaint: 'Prescription Refill',
-    priority: 'general',
-    waitTime: '5 min',
-    vitals: 'normal',
-  },
-  {
-    id: 'v-006',
-    name: 'Omar Suleiman',
-    patientNumber: 'MNH-2024-1560',
-    chiefComplaint: 'Abdominal Pain',
-    priority: 'urgent',
-    waitTime: '20 min',
-    vitals: 'stable',
-  },
-  {
-    id: 'v-007',
-    name: 'Zuwena Hamisi',
-    patientNumber: 'MNH-2024-1601',
-    chiefComplaint: 'Diabetes Follow-up',
-    priority: 'general',
-    waitTime: '10 min',
-    vitals: 'normal',
-  },
-]
-
-const PAGE_SIZE = 5
+// Mock data has been replaced by live consultationService getQueue data.
 
 // ── Priority config ───────────────────────────────────────────────────────────
 
@@ -255,22 +189,40 @@ function Pagination({
   totalItems,
   pageSize,
   onPage,
+  onPageSizeChange,
 }: {
   currentPage: number
   totalPages: number
   totalItems: number
   pageSize: number
   onPage: (p: number) => void
+  onPageSizeChange: (size: number) => void
 }) {
-  const start = (currentPage - 1) * pageSize + 1
+  const start = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
   const end = Math.min(currentPage * pageSize, totalItems)
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
 
   return (
-    <div className="px-md py-3 bg-surface-container-low border-t border-border-subtle flex items-center justify-between">
-      <span className="font-label-sm text-label-sm text-secondary">
-        Showing {start}–{end} of {totalItems} patients in queue
-      </span>
+    <div className="px-md py-3 bg-surface-container-low border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-md">
+        <span className="font-label-sm text-label-sm text-secondary">
+          Showing {start}–{end} of {totalItems} patients in queue
+        </span>
+        <div className="flex items-center gap-xs">
+          <span className="font-label-sm text-label-sm text-secondary">Page size:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="bg-white border border-border-subtle rounded font-body-sm text-body-sm px-2 py-1 outline-none cursor-pointer focus:border-primary"
+          >
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
       <div className="flex gap-xs">
         <button
           type="button"
@@ -311,12 +263,64 @@ function Pagination({
 
 export function ConsultationQueuePage() {
   const navigate = useNavigate()
+  const [rawQueue, setRawQueue] = useState<ConsultationQueueItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
+  const fetchQueue = async (showLoading = false) => {
+    if (showLoading) setLoading(true)
+    try {
+      const data = await consultationService.getQueue()
+      setRawQueue(data || [])
+    } catch (error) {
+      console.error('Failed to fetch doctor queue:', error)
+      toast.error('Failed to load patient queue.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchQueue(true)
+    const interval = setInterval(() => {
+      fetchQueue(false)
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const queueEntries = useMemo(() => {
+    return rawQueue.map((item): QueueEntry => {
+      const triageCat = item.triage_category || ''
+      const norm = triageCat.toLowerCase().replace('_', '-')
+      
+      let uiPriority: TriagePriority = 'general'
+      if (norm === 'emergency') uiPriority = 'emergency'
+      else if (norm === 'urgent') uiPriority = 'urgent'
+      else if (norm === 'non-urgent') uiPriority = 'non-urgent'
+
+      const vitalsVal: VitalsStatus = norm === 'emergency' 
+        ? 'critical' 
+        : (norm === 'urgent' || norm === 'semi_urgent') 
+          ? 'stable' 
+          : 'normal'
+
+      return {
+        id: item.visit_id,
+        name: item.full_name,
+        patientNumber: item.patient_number,
+        chiefComplaint: item.chief_complaint || 'No complaint recorded',
+        priority: uiPriority,
+        waitTime: `${item.wait_time_minutes} min`,
+        vitals: vitalsVal,
+      }
+    })
+  }, [rawQueue])
+
   const filtered = useMemo(() => {
-    let result = [...MOCK_QUEUE]
+    let result = [...queueEntries]
     if (priorityFilter !== 'all') {
       result = result.filter((e) => e.priority === priorityFilter)
     }
@@ -327,14 +331,27 @@ export function ConsultationQueuePage() {
       return 0
     })
     return result
-  }, [priorityFilter, statusFilter])
+  }, [queueEntries, priorityFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const handleFilterChange = (setter: (v: never) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     setter(e.target.value as never)
     setCurrentPage(1)
+  }
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (
@@ -353,7 +370,7 @@ export function ConsultationQueuePage() {
       </div>
 
       {/* Summary Cards */}
-      <SummaryCards entries={MOCK_QUEUE} />
+      <SummaryCards entries={queueEntries} />
 
       {/* Queue Table Card */}
       <div className="bg-surface-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
@@ -393,10 +410,10 @@ export function ConsultationQueuePage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-border-subtle">
+        <div className="overflow-auto max-h-[30rem]">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead className="bg-surface-container-low sticky top-0 z-10 border-b border-border-subtle">
+              <tr className="bg-surface-container-low">
                 {['Patient Name', 'Patient #', 'Chief Complaint', 'Triage', 'Wait Time', 'Vitals', 'Actions'].map(
                   (col, i) => (
                     <th
@@ -460,8 +477,9 @@ export function ConsultationQueuePage() {
           currentPage={currentPage}
           totalPages={totalPages}
           totalItems={filtered.length}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           onPage={setCurrentPage}
+          onPageSizeChange={handlePageSizeChange}
         />
       </div>
     </div>
