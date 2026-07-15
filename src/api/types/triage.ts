@@ -94,6 +94,7 @@ export interface TriageSummaryResponse {
   triage_notes: string | null
   assessed_at: string | null
   visit_date?: string | null
+  visit_status: string | null
 }
 
 export interface TriageCategorySuggestionResponse {

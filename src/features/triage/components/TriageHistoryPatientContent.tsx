@@ -33,27 +33,23 @@ function categoryDotClass(category: TriageVisitRecord['triageCategory']) {
 
 function outcomeBadge(outcome: VisitOutcome) {
   switch (outcome) {
-    case 'Discharged':
+    case 'Completed':
       return 'bg-success/10 text-success'
-    case 'Admitted':
+    case 'Active':
       return 'bg-primary/10 text-primary'
-    case 'Referred':
-      return 'bg-[#00B8D9]/10 text-[#00B8D9]'
-    case 'Pending':
-      return 'bg-warning/10 text-warning'
+    case 'Cancelled':
+      return 'bg-error/10 text-error'
   }
 }
 
 function outcomeIcon(outcome: VisitOutcome) {
   switch (outcome) {
-    case 'Discharged':
+    case 'Completed':
       return 'check_circle'
-    case 'Admitted':
-      return 'local_hospital'
-    case 'Referred':
-      return 'swap_horiz'
-    case 'Pending':
-      return 'schedule'
+    case 'Active':
+      return 'sync'
+    case 'Cancelled':
+      return 'cancel'
   }
 }
 
@@ -72,6 +68,10 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
     document.addEventListener('keydown', onKey)
     
     const fetchReal = async () => {
+      if (visit.rawStatus === 'registered' || visit.rawStatus === 'skipped' || visit.rawStatus === 'cancelled') {
+        setLoading(false)
+        return
+      }
       try {
         const data = await triageService.getAssessment(visit.visitId)
         setRealAssessment(data)
@@ -84,31 +84,20 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
     void fetchReal()
 
     return () => document.removeEventListener('keydown', onKey)
-  }, [visit.visitId, onClose])
-
-  const vitalsText = useMemo(() => {
-    if (!realAssessment) return visit.vitals || ''
-    const v = realAssessment.vitals
-    const parts = [
-      v.blood_pressure_systolic && v.blood_pressure_diastolic ? `BP: ${v.blood_pressure_systolic}/${v.blood_pressure_diastolic} mmHg` : '',
-      v.temperature ? `Temp: ${v.temperature} °C` : '',
-      v.pulse_rate ? `Pulse: ${v.pulse_rate} BPM` : '',
-      v.oxygen_saturation ? `SpO2: ${v.oxygen_saturation} %` : '',
-      v.respiratory_rate ? `RR: ${v.respiratory_rate} BPM` : '',
-      v.weight_kg ? `Weight: ${v.weight_kg} kg` : ''
-    ].filter(Boolean)
-    return parts.join(' | ')
-  }, [realAssessment, visit.vitals])
+  }, [visit.visitId, visit.rawStatus, onClose])
 
   const complaintText = realAssessment ? realAssessment.chief_complaint : visit.chiefComplaint
   const notesText = realAssessment ? realAssessment.triage_notes : visit.doctorNotes
-  const nurseName = realAssessment ? realAssessment.triage_nurse.full_name : null
+  const nurseName = realAssessment ? realAssessment.triage_nurse?.full_name : (visit.triageNurse?.full_name || null)
 
   const categoryLabel = useMemo((): any => {
-    if (!realAssessment) return visit.triageCategory
-    const cat = realAssessment.triage_category.replace('_', '-').replace(/\b\w/g, (c: string) => c.toUpperCase())
-    return cat
+    if (realAssessment) {
+      return realAssessment.triage_category.replace('_', '-').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    }
+    return visit.triageCategory
   }, [realAssessment, visit.triageCategory])
+
+  const vitals = realAssessment ? realAssessment.vitals : visit.vitalsRaw
 
   return (
     <div
@@ -144,7 +133,7 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
         <div className="flex-1 overflow-y-auto px-xl py-lg space-y-lg">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-sm">
-              <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+              <span className="material-symbols-outlined text-4xl text-primary animate-spin">progress_activity</span>
               <p className="font-label-md text-secondary m-0">Loading assessment details...</p>
             </div>
           ) : (
@@ -153,65 +142,125 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
               <div className="flex flex-wrap gap-md">
                 <div className="flex items-center gap-xs text-outline font-body-sm text-body-sm">
                   <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-                  {realAssessment ? new Date(realAssessment.assessed_at).toLocaleDateString() : visit.date}
+                  {realAssessment ? new Date(realAssessment.assessed_at).toLocaleDateString('en-GB') : visit.date}
                 </div>
-                <span
-                  className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${categoryBadgeClass(categoryLabel)}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${categoryDotClass(categoryLabel)}`} />
-                  {categoryLabel}
-                </span>
+                
+                {visit.rawStatus !== 'registered' && visit.rawStatus !== 'skipped' && visit.rawStatus !== 'cancelled' && (
+                  <span
+                    className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${categoryBadgeClass(categoryLabel)}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${categoryDotClass(categoryLabel)}`} />
+                    {categoryLabel}
+                  </span>
+                )}
+
                 <span
                   className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase tracking-wide ${outcomeBadge(visit.outcome)}`}
                 >
                   <span className="material-symbols-outlined text-[14px]">{outcomeIcon(visit.outcome)}</span>
-                  {visit.outcome}
+                  {visit.outcome === 'Active' && visit.rawStatus === 'registered' ? 'Pending Triage' : visit.outcome}
                 </span>
               </div>
 
-              {/* Chief Complaint */}
-              <div className="bg-surface-container-low rounded-xl p-md">
-                <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Chief Complaint</p>
-                <p className="font-body-md text-body-md text-on-surface m-0">{complaintText}</p>
-              </div>
-
-              {/* Two-col grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
-                <div className="bg-surface-container-low rounded-xl p-md">
-                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Attending Doctor / Staff</p>
-                  <div className="flex items-center gap-xs">
-                    <span className="material-symbols-outlined text-primary text-[18px]">stethoscope</span>
-                    <p className="font-body-md text-body-md text-on-surface m-0">
-                      {nurseName ? `Nurse: ${nurseName}` : visit.attendingDoctor}
+              {/* Conditional layouts based on status */}
+              {visit.rawStatus === 'registered' ? (
+                <div className="bg-surface-container-low border-l-4 border-outline rounded-xl p-lg flex items-start gap-md">
+                  <span className="material-symbols-outlined text-outline text-[32px] mt-xs">hourglass_empty</span>
+                  <div>
+                    <h3 className="font-title-md text-title-md text-on-surface m-0">Triage Pending</h3>
+                    <p className="font-body-sm text-body-sm text-outline mt-xs m-0">
+                      This patient is currently in the triage queue. Clinical assessment has not started yet.
                     </p>
                   </div>
                 </div>
-                <div className="bg-surface-container-low rounded-xl p-md">
-                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Diagnosis</p>
-                  <p className="font-body-md text-body-md text-on-surface m-0">{visit.diagnosis}</p>
+              ) : visit.rawStatus === 'skipped' || visit.rawStatus === 'cancelled' ? (
+                <div className="bg-surface-container-low border-l-4 border-error rounded-xl p-lg flex items-start gap-md">
+                  <span className="material-symbols-outlined text-error text-[32px] mt-xs">cancel</span>
+                  <div>
+                    <h3 className="font-title-md text-title-md text-on-surface m-0">Visit Cancelled / Skipped</h3>
+                    <p className="font-body-sm text-body-sm text-outline mt-xs m-0">
+                      This visit was cancelled or skipped during the queue workflow. No clinical assessment or vitals were recorded.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  {/* Chief Complaint */}
+                  <div className="bg-surface-container-low rounded-xl p-md">
+                    <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Chief Complaint</p>
+                    <p className="font-body-md text-body-md text-on-surface m-0">{complaintText}</p>
+                  </div>
 
-              {/* Vitals */}
-              {vitalsText && (
-                <div className="bg-surface-container-low rounded-xl p-md">
-                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0 flex items-center gap-xs">
-                    <span className="material-symbols-outlined text-[16px]">monitor_heart</span>
-                    Vitals
-                  </p>
-                  <p className="font-body-md text-body-md text-on-surface m-0">{vitalsText}</p>
-                </div>
-              )}
+                  {/* Vitals Grid */}
+                  <div>
+                    <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0 flex items-center gap-xs">
+                      <span className="material-symbols-outlined text-[16px]">monitor_heart</span>
+                      Captured Vitals
+                    </p>
+                    <div className="grid grid-cols-2 gap-sm mt-sm">
+                      <div className="border border-border-subtle rounded-xl p-md flex flex-col justify-center">
+                        <p className="font-label-sm text-label-sm text-outline m-0">Blood Pressure</p>
+                        <p className="font-headline-sm text-headline-sm text-on-surface mt-xs m-0">
+                          {vitals?.blood_pressure_systolic && vitals?.blood_pressure_diastolic
+                            ? `${vitals.blood_pressure_systolic}/${vitals.blood_pressure_diastolic} mmHg`
+                            : '--'}
+                        </p>
+                      </div>
+                      <div className="border border-border-subtle rounded-xl p-md flex flex-col justify-center">
+                        <p className="font-label-sm text-label-sm text-outline m-0">Temperature</p>
+                        <p className="font-headline-sm text-headline-sm text-on-surface mt-xs m-0">
+                          {vitals?.temperature ? `${vitals.temperature} °C` : '--'}
+                        </p>
+                      </div>
+                      <div className="border border-border-subtle rounded-xl p-md flex flex-col justify-center">
+                        <p className="font-label-sm text-label-sm text-outline m-0">Pulse Rate</p>
+                        <p className="font-headline-sm text-headline-sm text-on-surface mt-xs m-0">
+                          {vitals?.pulse_rate ? `${vitals.pulse_rate} BPM` : '--'}
+                        </p>
+                      </div>
+                      <div className="border border-border-subtle rounded-xl p-md flex flex-col justify-center">
+                        <p className="font-label-sm text-label-sm text-outline m-0">Oxygen Saturation (SpO2)</p>
+                        <p className="font-headline-sm text-headline-sm text-on-surface mt-xs m-0">
+                          {vitals?.oxygen_saturation ? `${vitals.oxygen_saturation} %` : '--'}
+                        </p>
+                      </div>
+                      <div className="border border-border-subtle rounded-xl p-md flex flex-col justify-center">
+                        <p className="font-label-sm text-label-sm text-outline m-0">Respiratory Rate</p>
+                        <p className="font-headline-sm text-headline-sm text-on-surface mt-xs m-0">
+                          {vitals?.respiratory_rate ? `${vitals.respiratory_rate} BPM` : '--'}
+                        </p>
+                      </div>
+                      <div className="border border-border-subtle rounded-xl p-md flex flex-col justify-center">
+                        <p className="font-label-sm text-label-sm text-outline m-0">Weight</p>
+                        <p className="font-headline-sm text-headline-sm text-on-surface mt-xs m-0">
+                          {vitals?.weight_kg ? `${vitals.weight_kg} kg` : '--'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Doctor / Nurse Notes */}
-              {notesText && (
-                <div className="border border-border-subtle rounded-xl p-md">
-                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0 flex items-center gap-xs">
-                    <span className="material-symbols-outlined text-[16px]">notes</span>
-                    Triage & Clinical Notes
-                  </p>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed m-0">{notesText}</p>
-                </div>
+                  {/* Doctor / Nurse Notes */}
+                  {notesText && (
+                    <div className="border border-border-subtle rounded-xl p-md">
+                      <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0 flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-[16px]">notes</span>
+                        Triage & Clinical Notes
+                      </p>
+                      <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed m-0">{notesText}</p>
+                    </div>
+                  )}
+
+                  {/* Staff Row */}
+                  <div className="bg-surface-container-low rounded-xl p-md">
+                    <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Attending Staff</p>
+                    <div className="flex items-center gap-xs">
+                      <span className="material-symbols-outlined text-primary text-[18px]">badge</span>
+                      <p className="font-body-md text-body-md text-on-surface m-0">
+                        {nurseName ? `Nurse: ${nurseName}` : 'Triage Nurse'}
+                      </p>
+                    </div>
+                  </div>
+                </>
               )}
             </>
           )}
@@ -273,6 +322,16 @@ export function TriageHistoryPatientContent({ patient }: Props) {
             vitalsText = parts.join(' | ') || '--'
           }
 
+          let mappedOutcome: 'Active' | 'Completed' | 'Cancelled' = 'Active'
+          const rawSt = ass.visit_status || 'registered'
+          if (rawSt === 'completed') {
+            mappedOutcome = 'Completed'
+          } else if (rawSt === 'skipped' || rawSt === 'cancelled') {
+            mappedOutcome = 'Cancelled'
+          } else {
+            mappedOutcome = 'Active'
+          }
+
           return {
             visitId: ass.visit_id,
             date: dateStr,
@@ -280,9 +339,12 @@ export function TriageHistoryPatientContent({ patient }: Props) {
             triageCategory: category,
             attendingDoctor: '--',
             diagnosis: '--',
-            outcome: 'Pending',
+            outcome: mappedOutcome,
             vitals: vitalsText,
-            doctorNotes: ass.triage_notes || ''
+            doctorNotes: ass.triage_notes || '',
+            rawStatus: rawSt,
+            vitalsRaw: ass.vitals,
+            triageNurse: ass.triage_nurse
           }
         })
         setVisits(mapped)
