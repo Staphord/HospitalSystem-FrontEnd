@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { triageService } from '@/api/services/triage'
 import type { TriageQueuePriority, TriageVisit } from '@/features/triage/types/triageAssessment'
 import {
@@ -63,6 +64,23 @@ function matchesPaymentFilter(payment: string, filter: PaymentFilter): boolean {
   return true
 }
 
+function categoryBadgeClass(category?: string) {
+  if (!category) return 'bg-surface-container-high text-on-surface-variant'
+  const norm = category.toLowerCase().replace('-', '_')
+  switch (norm) {
+    case 'emergency':
+      return 'bg-error/10 text-error border border-solid border-error/20'
+    case 'urgent':
+      return 'bg-warning/10 text-warning border border-solid border-warning/20'
+    case 'semi_urgent':
+      return 'bg-primary/10 text-primary border border-solid border-primary/20'
+    case 'non_urgent':
+      return 'bg-success/10 text-success border border-solid border-success/20'
+    default:
+      return 'bg-surface-container-high text-on-surface-variant'
+  }
+}
+
 export function TriageQueueContent() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -74,11 +92,29 @@ export function TriageQueueContent() {
   const [currentPage, setCurrentPage] = useState(1)
   const [previewPatient, setPreviewPatient] = useState<TriageVisit | null>(null)
   const [activeVisitId, setActiveVisitId] = useState<string | null>(null)
+  const [viewAssessmentVisit, setViewAssessmentVisit] = useState<TriageVisit | null>(null)
+  const [assessmentDetails, setAssessmentDetails] = useState<any | null>(null)
+  const [loadingAssessment, setLoadingAssessment] = useState(false)
+
+  const handleViewDetails = async (patient: TriageVisit) => {
+    setViewAssessmentVisit(patient)
+    setLoadingAssessment(true)
+    setAssessmentDetails(null)
+    try {
+      const data = await triageService.getAssessment(patient.visitId)
+      setAssessmentDetails(data)
+    } catch (err) {
+      console.error('Failed to fetch triage assessment details:', err)
+      toast.error('Failed to load assessment details.')
+    } finally {
+      setLoadingAssessment(false)
+    }
+  }
 
   const fetchQueue = async (showLoading = false) => {
     if (showLoading) setLoading(true)
     try {
-      const data = await triageService.getQueue()
+      const data = await triageService.getQueue('waiting,in_progress,completed')
       const mapped = data.queue.map((item): TriageVisit => {
         const initials = item.patient.full_name
           .split(' ')
@@ -94,9 +130,12 @@ export function TriageQueueContent() {
           : Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)
         
         const arrivalDate = new Date(item.created_at)
-        const arrival = isNaN(arrivalDate.getTime())
-          ? '--'
-          : arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        let arrival = '--'
+        if (!isNaN(arrivalDate.getTime())) {
+          const dateStr = arrivalDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
+          const timeFormatted = arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          arrival = `${dateStr}, ${timeFormatted}`
+        }
           
         const diffMins = isNaN(arrivalDate.getTime())
           ? 0
@@ -147,11 +186,18 @@ export function TriageQueueContent() {
   }, [])
 
   const filteredPatients = useMemo(() => {
-    return patients.filter((patient) => {
-      const priorityMatch = priorityFilter === 'all' || patient.priority === priorityFilter
-      const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
-      return priorityMatch && paymentMatch
-    })
+    return patients
+      .filter(
+        (patient) =>
+          patient.status === 'waiting' ||
+          patient.status === 'in_progress' ||
+          patient.status === 'completed'
+      )
+      .filter((patient) => {
+        const priorityMatch = priorityFilter === 'all' || patient.priority === priorityFilter
+        const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
+        return priorityMatch && paymentMatch
+      })
   }, [patients, priorityFilter, paymentFilter])
 
   useEffect(() => {
@@ -200,12 +246,16 @@ export function TriageQueueContent() {
   // Dashboard Stats Calculations
   const awaitingCount = patients.filter((p) => p.status === 'waiting').length
   const inProgressCount = patients.filter((p) => p.status === 'in_progress').length
-  const emergencyCount = patients.filter((p) => p.priority === 'emergency').length
+  const assessedTodayCount = patients.filter((p) => p.status === 'completed').length
+  const emergencyCount = patients.filter(
+    (p) => (p.status === 'waiting' || p.status === 'in_progress') && p.priority === 'emergency'
+  ).length
 
   const avgWaitTimeStr = useMemo(() => {
-    if (patients.length === 0) return '0m'
-    const totalWait = patients.reduce((sum, p) => sum + (parseInt(p.waitTime) || 0), 0)
-    return `${Math.round(totalWait / patients.length)}m`
+    const active = patients.filter((p) => p.status === 'waiting' || p.status === 'in_progress')
+    if (active.length === 0) return '0m'
+    const totalWait = active.reduce((sum, p) => sum + (parseInt(p.waitTime) || 0), 0)
+    return `${Math.round(totalWait / active.length)}m`
   }, [patients])
 
   return (
@@ -226,8 +276,8 @@ export function TriageQueueContent() {
         />
         <SummaryCard
           label="Assessed Today"
-          value="18"
-          subtext="+3 since 08:00"
+          value={String(assessedTodayCount)}
+          subtext="Completed assessments"
           icon="check_circle"
         />
         <SummaryCard
@@ -380,7 +430,9 @@ export function TriageQueueContent() {
                       <td className="px-md py-md">
                         <span
                           className={`inline-flex px-sm py-xs rounded-full font-label-sm text-label-sm font-semibold uppercase tracking-wide ${
-                            patient.status === 'waiting'
+                            patient.status === 'completed'
+                              ? 'bg-success/10 text-success'
+                              : patient.status === 'waiting'
                               ? 'bg-surface-container-high text-on-surface-variant'
                               : 'bg-primary/10 text-primary'
                           }`}
@@ -390,21 +442,34 @@ export function TriageQueueContent() {
                       </td>
                       <td className="px-md py-md text-right">
                         <div className="flex justify-end gap-sm items-center">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewPatient(patient)}
-                            className="p-1.5 hover:bg-surface-container rounded transition-colors text-secondary bg-transparent border-0 cursor-pointer"
-                            title="View patient"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">visibility</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAssess(patient.visitId)}
-                            className="bg-primary-container text-on-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer"
-                          >
-                            Assess
-                          </button>
+                          {patient.status === 'completed' ? (
+                            <button
+                              type="button; button-view-triage"
+                              onClick={() => handleViewDetails(patient)}
+                              className="border border-solid border-success text-success px-sm h-8 rounded font-label-md text-label-md hover:bg-success/10 bg-transparent cursor-pointer flex items-center gap-xs"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">pageview</span>
+                              View Details
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setPreviewPatient(patient)}
+                                className="p-1.5 hover:bg-surface-container rounded transition-colors text-secondary bg-transparent border-0 cursor-pointer"
+                                title="View patient"
+                              >
+                                <span className="material-symbols-outlined text-[20px]">visibility</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAssess(patient.visitId)}
+                                className="bg-primary-container text-on-primary px-sm h-8 rounded font-label-md text-label-md hover:bg-primary border-0 cursor-pointer"
+                              >
+                                Assess
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -503,6 +568,163 @@ export function TriageQueueContent() {
                 className="px-md py-sm bg-primary-container text-on-primary rounded-lg font-body-sm border-0 cursor-pointer hover:opacity-90"
               >
                 Start assessment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewAssessmentVisit && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-md"
+          onClick={() => setViewAssessmentVisit(null)}
+          onKeyDown={(e) => e.key === 'Escape' && setViewAssessmentVisit(null)}
+          role="presentation"
+        >
+          <div
+            className="bg-surface-white rounded-xl border border-border-subtle shadow-lg max-w-md w-full p-lg flex flex-col gap-md"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="triage-details-title"
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center">
+              <h3 id="triage-details-title" className="font-headline-sm text-on-surface m-0">
+                Triage details
+              </h3>
+              <button
+                type="button"
+                onClick={() => setViewAssessmentVisit(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-low border-0 bg-transparent cursor-pointer text-secondary transition-colors"
+                title="Close"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            
+            {loadingAssessment ? (
+              <div className="flex flex-col items-center justify-center py-xl gap-sm">
+                <span className="material-symbols-outlined animate-spin text-[24px] text-primary">
+                  progress_activity
+                </span>
+                <p className="font-body-sm text-secondary m-0">Loading assessment details...</p>
+              </div>
+            ) : assessmentDetails ? (
+              <div className="flex flex-col gap-md">
+                {/* General Info Grid */}
+                <div className="grid grid-cols-2 gap-sm text-body-sm">
+                  <div>
+                    <span className="text-secondary font-medium">Name:</span>
+                    <p className="font-semibold text-on-surface m-0 mt-[2px]">{viewAssessmentVisit.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-secondary font-medium">Patient #:</span>
+                    <p className="font-semibold text-on-surface m-0 mt-[2px]">{viewAssessmentVisit.patientNumber}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-secondary font-medium">Triage Priority:</span>
+                    <div className="mt-xs">
+                      <span
+                        className={`px-sm py-0.5 rounded-full font-label-sm text-label-sm font-semibold uppercase tracking-wide ${categoryBadgeClass(
+                          assessmentDetails.triage_category
+                        )}`}
+                      >
+                        {assessmentDetails.triage_category.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vitals Signs Grid (3 Columns) */}
+                <div>
+                  <h4 className="font-label-sm text-secondary uppercase font-bold tracking-wider m-0 mb-xs">
+                    Vital Signs
+                  </h4>
+                  <div className="grid grid-cols-3 gap-xs text-body-sm">
+                    <div className="bg-surface-container-low p-xs rounded border border-solid border-border-subtle">
+                      <span className="text-[10px] text-secondary">BP (mmHg)</span>
+                      <p className="font-semibold text-on-surface m-0 mt-[2px]">
+                        {assessmentDetails.vitals.blood_pressure_systolic ?? '--'}/
+                        {assessmentDetails.vitals.blood_pressure_diastolic ?? '--'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low p-xs rounded border border-solid border-border-subtle">
+                      <span className="text-[10px] text-secondary">Temp (°C)</span>
+                      <p className="font-semibold text-on-surface m-0 mt-[2px]">
+                        {assessmentDetails.vitals.temperature ?? '--'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low p-xs rounded border border-solid border-border-subtle">
+                      <span className="text-[10px] text-secondary">Pulse (bpm)</span>
+                      <p className="font-semibold text-on-surface m-0 mt-[2px]">
+                        {assessmentDetails.vitals.pulse_rate ?? '--'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low p-xs rounded border border-solid border-border-subtle">
+                      <span className="text-[10px] text-secondary">SpO2 (%)</span>
+                      <p className="font-semibold text-on-surface m-0 mt-[2px]">
+                        {assessmentDetails.vitals.oxygen_saturation ?? '--'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low p-xs rounded border border-solid border-border-subtle">
+                      <span className="text-[10px] text-secondary">Resp. (/min)</span>
+                      <p className="font-semibold text-on-surface m-0 mt-[2px]">
+                        {assessmentDetails.vitals.respiratory_rate ?? '--'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low p-xs rounded border border-solid border-border-subtle">
+                      <span className="text-[10px] text-secondary">Weight (kg)</span>
+                      <p className="font-semibold text-on-surface m-0 mt-[2px]">
+                        {assessmentDetails.vitals.weight_kg ?? '--'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Complaint and Symptoms (Blocks) */}
+                <div className="space-y-xs text-body-sm">
+                  <div>
+                    <span className="text-secondary font-medium">Chief Complaint</span>
+                    <p className="m-0 mt-xs p-xs bg-surface-bright border border-solid border-border-subtle rounded text-on-surface font-body-sm leading-relaxed">
+                      {assessmentDetails.chief_complaint}
+                    </p>
+                  </div>
+                  {assessmentDetails.triage_notes && (
+                    <div>
+                      <span className="text-secondary font-medium">Clinical Notes</span>
+                      <p className="m-0 mt-xs p-xs bg-surface-bright border border-solid border-border-subtle rounded text-on-surface font-body-sm leading-relaxed">
+                        {assessmentDetails.triage_notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Assessor Metadata */}
+                <div className="flex flex-col sm:flex-row justify-between text-[11px] text-secondary gap-xs pt-xs">
+                  <p className="m-0">
+                    <span className="font-semibold">Assessed By:</span>{' '}
+                    {assessmentDetails.triage_nurse.full_name}
+                  </p>
+                  <p className="m-0">
+                    <span className="font-semibold">Date:</span>{' '}
+                    {new Date(assessmentDetails.assessed_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-md">
+                <p className="font-body-sm text-error m-0">Failed to load assessment details.</p>
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="flex gap-sm justify-end pt-sm">
+              <button
+                type="button"
+                onClick={() => setViewAssessmentVisit(null)}
+                className="px-md py-sm border border-border-subtle rounded-lg font-body-sm bg-transparent cursor-pointer hover:bg-surface-container-low transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

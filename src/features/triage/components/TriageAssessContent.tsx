@@ -180,14 +180,8 @@ export function TriageAssessContent({ visit, from }: TriageAssessContentProps) {
       const wt = parseFloat(form.vitals.weight) || null
 
       let complaint = form.symptoms.join(', ')
-      if (form.clinicalNotes.trim()) {
-        complaint = complaint
-          ? `${complaint}. Notes: ${form.clinicalNotes.trim()}`
-          : form.clinicalNotes.trim()
-      }
-
       if (!complaint) {
-        complaint = 'Patient check-in assessment'
+        complaint = 'None'
       }
 
       await triageService.createAssessment({
