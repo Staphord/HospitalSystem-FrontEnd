@@ -306,6 +306,9 @@ export function TriageQueueContent() {
                   <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
                     Source
                   </th>
+                  <th className="px-md py-sm text-left font-label-md text-label-md text-secondary uppercase tracking-wider">
+                    Status
+                  </th>
                   <th className="px-md py-sm text-right font-label-md text-label-md text-secondary uppercase tracking-wider">
                     Actions
                   </th>
@@ -314,7 +317,7 @@ export function TriageQueueContent() {
               <tbody className="divide-y divide-border-subtle">
                 {filteredPatients.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-md py-xl text-center font-body-sm text-secondary">
+                    <td colSpan={9} className="px-md py-xl text-center font-body-sm text-secondary">
                       No patients match the selected filters.
                     </td>
                   </tr>
@@ -374,6 +377,17 @@ export function TriageQueueContent() {
                       </td>
                       <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.payment}</td>
                       <td className="px-md py-md font-body-sm text-body-sm text-on-surface">{patient.source}</td>
+                      <td className="px-md py-md">
+                        <span
+                          className={`inline-flex px-sm py-xs rounded-full font-label-sm text-label-sm font-semibold uppercase tracking-wide ${
+                            patient.status === 'waiting'
+                              ? 'bg-surface-container-high text-on-surface-variant'
+                              : 'bg-primary/10 text-primary'
+                          }`}
+                        >
+                          {patient.status.replace('_', ' ')}
+                        </span>
+                      </td>
                       <td className="px-md py-md text-right">
                         <div className="flex justify-end gap-sm items-center">
                           <button

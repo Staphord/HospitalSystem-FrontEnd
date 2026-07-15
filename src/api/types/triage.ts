@@ -1,5 +1,6 @@
 export interface BackendPatientSummary {
   patient_id: string
+  patient_number: string
   full_name: string
   date_of_birth: string
   gender: string
