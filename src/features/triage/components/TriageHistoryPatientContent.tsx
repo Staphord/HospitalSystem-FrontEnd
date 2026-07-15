@@ -251,27 +251,32 @@ export function TriageHistoryPatientContent({ patient }: Props) {
         const mapped = data.map((ass): TriageVisitRecord => {
           const dateStr = ass.assessed_at
             ? new Date(ass.assessed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-            : ''
+            : ass.visit_date
+              ? new Date(ass.visit_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+              : ''
 
           const category = ass.triage_category
-            .replace('_', '-')
-            .replace(/\b\w/g, (c) => c.toUpperCase()) as any
+            ? (ass.triage_category.replace('_', '-').replace(/\b\w/g, (c) => c.toUpperCase()) as any)
+            : 'Non-Urgent'
 
-          const v = ass.vitals
-          const parts = [
-            v.blood_pressure_systolic && v.blood_pressure_diastolic ? `BP: ${v.blood_pressure_systolic}/${v.blood_pressure_diastolic} mmHg` : '',
-            v.temperature ? `Temp: ${v.temperature} °C` : '',
-            v.pulse_rate ? `Pulse: ${v.pulse_rate} BPM` : '',
-            v.oxygen_saturation ? `SpO2: ${v.oxygen_saturation} %` : '',
-            v.respiratory_rate ? `RR: ${v.respiratory_rate} BPM` : '',
-            v.weight_kg ? `Weight: ${v.weight_kg} kg` : ''
-          ].filter(Boolean)
-          const vitalsText = parts.join(' | ')
+          let vitalsText = '--'
+          if (ass.vitals) {
+            const v = ass.vitals
+            const parts = [
+              v.blood_pressure_systolic && v.blood_pressure_diastolic ? `BP: ${v.blood_pressure_systolic}/${v.blood_pressure_diastolic} mmHg` : '',
+              v.temperature ? `Temp: ${v.temperature} °C` : '',
+              v.pulse_rate ? `Pulse: ${v.pulse_rate} BPM` : '',
+              v.oxygen_saturation ? `SpO2: ${v.oxygen_saturation} %` : '',
+              v.respiratory_rate ? `RR: ${v.respiratory_rate} BPM` : '',
+              v.weight_kg ? `Weight: ${v.weight_kg} kg` : ''
+            ].filter(Boolean)
+            vitalsText = parts.join(' | ') || '--'
+          }
 
           return {
             visitId: ass.visit_id,
             date: dateStr,
-            chiefComplaint: ass.chief_complaint,
+            chiefComplaint: ass.chief_complaint || 'No Triage Recorded',
             triageCategory: category,
             attendingDoctor: '--',
             diagnosis: '--',

@@ -83,16 +83,17 @@ export interface NurseSummary {
 }
 
 export interface TriageSummaryResponse {
-  triage_id: string
+  triage_id: string | null
   visit_id: string
   patient: BackendPatientSummary
-  triage_nurse: NurseSummary
-  vitals: BackendVitals
-  chief_complaint: string
+  triage_nurse: NurseSummary | null
+  vitals: BackendVitals | null
+  chief_complaint: string | null
   complaint_code: string | null
-  triage_category: string
+  triage_category: string | null
   triage_notes: string | null
-  assessed_at: string
+  assessed_at: string | null
+  visit_date?: string | null
 }
 
 export interface TriageCategorySuggestionResponse {
