@@ -6,7 +6,8 @@ import type {
   TriageSummaryResponse,
   TriageCategorySuggestionResponse,
   QueueCallResponse,
-  QueueSkipResponse
+  QueueSkipResponse,
+  TriageHistorySearchResponse
 } from '@/api/types/triage'
 
 export const triageService = {
@@ -52,5 +53,17 @@ export const triageService = {
   skipPatient: (queueId: string) =>
     apiClient
       .patch<QueueSkipResponse>(`/triage/queue/${queueId}/skip`)
+      .then((r) => r.data),
+
+  /** Search patient triage history database (or load recent ones if query is empty) */
+  searchHistory: (query?: string) =>
+    apiClient
+      .get<TriageHistorySearchResponse>('/triage/history/search', { params: { query } })
+      .then((r) => r.data),
+
+  /** Retrieve all historical triage assessments for a patient UUID */
+  getPatientAssessments: (patientId: string) =>
+    apiClient
+      .get<TriageSummaryResponse[]>(`/triage/patients/${patientId}/assessments`)
       .then((r) => r.data)
 }

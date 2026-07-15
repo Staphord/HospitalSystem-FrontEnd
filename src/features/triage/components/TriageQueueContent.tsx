@@ -318,7 +318,7 @@ export function TriageQueueContent() {
           waitWarningIcon: diffMins > 30,
           payment: item.visit.payment_type,
           source: item.visit.visit_type,
-          priority: item.priority === 'emergency' ? 'emergency' : item.priority === 'urgent' ? 'urgent' : 'routine',
+          priority: item.priority,
           isEmergency: item.priority === 'emergency'
         }
       })
@@ -353,7 +353,10 @@ export function TriageQueueContent() {
         )
       })
       .filter((patient) => {
-        const priorityMatch = priorityFilter === 'all' || patient.priority === priorityFilter
+        const priorityMatch =
+          priorityFilter === 'all' ||
+          patient.priority === priorityFilter ||
+          (priorityFilter === 'routine' && (patient.priority === 'semi_urgent' || patient.priority === 'non_urgent'))
         const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
         return priorityMatch && paymentMatch
       })

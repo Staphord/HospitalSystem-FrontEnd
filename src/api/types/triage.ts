@@ -111,3 +111,22 @@ export interface QueueSkipResponse {
   status: 'skipped'
   completed_at: string
 }
+
+export interface TriageHistoryPatientItem {
+  id: string
+  name: string
+  patientNumber: string
+  gender: string
+  dob: string
+  age: number
+  phone: string
+  lastTriageCategory: string | null
+  lastAssessedAt: string | null
+  assessmentCount: number
+}
+
+export interface TriageHistorySearchResponse {
+  patients: TriageHistoryPatientItem[]
+  total: number
+}
+

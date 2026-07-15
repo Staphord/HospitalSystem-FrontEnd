@@ -155,7 +155,7 @@ export function TriageDashboardContent() {
           waitWarningIcon: diffMins > 30,
           payment: item.visit.payment_type,
           source: item.visit.visit_type,
-          priority: item.priority === 'emergency' ? 'emergency' : item.priority === 'urgent' ? 'urgent' : 'routine',
+          priority: item.priority,
           isEmergency: item.priority === 'emergency'
         }
       })

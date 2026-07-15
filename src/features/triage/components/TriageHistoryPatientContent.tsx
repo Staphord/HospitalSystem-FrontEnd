@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { TriageHistorySearchResult, TriageVisitRecord, VisitOutcome } from '@/features/triage/types/triageHistory'
-import { getPatientVisitHistory } from '@/features/triage/data/mockTriageHistory'
 import { triageService } from '@/api/services/triage'
 
 const PAGE_SIZE = 5
@@ -239,9 +238,58 @@ interface Props {
 
 export function TriageHistoryPatientContent({ patient }: Props) {
   const navigate = useNavigate()
-  const visits = getPatientVisitHistory(patient.id)
+  const [visits, setVisits] = useState<TriageVisitRecord[]>([])
+  const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [selectedVisit, setSelectedVisit] = useState<TriageVisitRecord | null>(null)
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setLoading(true)
+      try {
+        const data = await triageService.getPatientAssessments(patient.id)
+        const mapped = data.map((ass): TriageVisitRecord => {
+          const dateStr = ass.assessed_at
+            ? new Date(ass.assessed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+            : ''
+
+          const category = ass.triage_category
+            .replace('_', '-')
+            .replace(/\b\w/g, (c) => c.toUpperCase()) as any
+
+          const v = ass.vitals
+          const parts = [
+            v.blood_pressure_systolic && v.blood_pressure_diastolic ? `BP: ${v.blood_pressure_systolic}/${v.blood_pressure_diastolic} mmHg` : '',
+            v.temperature ? `Temp: ${v.temperature} °C` : '',
+            v.pulse_rate ? `Pulse: ${v.pulse_rate} BPM` : '',
+            v.oxygen_saturation ? `SpO2: ${v.oxygen_saturation} %` : '',
+            v.respiratory_rate ? `RR: ${v.respiratory_rate} BPM` : '',
+            v.weight_kg ? `Weight: ${v.weight_kg} kg` : ''
+          ].filter(Boolean)
+          const vitalsText = parts.join(' | ')
+
+          return {
+            visitId: ass.visit_id,
+            date: dateStr,
+            chiefComplaint: ass.chief_complaint,
+            triageCategory: category,
+            attendingDoctor: '--',
+            diagnosis: '--',
+            outcome: 'Pending',
+            vitals: vitalsText,
+            doctorNotes: ass.triage_notes || ''
+          }
+        })
+        setVisits(mapped)
+      } catch (err) {
+        console.error('Failed to load patient triage assessments:', err)
+        toast.error('Failed to load patient visit history.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void fetchHistory()
+  }, [patient.id])
 
   const totalPages = Math.max(1, Math.ceil(visits.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -368,7 +416,17 @@ export function TriageHistoryPatientContent({ patient }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {visibleVisits.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-lg py-xl text-center font-body-sm text-body-sm text-outline"
+                  >
+                    <span className="material-symbols-outlined text-primary animate-spin text-[32px]">progress_activity</span>
+                    <p className="font-label-md text-secondary mt-sm m-0">Loading visit records...</p>
+                  </td>
+                </tr>
+              ) : visibleVisits.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}

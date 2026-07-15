@@ -1,4 +1,4 @@
-export type TriageQueuePriority = 'emergency' | 'urgent' | 'routine'
+export type TriageQueuePriority = 'emergency' | 'urgent' | 'semi_urgent' | 'non_urgent' | 'routine'
 
 export type TriageCategory = 'emergency' | 'urgent' | 'semi_urgent' | 'non_urgent'
 
