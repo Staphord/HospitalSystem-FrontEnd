@@ -12,6 +12,9 @@ export interface ConsultationQueueItem {
   chief_complaint?: string | null
   wait_time_minutes: number
   queue_status: string
+  visit_status?: string
+  pending_investigations_count?: number
+  completed_investigations_count?: number
 }
 
 export interface PatientResponse {

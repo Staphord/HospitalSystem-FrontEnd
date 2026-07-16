@@ -9,7 +9,7 @@ import type { ConsultationQueueItem } from '@/api/types/consultation'
 type TriagePriority = 'emergency' | 'urgent' | 'non-urgent' | 'general'
 type VitalsStatus = 'critical' | 'stable' | 'normal'
 type PriorityFilter = 'all' | TriagePriority
-type StatusFilter = 'all' | 'in-queue' | 'checked-in' | 'triage-complete'
+type StatusFilter = 'active' | 'completed' | 'all'
 
 interface QueueEntry {
   id: string
@@ -21,6 +21,9 @@ interface QueueEntry {
   vitals: VitalsStatus
   vitalsTooltip?: string
   status: string
+  visitStatus?: string
+  pendingInvestigationsCount?: number
+  completedInvestigationsCount?: number
 }
 
 // Mock data has been replaced by live consultationService getQueue data.
@@ -269,7 +272,7 @@ export function ConsultationQueuePage() {
   const [rawQueue, setRawQueue] = useState<ConsultationQueueItem[]>([])
   const [loading, setLoading] = useState(true)
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -319,19 +322,25 @@ export function ConsultationQueuePage() {
         waitTime: `${item.wait_time_minutes} min`,
         vitals: vitalsVal,
         status: item.queue_status,
+        visitStatus: item.visit_status,
+        pendingInvestigationsCount: item.pending_investigations_count,
+        completedInvestigationsCount: item.completed_investigations_count,
       }
     })
   }, [rawQueue])
 
-  const waitingEntries = useMemo(() => {
-    return queueEntries.filter((e) => e.status === 'waiting')
-  }, [queueEntries])
-
   const filtered = useMemo(() => {
-    let result = [...waitingEntries]
+    let result = [...queueEntries]
+    if (statusFilter === 'active') {
+      result = result.filter((e) => e.status === 'waiting' || e.status === 'in_progress')
+    } else if (statusFilter === 'completed') {
+      result = result.filter((e) => e.status === 'completed')
+    }
+
     if (priorityFilter !== 'all') {
       result = result.filter((e) => e.priority === priorityFilter)
     }
+
     // Emergency rows always float to top
     result.sort((a, b) => {
       if (a.priority === 'emergency' && b.priority !== 'emergency') return -1
@@ -339,7 +348,7 @@ export function ConsultationQueuePage() {
       return 0
     })
     return result
-  }, [waitingEntries, priorityFilter])
+  }, [queueEntries, priorityFilter, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -383,35 +392,68 @@ export function ConsultationQueuePage() {
       {/* Queue Table Card */}
       <div className="bg-surface-white rounded-xl border border-border-subtle shadow-sm overflow-hidden">
         {/* Table header + filters */}
-        <div className="p-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
-          <h3 className="font-headline-sm text-headline-sm text-on-background">Patient Queue</h3>
+        <div className="p-md border-b border-border-subtle flex flex-col lg:flex-row lg:items-center justify-between gap-md">
+          <h3 className="font-headline-sm text-headline-sm text-on-background m-0">Patient Queue</h3>
           <div className="flex items-center gap-sm flex-wrap">
+            {/* Status Tabs (Active, Completed, All) */}
+            <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('active')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  statusFilter === 'active'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('completed')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  statusFilter === 'completed'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                Completed
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('all')
+                  setCurrentPage(1)
+                }}
+                className={`px-sm py-xs font-label-md text-label-md rounded border-0 cursor-pointer transition-all ${
+                  statusFilter === 'all'
+                    ? 'bg-surface-white text-primary font-bold shadow-sm'
+                    : 'bg-transparent text-secondary hover:text-on-surface'
+                }`}
+              >
+                All
+              </button>
+            </div>
+
             {/* Priority filter */}
-            <div className="flex items-center gap-xs bg-surface-container-low px-sm py-1.5 rounded border border-border-subtle">
+            <div className="flex items-center gap-xs bg-surface-container px-sm py-1.5 rounded-lg border border-border-subtle h-[34px]">
               <span className="font-label-sm text-label-sm text-secondary whitespace-nowrap">Priority:</span>
               <select
                 value={priorityFilter}
                 onChange={handleFilterChange(setPriorityFilter as (v: never) => void)}
                 className="bg-transparent border-none font-body-sm text-body-sm font-medium p-0 focus:ring-0 cursor-pointer outline-none"
               >
-                <option value="all">All</option>
+                <option value="all">All Priority</option>
                 <option value="emergency">Emergency</option>
                 <option value="urgent">Urgent</option>
                 <option value="non-urgent">Non-Urgent</option>
                 <option value="general">General</option>
-              </select>
-            </div>
-            {/* Status filter */}
-            <div className="flex items-center gap-xs bg-surface-container-low px-sm py-1.5 rounded border border-border-subtle">
-              <span className="font-label-sm text-label-sm text-secondary whitespace-nowrap">Status:</span>
-              <select
-                value={statusFilter}
-                onChange={handleFilterChange(setStatusFilter as (v: never) => void)}
-                className="bg-transparent border-none font-body-sm text-body-sm font-medium p-0 focus:ring-0 cursor-pointer outline-none"
-              >
-                <option value="all">In Queue</option>
-                <option value="checked-in">Checked-in</option>
-                <option value="triage-complete">Triage Complete</option>
               </select>
             </div>
           </div>
@@ -422,12 +464,12 @@ export function ConsultationQueuePage() {
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead className="bg-surface-container-low sticky top-0 z-10 border-b border-border-subtle">
               <tr className="bg-surface-container-low">
-                {['Patient Name', 'Patient #', 'Chief Complaint', 'Triage', 'Wait Time', 'Vitals', 'Actions'].map(
+                {['Patient Name', 'Patient #', 'Chief Complaint', 'Triage', 'Wait Time', 'Status', 'Vitals', 'Actions'].map(
                   (col, i) => (
                     <th
                       key={col}
                       className={`px-md py-3 font-label-md text-label-md text-secondary uppercase tracking-wider ${
-                        i === 6 ? 'text-right' : ''
+                        i === 7 ? 'text-right' : ''
                       }`}
                     >
                       {col}
@@ -439,13 +481,46 @@ export function ConsultationQueuePage() {
             <tbody className="divide-y divide-border-subtle font-body-sm text-body-sm">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-md py-xl text-center text-secondary font-body-sm">
+                  <td colSpan={8} className="px-md py-xl text-center text-secondary font-body-sm">
                     No patients match the selected filters.
                   </td>
                 </tr>
               ) : (
                 paginated.map((entry) => {
                   const cfg = PRIORITY_CONFIG[entry.priority]
+
+                  // Compute dynamic status configurations
+                  let statusBadgeText = 'Waiting'
+                  let statusBadgeClass = 'bg-primary/10 text-primary border-primary/30'
+                  let btnLabel = 'Open Encounter'
+                  let btnColorClass = cfg.buttonClass
+
+                  if (entry.status === 'in_progress') {
+                    if (entry.visitStatus === 'awaiting_results') {
+                      if (entry.pendingInvestigationsCount === 0 && (entry.completedInvestigationsCount ?? 0) > 0) {
+                        statusBadgeText = 'Results Ready'
+                        statusBadgeClass = 'bg-success/15 text-success border-success/30 font-bold animate-pulse'
+                        btnLabel = 'Review Results'
+                        btnColorClass = 'bg-success text-white hover:bg-success/90 shadow'
+                      } else {
+                        statusBadgeText = 'Awaiting Results'
+                        statusBadgeClass = 'bg-purple-500/10 text-purple-600 border-purple-500/30'
+                        btnLabel = 'Resume'
+                        btnColorClass = 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
+                      }
+                    } else {
+                      statusBadgeText = 'In Progress'
+                      statusBadgeClass = 'bg-warning/10 text-[#916a00] border-warning/30'
+                      btnLabel = 'Resume'
+                      btnColorClass = 'bg-[#d97706] hover:bg-[#b45309] text-white shadow-sm'
+                    }
+                  } else if (entry.status === 'completed') {
+                    statusBadgeText = 'Completed'
+                    statusBadgeClass = 'bg-surface-container-highest text-secondary border-border-subtle'
+                    btnLabel = 'View Summary'
+                    btnColorClass = 'bg-transparent text-secondary border border-border-subtle hover:bg-surface-container'
+                  }
+
                   return (
                     <tr
                       key={entry.id}
@@ -461,15 +536,20 @@ export function ConsultationQueuePage() {
                       </td>
                       <td className={`px-md py-4 ${cfg.waitColor}`}>{entry.waitTime}</td>
                       <td className="px-md py-4">
+                        <span className={`inline-flex px-2 py-0.5 rounded font-label-md text-[11px] uppercase border ${statusBadgeClass}`}>
+                          {statusBadgeText}
+                        </span>
+                      </td>
+                      <td className="px-md py-4">
                         <VitalsCell vitals={entry.vitals} tooltip={entry.vitalsTooltip} />
                       </td>
                       <td className="px-md py-4 text-right">
                         <button
                           type="button"
                           onClick={() => navigate(`/consultation/encounter/${entry.id}`)}
-                          className={`h-8 px-md text-white rounded font-label-md text-label-md active:scale-95 transition-all border-0 cursor-pointer ${cfg.buttonClass}`}
+                          className={`h-8 px-md rounded font-label-md text-label-md active:scale-95 transition-all border-0 cursor-pointer ${btnColorClass}`}
                         >
-                          Open Encounter
+                          {btnLabel}
                         </button>
                       </td>
                     </tr>
