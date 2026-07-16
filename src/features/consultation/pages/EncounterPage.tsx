@@ -367,7 +367,7 @@ function AddMedicationModal({
     onAdd({
       id: uid(),
       name: name.trim(),
-      dose: doseStr,
+      dose: dose.trim(),
       route,
       frequency,
       duration: duration ? `${duration} ${durationUnit}` : '',
@@ -973,6 +973,10 @@ export function EncounterPage() {
 
   useEffect(() => {
     loadEncounter(true)
+    const interval = setInterval(() => {
+      refreshEncounter()
+    }, 10000)
+    return () => clearInterval(interval)
   }, [visitId])
 
   const patient = useMemo(() => {
