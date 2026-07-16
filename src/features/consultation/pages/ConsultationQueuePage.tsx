@@ -20,6 +20,7 @@ interface QueueEntry {
   waitTime: string
   vitals: VitalsStatus
   vitalsTooltip?: string
+  status: string
 }
 
 // Mock data has been replaced by live consultationService getQueue data.
@@ -72,15 +73,17 @@ const PRIORITY_LABEL: Record<TriagePriority, string> = {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SummaryCards({ entries }: { entries: QueueEntry[] }) {
-  const waiting = entries.filter((e) => e.priority !== 'emergency').length
-  const emergencies = entries.filter((e) => e.priority === 'emergency').length
+  const waiting = entries.filter((e) => e.status === 'waiting' && e.priority !== 'emergency').length
+  const emergencies = entries.filter((e) => e.status === 'waiting' && e.priority === 'emergency').length
+  const inProgress = entries.filter((e) => e.status === 'in_progress').length
+  const completed = entries.filter((e) => e.status === 'completed').length
 
   const cards = [
     {
       label: 'Waiting',
       value: waiting,
       unit: 'Patients',
-      subtext: 'Awaiting initial vitals',
+      subtext: 'Awaiting clinical notes',
       icon: 'hourglass_empty',
       iconColor: 'text-warning',
       valueColor: 'text-on-background',
@@ -90,7 +93,7 @@ function SummaryCards({ entries }: { entries: QueueEntry[] }) {
       label: 'Emergency',
       value: emergencies,
       unit: 'Action Required',
-      subtext: 'Immediate priority required',
+      subtext: 'Immediate clinical review',
       icon: 'emergency',
       iconColor: 'text-error',
       valueColor: 'text-error',
@@ -98,9 +101,9 @@ function SummaryCards({ entries }: { entries: QueueEntry[] }) {
     },
     {
       label: 'In Progress',
-      value: 1,
+      value: inProgress,
       unit: 'Consulting',
-      subtext: 'Active encounters',
+      subtext: 'Active consultations',
       icon: 'medical_services',
       iconColor: 'text-primary',
       valueColor: 'text-primary',
@@ -108,9 +111,9 @@ function SummaryCards({ entries }: { entries: QueueEntry[] }) {
     },
     {
       label: 'Completed Today',
-      value: 7,
+      value: completed,
       unit: 'Discharged',
-      subtext: 'Cases cleared this shift',
+      subtext: 'Completed this shift',
       icon: 'check_circle',
       iconColor: 'text-success',
       valueColor: 'text-success',
@@ -150,16 +153,16 @@ function SummaryCards({ entries }: { entries: QueueEntry[] }) {
               </span>
             </div>
             <div className="flex items-center gap-xs mt-xs">
-              <span className={`material-symbols-outlined text-[16px] ${card.iconColor}`}>
+              <span className={`material-symbols-outlined text-[16px] leading-none ${card.iconColor}`}>
                 {card.icon}
               </span>
-              <p
-                className={`font-body-sm text-body-sm ${
-                  card.variant === 'emergency' ? 'text-error' : 'text-secondary'
+              <span
+                className={`font-body-sm text-body-sm m-0 leading-none ${
+                  card.variant === 'emergency' ? 'text-error font-bold' : 'text-secondary'
                 }`}
               >
                 {card.subtext}
-              </p>
+              </span>
             </div>
           </div>
         </div>
@@ -273,7 +276,7 @@ export function ConsultationQueuePage() {
   const fetchQueue = async (showLoading = false) => {
     if (showLoading) setLoading(true)
     try {
-      const data = await consultationService.getQueue()
+      const data = await consultationService.getQueue('waiting,in_progress,completed')
       setRawQueue(data || [])
     } catch (error) {
       console.error('Failed to fetch doctor queue:', error)
@@ -315,12 +318,17 @@ export function ConsultationQueuePage() {
         priority: uiPriority,
         waitTime: `${item.wait_time_minutes} min`,
         vitals: vitalsVal,
+        status: item.queue_status,
       }
     })
   }, [rawQueue])
 
+  const waitingEntries = useMemo(() => {
+    return queueEntries.filter((e) => e.status === 'waiting')
+  }, [queueEntries])
+
   const filtered = useMemo(() => {
-    let result = [...queueEntries]
+    let result = [...waitingEntries]
     if (priorityFilter !== 'all') {
       result = result.filter((e) => e.priority === priorityFilter)
     }
@@ -331,7 +339,7 @@ export function ConsultationQueuePage() {
       return 0
     })
     return result
-  }, [queueEntries, priorityFilter])
+  }, [waitingEntries, priorityFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
