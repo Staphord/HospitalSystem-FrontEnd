@@ -1434,9 +1434,11 @@ export function EncounterPage() {
             {orders.map((o) => (
               <span key={o.id} className="inline-flex items-center gap-sm px-sm py-1.5 rounded-lg bg-surface-container border border-border-subtle font-body-sm text-body-sm text-on-surface">
                 {o.testName}
-                <button type="button" onClick={() => handleCancelInvestigation(o.id)} className="text-secondary hover:text-error transition-colors border-0 bg-transparent cursor-pointer p-0 flex items-center">
-                  <span className="material-symbols-outlined text-[16px]">close</span>
-                </button>
+                {o.status === 'requested' && (
+                  <button type="button" onClick={() => handleCancelInvestigation(o.id)} className="text-secondary hover:text-error transition-colors border-0 bg-transparent cursor-pointer p-0 flex items-center">
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                )}
               </span>
             ))}
             {orders.length === 0 && <span className="font-body-sm text-body-sm text-secondary italic">No active orders — click Add Order to begin.</span>}
