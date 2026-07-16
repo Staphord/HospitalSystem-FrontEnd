@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import { consultationService } from '@/api/services/consultation'
+import type { EncounterViewResponse } from '@/api/types/consultation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -888,38 +891,350 @@ export function EncounterPage() {
   const { visitId } = useParams<{ visitId: string }>()
   const navigate = useNavigate()
 
-  const patient = visitId ? (MOCK_PATIENTS[visitId] ?? MOCK_PATIENTS['v-001']) : MOCK_PATIENTS['v-001']
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [encounter, setEncounter] = useState<EncounterViewResponse | null>(null)
+  
+  const hasLoadedRef = useRef<string | null>(null)
 
   // §2 Clinical Notes
-  const [hpc, setHpc] = useState('Patient reports sudden onset of shortness of breath associated with chest tightness. No prior history of similar episodes.')
-  const [exam, setExam] = useState('Wheezing noted on auscultation bilaterally. Reduced air entry on left base. Tachypnoeic at rest.')
-  const [impression, setImpression] = useState('Suspected acute exacerbation of bronchial asthma. Rule out pneumothorax.')
+  const [hpc, setHpc] = useState('')
+  const [exam, setExam] = useState('')
+  const [impression, setImpression] = useState('')
 
-  // §3 Diagnosis
-  const [provisional, setProvisional] = useState('J45.909 - Asthma, unspecified')
-  const [differential, setDifferential] = useState('Pneumonia, PE')
+  // §3 Diagnosis Addition Form state
+  const [diagDesc, setDiagDesc] = useState('')
+  const [diagCode, setDiagCode] = useState('')
+  const [diagType, setDiagType] = useState<'provisional' | 'differential' | 'final'>('provisional')
 
-  // §4 Investigations
-  const [orders, setOrders] = useState<InvestigationOrder[]>([
-    { id: 'ord-1', testName: 'Full Blood Count (FBC)', department: 'Laboratory', priority: 'urgent', time: '09:15', status: 'requested' },
-    { id: 'ord-2', testName: 'CRP', department: 'Laboratory', priority: 'routine', time: '09:15', status: 'requested' },
-  ])
   const [showAddOrder, setShowAddOrder] = useState(false)
-
-  // §5 Prescriptions
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>([
-    { id: 'rx-1', name: 'Salbutamol Inhaler', dose: '2 puffs Inhaled QID (As needed)', route: 'Inhaled', frequency: 'QID', duration: '' },
-  ])
   const [showAddMedication, setShowAddMedication] = useState(false)
 
   // §6 Disposition
   const [disposition, setDisposition] = useState<DispositionType | null>(null)
 
-  const removeOrder = (id: string) => setOrders((prev) => prev.filter((o) => o.id !== id))
-  const removePrescription = (id: string) => setPrescriptions((prev) => prev.filter((r) => r.id !== id))
+  const loadEncounter = async (showLoading = true) => {
+    if (!visitId) return
+    if (hasLoadedRef.current === visitId) return
+    hasLoadedRef.current = visitId
+
+    if (showLoading) setLoading(true)
+    try {
+      const data = await consultationService.getEncounter(visitId)
+      setEncounter(data)
+      setHpc(data.consultation.history_of_presenting_illness || '')
+      setExam(data.consultation.examination_findings || '')
+      setImpression(data.consultation.clinical_impression || '')
+      if (data.consultation.disposition) {
+        const disp = data.consultation.disposition
+        if (disp === 'outpatient') setDisposition('discharge')
+        else if (disp === 'admission') setDisposition('admit')
+        else if (disp === 'referral') setDisposition('refer')
+      }
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        try {
+          await consultationService.openEncounter(visitId)
+          const data = await consultationService.getEncounter(visitId)
+          setEncounter(data)
+          setHpc(data.consultation.history_of_presenting_illness || '')
+          setExam(data.consultation.examination_findings || '')
+          setImpression(data.consultation.clinical_impression || '')
+        } catch (openErr: any) {
+          hasLoadedRef.current = null
+          console.error("Failed to open encounter:", openErr)
+          toast.error(openErr.response?.data?.detail || "Failed to initialize encounter.")
+        }
+      } else {
+        hasLoadedRef.current = null
+        console.error("Failed to fetch encounter:", err)
+        toast.error("Failed to load encounter details.")
+      }
+    } finally {
+      if (showLoading) setLoading(false)
+    }
+  }
+
+  const refreshEncounter = async () => {
+    if (!visitId) return
+    try {
+      const data = await consultationService.getEncounter(visitId)
+      setEncounter(data)
+      if (data.consultation.disposition) {
+        const disp = data.consultation.disposition
+        if (disp === 'outpatient') setDisposition('discharge')
+        else if (disp === 'admission') setDisposition('admit')
+        else if (disp === 'referral') setDisposition('refer')
+      }
+    } catch (err) {
+      console.error("Failed to refresh encounter:", err)
+    }
+  }
+
+  useEffect(() => {
+    loadEncounter(true)
+  }, [visitId])
+
+  const patient = useMemo(() => {
+    if (!encounter?.patient) {
+      return {
+        name: 'Loading...',
+        patientId: '',
+        age: 0,
+        sex: '',
+        priority: 'general' as const,
+        payment: 'Cash',
+        visitNumber: 1,
+        vitals: [] as VitalReading[]
+      }
+    }
+    const ts = encounter.triage_summary
+    const vitalsList: VitalReading[] = []
+    if (ts) {
+      if (ts.blood_pressure_systolic && ts.blood_pressure_diastolic) {
+        vitalsList.push({
+          label: 'BP',
+          value: `${ts.blood_pressure_systolic}/${ts.blood_pressure_diastolic}`,
+          isAbnormal: ts.blood_pressure_systolic > 140 || ts.blood_pressure_diastolic > 90
+        })
+      }
+      if (ts.temperature) {
+        vitalsList.push({
+          label: 'Temp',
+          value: `${ts.temperature}°C`,
+          isAbnormal: ts.temperature > 38.0
+        })
+      }
+      if (ts.pulse_rate) {
+        vitalsList.push({
+          label: 'Pulse',
+          value: `${ts.pulse_rate} bpm`,
+          isAbnormal: ts.pulse_rate > 100 || ts.pulse_rate < 60
+        })
+      }
+      if (ts.oxygen_saturation) {
+        vitalsList.push({
+          label: 'SpO2',
+          value: `${ts.oxygen_saturation}%`,
+          isAbnormal: ts.oxygen_saturation < 95
+        })
+      }
+      if (ts.weight_kg) {
+        vitalsList.push({
+          label: 'Weight',
+          value: `${ts.weight_kg}kg`
+        })
+      }
+    }
+    
+    let patientAge = 0
+    if (encounter.patient.date_of_birth) {
+      patientAge = Math.floor((new Date().getTime() - new Date(encounter.patient.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    }
+
+    let uiPriority: 'emergency' | 'urgent' | 'non-urgent' | 'general' = 'general'
+    const normPriority = (ts?.triage_category || '').toLowerCase().replace('_', '-')
+    if (normPriority === 'emergency') uiPriority = 'emergency'
+    else if (normPriority === 'urgent') uiPriority = 'urgent'
+    else if (normPriority === 'non-urgent') uiPriority = 'non-urgent'
+
+    return {
+      name: encounter.patient.full_name,
+      patientId: encounter.patient.patient_number,
+      age: patientAge,
+      sex: encounter.patient.gender,
+      priority: uiPriority,
+      payment: encounter.patient.blood_group || 'Cash',
+      visitNumber: 1,
+      vitals: vitalsList
+    }
+  }, [encounter])
+
+  const orders = useMemo((): InvestigationOrder[] => {
+    if (!encounter?.consultation?.investigation_requests) return []
+    return encounter.consultation.investigation_requests.map((inv): InvestigationOrder => {
+      let uiStatus: InvestigationOrder['status'] = 'requested'
+      if (inv.status === 'in_progress') uiStatus = 'in-progress'
+      else if (inv.status === 'completed') uiStatus = 'resulted'
+      
+      let uiPriority: InvestigationOrder['priority'] = 'routine'
+      if (inv.urgency === 'urgent') uiPriority = 'urgent'
+      else if (inv.urgency === 'stat') uiPriority = 'stat'
+
+      return {
+        id: inv.id,
+        testName: inv.test_name,
+        department: inv.request_type === 'radiology' ? 'Radiology' : 'Laboratory',
+        priority: uiPriority,
+        time: inv.requested_at ? new Date(inv.requested_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+        status: uiStatus,
+        notes: inv.clinical_history || undefined
+      }
+    })
+  }, [encounter])
+
+  const prescriptions = useMemo((): Prescription[] => {
+    if (!encounter?.consultation?.prescriptions) return []
+    return encounter.consultation.prescriptions.map((p): Prescription => {
+      return {
+        id: p.id,
+        name: p.drug_name,
+        dose: p.dose,
+        route: p.route,
+        frequency: p.frequency,
+        duration: p.duration,
+        instructions: p.instructions || undefined
+      }
+    })
+  }, [encounter])
+
+  const handleSaveNotes = async () => {
+    if (!encounter?.consultation?.id) return
+    try {
+      setSaving(true)
+      await consultationService.updateNotes(encounter.consultation.id, hpc, exam, impression)
+      toast.success("Notes saved as draft.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to save notes.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleAddDiagnosis = async () => {
+    if (!encounter?.consultation?.id || !diagDesc.trim()) return
+    try {
+      await consultationService.addDiagnosis(
+        encounter.consultation.id,
+        diagType,
+        diagDesc,
+        diagCode || undefined
+      )
+      toast.success("Diagnosis added.")
+      setDiagDesc('')
+      setDiagCode('')
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to add diagnosis.")
+    }
+  }
+
+  const handleDeleteDiagnosis = async (id: string) => {
+    try {
+      await consultationService.deleteDiagnosis(id)
+      toast.success("Diagnosis deleted.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to delete diagnosis.")
+    }
+  }
+
+  const handleAddInvestigation = async (order: InvestigationOrder) => {
+    if (!encounter?.consultation?.id) return
+    try {
+      await consultationService.addInvestigation(
+        encounter.consultation.id,
+        order.department,
+        order.testName,
+        order.notes || "Requested during consultation",
+        order.priority
+      )
+      toast.success("Investigation requested.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to request investigation.")
+    }
+  }
+
+  const handleCancelInvestigation = async (id: string) => {
+    try {
+      await consultationService.deleteInvestigation(id)
+      toast.success("Investigation request cancelled.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to cancel investigation.")
+    }
+  }
+
+  const handleAddPrescription = async (rx: Omit<Prescription, 'id'>) => {
+    if (!encounter?.consultation?.id) return
+    try {
+      await consultationService.addPrescription(
+        encounter.consultation.id,
+        rx.name,
+        rx.dose,
+        rx.frequency,
+        rx.duration,
+        rx.route,
+        rx.instructions
+      )
+      toast.success("Prescription added.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to add prescription.")
+    }
+  }
+
+  const handleRemovePrescription = async (id: string) => {
+    try {
+      await consultationService.deletePrescription(id)
+      toast.success("Prescription removed.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to remove prescription.")
+    }
+  }
+
+  const handleDispositionChange = async (dispKey: DispositionType) => {
+    if (!encounter?.consultation?.id) return
+    let mappedDisp = 'outpatient'
+    if (dispKey === 'admit') mappedDisp = 'admission'
+    else if (dispKey === 'refer') mappedDisp = 'referral'
+    
+    try {
+      await consultationService.updateDisposition(encounter.consultation.id, mappedDisp)
+      setDisposition(dispKey)
+      toast.success("Disposition updated.")
+      await refreshEncounter()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to update disposition.")
+    }
+  }
+
+  const handleCompleteEncounter = async () => {
+    if (!encounter?.consultation?.id) return
+    try {
+      setSaving(true)
+      await consultationService.completeConsultation(encounter.consultation.id)
+      toast.success("Consultation completed successfully!")
+      navigate('/consultation/queue')
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.response?.data?.detail || "Failed to complete consultation.")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const priorityLabel = patient.priority.replace('-', ' ').toUpperCase()
   const priorityBadgeClass = PRIORITY_BADGE[patient.priority] ?? PRIORITY_BADGE.general
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-container-max mx-auto w-full pb-24">
@@ -978,12 +1293,28 @@ export function EncounterPage() {
         {/* §1 Triage Summary */}
         <SectionCard number={1} title="Triage Summary" collapsible>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-md">
-            <div><p className="font-label-md text-label-md text-secondary uppercase mb-xs">Chief Complaint</p><p className="font-body-sm text-body-sm text-on-surface">Severe Dyspnea, Chest Pain</p></div>
-            <div><p className="font-label-md text-label-md text-secondary uppercase mb-xs">Priority</p><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${priorityBadgeClass}`}>{priorityLabel}</span></div>
-            <div><p className="font-label-md text-label-md text-secondary uppercase mb-xs">Triage Nurse</p><p className="font-body-sm text-body-sm text-on-surface">Nurse Amina K.</p></div>
-            <div><p className="font-label-md text-label-md text-secondary uppercase mb-xs">Triage Time</p><p className="font-body-sm text-body-sm text-on-surface">09:05 AM</p></div>
-            <div><p className="font-label-md text-label-md text-secondary uppercase mb-xs">Allergies</p><p className="font-body-sm text-body-sm text-error font-semibold">Penicillin</p></div>
-            <div><p className="font-label-md text-label-md text-secondary uppercase mb-xs">Triage Notes</p><p className="font-body-sm text-body-sm text-on-surface">Patient in acute distress on arrival.</p></div>
+            <div>
+              <p className="font-label-md text-label-md text-secondary uppercase mb-xs">Chief Complaint</p>
+              <p className="font-body-sm text-body-sm text-on-surface">{encounter?.triage_summary?.chief_complaint || 'No complaint recorded'}</p>
+            </div>
+            <div>
+              <p className="font-label-md text-label-md text-secondary uppercase mb-xs">Priority</p>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${priorityBadgeClass}`}>{priorityLabel}</span>
+            </div>
+            <div>
+              <p className="font-label-md text-label-md text-secondary uppercase mb-xs">Triage Time</p>
+              <p className="font-body-sm text-body-sm text-on-surface">
+                {encounter?.triage_summary?.assessed_at ? new Date(encounter.triage_summary.assessed_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="font-label-md text-label-md text-secondary uppercase mb-xs">Allergies</p>
+              <p className="font-body-sm text-body-sm text-error font-semibold">{encounter?.patient?.allergies || 'No allergies recorded'}</p>
+            </div>
+            <div>
+              <p className="font-label-md text-label-md text-secondary uppercase mb-xs">Triage Notes</p>
+              <p className="font-body-sm text-body-sm text-on-surface">{encounter?.triage_summary?.triage_notes || 'No triage notes'}</p>
+            </div>
           </div>
         </SectionCard>
 
@@ -1008,23 +1339,86 @@ export function EncounterPage() {
         {/* §3 Diagnosis */}
         <SectionCard number={3} title="Diagnosis">
           <div className="space-y-md">
-            <div>
-              <label className="block font-label-md text-label-md text-secondary mb-xs">Provisional Diagnosis (ICD-10)</label>
-              <div className="flex items-center border border-border-subtle rounded-lg bg-surface-white px-sm py-2 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
-                <span className="material-symbols-outlined text-secondary mr-sm text-[20px]">search</span>
-                <input type="text" value={provisional} onChange={(e) => setProvisional(e.target.value)} className="flex-1 border-none bg-transparent p-0 focus:ring-0 font-body-sm text-body-sm outline-none" />
-              </div>
+            {/* Added Diagnoses List */}
+            <div className="space-y-sm mb-md">
+              {encounter?.consultation?.diagnoses.map((d) => (
+                <div key={d.id} className="flex items-center justify-between p-sm border border-border-subtle rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors group">
+                  <div className="flex items-center gap-md">
+                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase border ${
+                      d.diagnosis_type === 'final' 
+                        ? 'bg-success/10 text-success border-success/30' 
+                        : d.diagnosis_type === 'differential' 
+                          ? 'bg-warning/10 text-[#916a00] border-warning/30' 
+                          : 'bg-primary/10 text-primary border-primary/30'
+                    }`}>
+                      {d.diagnosis_type}
+                    </span>
+                    <div>
+                      <span className="block font-body-sm text-body-sm font-bold text-on-surface">
+                        {d.description}
+                      </span>
+                      {d.code && (
+                        <span className="block font-label-sm text-label-sm text-secondary">
+                          ICD-10: {d.code}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => handleDeleteDiagnosis(d.id)}
+                    className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </div>
+              ))}
+              {encounter?.consultation?.diagnoses.length === 0 && (
+                <p className="font-body-sm text-body-sm text-secondary italic text-center py-md">
+                  No diagnoses recorded yet.
+                </p>
+              )}
             </div>
-            <div>
-              <label className="block font-label-md text-label-md text-secondary mb-xs">Differential Diagnosis</label>
-              <input type="text" value={differential} onChange={(e) => setDifferential(e.target.value)} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all" />
-            </div>
-            <div className="bg-surface-container-low p-md rounded-lg border border-border-subtle flex items-center justify-between opacity-70">
-              <div>
-                <span className="block font-label-md text-label-md text-secondary mb-xs uppercase tracking-wider">Final Diagnosis</span>
-                <span className="font-body-sm text-body-sm text-secondary italic">Locked until all investigations are finalized</span>
+
+            {/* Add Diagnosis Form */}
+            <div className="p-sm bg-surface-container-lowest rounded-lg border border-border-subtle space-y-sm">
+              <p className="font-label-md text-label-md text-secondary uppercase m-0">Add Diagnosis</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+                <input
+                  type="text"
+                  placeholder="Diagnosis name (e.g. Acute Bronchitis)"
+                  value={diagDesc}
+                  onChange={(e) => setDiagDesc(e.target.value)}
+                  className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="ICD-10 Code (e.g. J20.9)"
+                  value={diagCode}
+                  onChange={(e) => setDiagCode(e.target.value)}
+                  className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none"
+                />
+                <select
+                  value={diagType}
+                  onChange={(e) => setDiagType(e.target.value as any)}
+                  className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none cursor-pointer"
+                >
+                  <option value="provisional">Provisional</option>
+                  <option value="differential">Differential</option>
+                  <option value="final">Final Diagnosis</option>
+                </select>
               </div>
-              <span className="material-symbols-outlined text-secondary">lock</span>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleAddDiagnosis}
+                  disabled={!diagDesc.trim()}
+                  className="h-9 px-md rounded-lg font-label-md text-label-md text-white bg-primary hover:bg-primary-container border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-xs"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  Record Diagnosis
+                </button>
+              </div>
             </div>
           </div>
         </SectionCard>
@@ -1036,7 +1430,7 @@ export function EncounterPage() {
             {orders.map((o) => (
               <span key={o.id} className="inline-flex items-center gap-sm px-sm py-1.5 rounded-lg bg-surface-container border border-border-subtle font-body-sm text-body-sm text-on-surface">
                 {o.testName}
-                <button type="button" onClick={() => removeOrder(o.id)} className="text-secondary hover:text-error transition-colors border-0 bg-transparent cursor-pointer p-0 flex items-center">
+                <button type="button" onClick={() => handleCancelInvestigation(o.id)} className="text-secondary hover:text-error transition-colors border-0 bg-transparent cursor-pointer p-0 flex items-center">
                   <span className="material-symbols-outlined text-[16px]">close</span>
                 </button>
               </span>
@@ -1080,8 +1474,8 @@ export function EncounterPage() {
           <div className="bg-error/10 border border-error/20 rounded-lg p-sm mb-md flex items-start gap-sm">
             <span className="material-symbols-outlined text-error mt-0.5 shrink-0">warning</span>
             <div>
-              <h4 className="font-label-md text-label-md text-error font-bold">Drug interaction detected</h4>
-              <p className="font-body-sm text-body-sm text-on-surface-variant mt-xs">Caution advised when prescribing Salbutamol with current patient medication.</p>
+              <h4 className="font-label-md text-label-md text-error font-bold">Drug interaction warning active</h4>
+              <p className="font-body-sm text-body-sm text-on-surface-variant mt-xs">Always verify contraindications for polypharmacy prescriptions.</p>
             </div>
           </div>
           {/* Medication list */}
@@ -1090,13 +1484,10 @@ export function EncounterPage() {
               <div key={rx.id} className="flex items-center justify-between p-sm border border-border-subtle rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors group">
                 <div>
                   <span className="block font-body-sm text-body-sm font-bold text-on-surface">{rx.name}</span>
-                  <span className="block font-label-sm text-label-sm text-secondary">{rx.dose}</span>
+                  <span className="block font-label-sm text-label-sm text-secondary">{rx.dose} — {rx.route} ({rx.frequency} for {rx.duration})</span>
                 </div>
                 <div className="flex items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button type="button" className="p-1.5 text-secondary hover:text-primary rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer">
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                  </button>
-                  <button type="button" onClick={() => removePrescription(rx.id)} className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer">
+                  <button type="button" onClick={() => handleRemovePrescription(rx.id)} className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer">
                     <span className="material-symbols-outlined text-[18px]">delete</span>
                   </button>
                 </div>
@@ -1112,7 +1503,7 @@ export function EncounterPage() {
         <SectionCard number={6} title="Disposition">
           <DispositionContent
             disposition={disposition}
-            setDisposition={setDisposition}
+            setDisposition={handleDispositionChange}
             pendingOrdersCount={orders.filter((o) => o.status === 'requested' || o.status === 'in-progress').length}
           />
         </SectionCard>
@@ -1126,14 +1517,20 @@ export function EncounterPage() {
             Disposition set: {DISPOSITION_OPTIONS.find((d) => d.id === disposition)?.label}
           </span>
         )}
-        <button type="button" className="px-6 py-2 border border-border-subtle text-on-surface font-semibold font-label-md text-label-md rounded-lg hover:bg-surface-container transition-all active:scale-95 h-[44px] cursor-pointer bg-transparent">
-          Save Draft
+        <button 
+          type="button" 
+          onClick={handleSaveNotes}
+          disabled={saving}
+          className="px-6 py-2 border border-border-subtle text-on-surface font-semibold font-label-md text-label-md rounded-lg hover:bg-surface-container transition-all active:scale-95 h-[44px] cursor-pointer bg-transparent disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save Draft'}
         </button>
         <button
           type="button"
-          disabled={!disposition}
+          disabled={!disposition || saving}
+          onClick={handleCompleteEncounter}
           className={`px-6 py-2 font-semibold font-label-md text-label-md rounded-lg flex items-center gap-sm h-[44px] border-0 transition-all ${
-            disposition
+            disposition && !saving
               ? 'bg-primary text-white cursor-pointer hover:opacity-90 active:scale-95'
               : 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed opacity-70'
           }`}
@@ -1141,7 +1538,7 @@ export function EncounterPage() {
           {disposition ? (
             <>
               <span className="material-symbols-outlined text-[20px] leading-none">check_circle</span>
-              Complete Encounter
+              {saving ? 'Completing...' : 'Complete Encounter'}
             </>
           ) : (
             <>
@@ -1156,13 +1553,13 @@ export function EncounterPage() {
       {showAddOrder && (
         <AddOrderModal
           onClose={() => setShowAddOrder(false)}
-          onAdd={(order) => setOrders((prev) => [...prev, order])}
+          onAdd={handleAddInvestigation}
         />
       )}
       {showAddMedication && (
         <AddMedicationModal
           onClose={() => setShowAddMedication(false)}
-          onAdd={(rx) => setPrescriptions((prev) => [...prev, rx])}
+          onAdd={handleAddPrescription}
         />
       )}
     </div>
