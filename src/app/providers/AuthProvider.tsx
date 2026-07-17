@@ -20,7 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     usersService
       .getMe()
       .then(setUser)
-      .catch(() => clearAuth())
+      .catch((err) => {
+        // Clear auth only when the server explicitly rejects the token
+        const status = (err as { response?: { status?: number } })?.response?.status
+        if (status === 401) {
+          clearAuth()
+        }
+      })
   }, [accessToken, setUser, clearAuth])
 
   return <>{children}</>

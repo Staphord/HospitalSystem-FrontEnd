@@ -1,14 +1,33 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
+import { authService } from '@/api/services/auth'
+import { usersService } from '@/api/services/users'
+import { useAuth } from '@/hooks/useAuth'
+import { getRolesFromToken } from '@/lib/token'
+import { getDefaultRoute } from '@/lib/roles'
 
 export function FirstLoginChangePasswordPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { setTokens, setUser } = useAuth()
+  
+  const state = location.state as { username?: string; tempPassword?: string } | undefined
+  const [username, setUsername] = useState('')
   const [tempPassword, setTempPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (state?.username) {
+      setUsername(state.username)
+    }
+    if (state?.tempPassword) {
+      setTempPassword(state.tempPassword)
+    }
+  }, [state])
 
   // Password Strength States
   const [strengthScore, setStrengthScore] = useState(0)
@@ -67,11 +86,30 @@ export function FirstLoginChangePasswordPage() {
     setLoading(true)
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200))
+      const tokens = await authService.firstLoginChangePassword({
+        username,
+        temp_password: tempPassword,
+        new_password: password,
+      })
+
+      setTokens(tokens.access_token, tokens.refresh_token)
+
+      let user
+      try {
+        user = await usersService.getMe()
+      } catch (profileErr: any) {
+        toast.warning('Password changed successfully, but profile load failed. Please log in again.')
+        navigate('/login')
+        return
+      }
+
+      setUser(user)
       toast.success('Credential compliance verified. Welcome to the system!')
-      navigate('/dashboard')
-    } catch {
-      toast.error('Failed to update credentials. Please check your temporary password.')
+      navigate(getDefaultRoute(getRolesFromToken(tokens.access_token)))
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail
+      const message = typeof detail === 'string' ? detail : err?.message || 'Failed to update credentials. Please check your temporary password.'
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -116,6 +154,20 @@ export function FirstLoginChangePasswordPage() {
           <strong style={{ display: 'block', marginBottom: '0.15rem' }}>First-Time Sign-In:</strong>
           For security compliance, you must change your temporary password before proceeding.
         </div>
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="username" style={{ marginBottom: '0.25rem', display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Username</label>
+        <input
+          id="username"
+          className="form-control"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          disabled={!!state?.username}
+          placeholder="Enter username"
+        />
       </div>
 
       <div className="form-group">

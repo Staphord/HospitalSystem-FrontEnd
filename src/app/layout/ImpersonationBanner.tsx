@@ -1,6 +1,7 @@
 import { useImpersonation } from '@/hooks/useImpersonation'
 import { useAuthStore } from '@/store/authStore'
 import { useAuth } from '@/hooks/useAuth'
+import { authService } from '@/api/services/auth'
 
 export function ImpersonationBanner() {
   const { isImpersonating } = useImpersonation()
@@ -10,7 +11,12 @@ export function ImpersonationBanner() {
 
   const hospitalName = user?.hospital_name || 'the selected tenant'
 
-  const stopImpersonating = () => {
+  const stopImpersonating = async () => {
+    try {
+      await authService.exitImpersonation()
+    } catch (err) {
+      console.error('Failed to register support session exit on backend:', err)
+    }
     const originalAccess = localStorage.getItem('original_access_token')
     const originalRefresh = localStorage.getItem('original_refresh_token')
     if (originalAccess) {

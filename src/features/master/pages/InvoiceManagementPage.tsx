@@ -37,6 +37,8 @@ export function InvoiceManagementPage() {
   const [recordingPayment, setRecordingPayment] = useState(false)
   const [referenceNumber, setReferenceNumber] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
 
   const fetchData = useCallback(async () => {
     try {
@@ -60,6 +62,10 @@ export function InvoiceManagementPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, tenantIdParam])
 
   // Synchronize payment amount with invoice balance
   useEffect(() => {
@@ -107,7 +113,7 @@ export function InvoiceManagementPage() {
     setBillingPeriodStart(defaultStart)
     setBillingPeriodEnd(defaultEnd.toISOString().split('T')[0])
 
-    const defaultDue = new Date(Date.now() + 3600000 * 24 * 14).toISOString().split('T')[0]
+    const defaultDue = new Date(Date.now() + 3600000 * 24 * 3).toISOString().split('T')[0]
     setDueDate(defaultDue)
   }
 
@@ -145,13 +151,10 @@ export function InvoiceManagementPage() {
       ? `${description} (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
       : `Subscription renewal (Billing Period: ${billingPeriodStart} to ${billingPeriodEnd})`
 
-    const invoiceNumber = 'INV-' + tenantId.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) + '-' + Date.now().toString().slice(-6)
-
     try {
       await masterService.createInvoice({
         tenant_id: tenantId,
         subscription_id: subId,
-        invoice_number: invoiceNumber,
         plan_name: planName,
         billing_period_start: billingPeriodStart,
         billing_period_end: billingPeriodEnd,
@@ -232,6 +235,13 @@ export function InvoiceManagementPage() {
 
     return matchesTenantParam && matchesSearch && matchesStatusFilter
   })
+
+  // Pagination calculations
+  const totalItems = filteredInvoices.length
+  const totalPages = Math.ceil(totalItems / pageSize) || 1
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalItems)
+  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex)
 
   const getStatusBadgeClass = (status: string) => {
     switch ((status || '').toLowerCase()) {
@@ -320,31 +330,49 @@ export function InvoiceManagementPage() {
       )}
 
       <div className="card" style={{ padding: '1.5rem' }}>
-        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
-          <div className="search-input-wrapper" style={{ maxWidth: '400px', flex: 1 }}>
-            <span className="search-input-icon material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>search</span>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Search by hospital name, invoice ID, status..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', flex: 1, maxWidth: '650px' }}>
+            <div className="search-input-wrapper" style={{ maxWidth: '400px', flex: 1 }}>
+              <span className="search-input-icon material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>search</span>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search by hospital name, invoice number, status..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div style={{ width: '200px' }}>
+              <select
+                className="form-control"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter by Status"
+              >
+                <option value="all">All Statuses</option>
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="overdue">Overdue</option>
+                <option value="partially_paid">Partially Paid</option>
+              </select>
+            </div>
           </div>
-          <div style={{ width: '200px' }}>
-            <select
-              className="form-control"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              aria-label="Filter by Status"
-            >
-              <option value="all">All Statuses</option>
-              <option value="paid">Paid</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="overdue">Overdue</option>
-              <option value="partially_paid">Partially Paid</option>
-            </select>
-          </div>
+
+          <select
+            className="form-control"
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value))
+              setCurrentPage(1)
+            }}
+            style={{ maxWidth: '150px', width: 'auto' }}
+            title="Page Size"
+          >
+            <option value={10}>Show: 10</option>
+            <option value={25}>Show: 25</option>
+            <option value={50}>Show: 50</option>
+            <option value={100}>Show: 100</option>
+          </select>
         </div>
 
         {loading ? (
@@ -356,54 +384,104 @@ export function InvoiceManagementPage() {
             No invoices found matching your query.
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Invoice ID</th>
-                  <th>Hospital / Tenant</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Due Date</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((i) => (
-                  <tr key={i.id}>
-                    <td><code>#{i.id}</code></td>
-                    <td>
-                      <strong>{getHospitalName(i.tenant_id)}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        ID: <code>{i.tenant_id}</code>
-                      </div>
-                    </td>
-                    <td>
-                      <strong>${(Number(i.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
-                    </td>
-                    <td>
-                      <span className={getStatusBadgeClass(i.status)}>
-                        {i.status === 'partially_paid' ? 'partially paid' : i.status}
-                      </span>
-                    </td>
-                    <td>{i.due_date ? new Date(i.due_date).toLocaleDateString() : 'N/A'}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      {i.status !== 'paid' && (
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                          onClick={() => setSelectedInvoiceForPayment(i)}
-                        >
-                          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>paid</span>
-                          Record Payment
-                        </button>
-                      )}
-                    </td>
+          <>
+            <div className="table-responsive">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Invoice Number</th>
+                    <th>Hospital / Tenant</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Due Date</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedInvoices.map((i) => (
+                    <tr key={i.id}>
+                      <td><code>{i.invoice_number || `#${i.id}`}</code></td>
+                      <td>
+                        <strong>{getHospitalName(i.tenant_id)}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          ID: <code>{i.tenant_id}</code>
+                        </div>
+                      </td>
+                      <td>
+                        <strong>${(Number(i.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                      </td>
+                      <td>
+                        <span className={getStatusBadgeClass(i.status)}>
+                          {i.status === 'partially_paid' ? 'partially paid' : i.status}
+                        </span>
+                      </td>
+                      <td>{i.due_date ? new Date(i.due_date).toLocaleDateString() : 'N/A'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {i.status !== 'paid' && (
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            onClick={() => setSelectedInvoiceForPayment(i)}
+                          >
+                            <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '1rem' }}>paid</span>
+                            Record Payment
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalItems > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', borderTop: '1px solid var(--outline-variant)', paddingTop: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  Showing <strong>{startIndex + 1}</strong> to <strong>{endIndex}</strong> of{' '}
+                  <strong>{totalItems}</strong> entries
+                </span>
+                <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_left</span>
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    if (page === 1 || page === totalPages || (page >= currentPage - 2 && page <= currentPage + 2)) {
+                      return (
+                        <button
+                          key={page}
+                          className={`btn ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ padding: '0.25rem 0.5rem', minWidth: '32px' }}
+                          onClick={() => setCurrentPage(page)}
+                        >
+                          {page}
+                        </button>
+                      )
+                    }
+                    if (page === currentPage - 3 || page === currentPage + 3) {
+                      return <span key={`ellipsis-${page}`} style={{ padding: '0.25rem 0.5rem', color: 'var(--text-secondary)' }}>...</span>
+                    }
+                    return null
+                  })}
+
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', minWidth: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

@@ -109,6 +109,13 @@ export function HospitalLoginPage() {
       toast.success('Welcome back!')
       navigate(getDefaultRoute(getRolesFromToken(tokens.access_token)))
     } catch (err: unknown) {
+      const apiMessage = getApiErrorMessage(err)
+      if (apiMessage.toLowerCase().includes('not fully set up') || apiMessage.toLowerCase().includes('setup')) {
+        toast.info('First-time login: Redirecting to establish your secure password.')
+        navigate('/first-login-change-password', { state: { username, tempPassword: password } })
+        return
+      }
+
       const apiError = err as ApiErrorLike
       const isRateLimited = apiError?.response?.status === 429
       const detail = apiError?.response?.data?.detail

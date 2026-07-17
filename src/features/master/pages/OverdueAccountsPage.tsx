@@ -143,7 +143,7 @@ export function OverdueAccountsPage() {
                   <thead>
                     <tr>
                       <th>Hospital</th>
-                      <th>Invoice ID</th>
+                      <th>Invoice Number</th>
                       <th>Due Date</th>
                       <th>Overdue Age</th>
                       <th>Delinquency Tier</th>
@@ -172,7 +172,7 @@ export function OverdueAccountsPage() {
                             </div>
                           </td>
                           <td style={{ padding: '1rem' }}>
-                            <code>#{inv.id}</code>
+                            <code>{inv.invoice_number || `#${inv.id}`}</code>
                           </td>
                           <td style={{ padding: '1rem' }}>
                             {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}

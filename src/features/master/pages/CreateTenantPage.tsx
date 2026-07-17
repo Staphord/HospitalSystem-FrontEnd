@@ -130,31 +130,40 @@ export function CreateTenantPage() {
 
     setIsSubmitting(true)
 
-    const payload = {
-      hospital_name: hospitalName,
-      admin_username: `admin_${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'hosp'}`,
-      admin_password: 'ChangeMe123!',
-      admin_email: primaryEmail,
-      admin_full_name: primaryName,
-      country,
-      city,
-      address,
-      timezone,
-      currency,
-      date_format: dateFormat,
-      logo_url: logoUrl || undefined,
-      logo: logoUrl || undefined,
-      data_region: dataRegion,
-      primary_contact_name: primaryName,
-      primary_contact_email: primaryEmail,
-      primary_contact_phone: primaryPhone,
-      billing_email: billingEmail,
-      tax_id: registrationId || undefined,
-      plan_id: selectedPlanId,
-      billing_cycle: isAnnual ? 'annual' : 'monthly',
-    }
-
     try {
+      let finalLogoUrl: string | undefined = undefined
+      if (logoFile) {
+        finalLogoUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.readAsDataURL(logoFile)
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = (error) => reject(error)
+        })
+      }
+
+      const payload = {
+        hospital_name: hospitalName,
+        admin_username: `admin_${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'hosp'}`,
+        admin_email: primaryEmail,
+        admin_full_name: primaryName,
+        country,
+        city,
+        address,
+        timezone,
+        currency,
+        date_format: dateFormat,
+        logo_url: finalLogoUrl,
+        logo: finalLogoUrl,
+        data_region: dataRegion,
+        primary_contact_name: primaryName,
+        primary_contact_email: primaryEmail,
+        primary_contact_phone: primaryPhone,
+        billing_email: billingEmail,
+        tax_id: registrationId || undefined,
+        plan_id: selectedPlanId,
+        billing_cycle: isAnnual ? 'annual' : 'monthly',
+      }
+
       await masterService.createTenant(payload)
       toast.success(`Hospital "${hospitalName}" onboarded successfully!`)
       navigate('/master/tenants')
@@ -642,6 +651,7 @@ export function CreateTenantPage() {
                 </button>
               </div>
               <div className="flex gap-3">
+                {/* Save as Draft button — not implemented; no backend draft status or endpoint exists.
                 <button
                   type="button"
                   className="px-md py-2 border border-solid border-primary text-primary rounded-lg font-label-md text-label-md hover:bg-primary-fixed bg-white cursor-pointer transition-all whitespace-nowrap"
@@ -649,6 +659,7 @@ export function CreateTenantPage() {
                 >
                   Save as Draft
                 </button>
+                */}
                 <button
                   type="submit"
                   disabled={isSubmitting}

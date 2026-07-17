@@ -68,3 +68,10 @@ export interface MFAVerifyResponse {
   backup_codes: string[]
 }
 
+export interface FirstLoginChangePasswordRequest {
+  username: string
+  temp_password: string
+  new_password: string
+}
+
+

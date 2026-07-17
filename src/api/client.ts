@@ -42,6 +42,7 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     const mapKeys = (obj: any): any => {
       if (!obj || typeof obj !== 'object') return obj
+      if (obj instanceof Blob || obj instanceof ArrayBuffer) return obj
       if (Array.isArray(obj)) {
         return obj.map(mapKeys)
       }
@@ -122,7 +123,7 @@ export const initLocalStorage = () => {
 
   if (!localStorage.getItem('hf_mock_subscriptions')) {
     localStorage.setItem('hf_mock_subscriptions', JSON.stringify([
-      { id: 'sub-1', tenant_id: 'aga-khan', plan_name: 'Enterprise', status: 'active', start_date: '2025-01-10T08:00:00Z', end_date: '2026-12-31T23:59:59Z', auto_renew: true },
+      { id: 'sub-1', tenant_id: 'aga-khan', plan_name: 'Premium', status: 'active', start_date: '2025-01-10T08:00:00Z', end_date: '2026-12-31T23:59:59Z', auto_renew: true },
       { id: 'sub-2', tenant_id: 'gilgal', plan_name: 'Standard', status: 'active', start_date: '2026-05-15T10:30:00Z', end_date: '2026-07-15T23:59:59Z', auto_renew: true },
       { id: 'sub-3', tenant_id: 'nairobi-hosp', plan_name: 'Premium', status: 'suspended', start_date: '2025-06-01T14:15:00Z', end_date: '2026-06-01T23:59:59Z', auto_renew: false },
       { id: 'sub-4', tenant_id: 'aga-khan', plan_name: 'Basic', status: 'active', start_date: '2026-06-01T00:00:00Z', end_date: '2026-06-23T23:59:59Z', auto_renew: true }
@@ -137,7 +138,7 @@ export const initLocalStorage = () => {
         amount: 2500,
         status: 'paid',
         due_date: '2026-05-31',
-        description: 'Enterprise Monthly Subscription - May 2026',
+        description: 'Premium Monthly Subscription - May 2026',
         payment_method: 'Bank Transfer',
         reference_number: 'TXN-AK-88273',
         payment_date: '2026-05-28'
@@ -149,7 +150,7 @@ export const initLocalStorage = () => {
         amount_paid: 1500,
         status: 'partially_paid',
         due_date: '2026-06-30',
-        description: 'Enterprise Monthly Subscription - June 2026',
+        description: 'Premium Monthly Subscription - June 2026',
         payment_method: 'Bank Transfer',
         reference_number: 'TXN-AK-88410',
         payment_date: '2026-06-12'
@@ -233,7 +234,7 @@ export const initLocalStorage = () => {
           amount: 2500,
           status: 'paid',
           due_date: '2026-05-31',
-          description: 'Enterprise Monthly Subscription - May 2026',
+          description: 'Premium Monthly Subscription - May 2026',
           payment_method: 'Bank Transfer',
           reference_number: 'TXN-AK-88273',
           payment_date: '2026-05-28'
@@ -245,7 +246,7 @@ export const initLocalStorage = () => {
           amount_paid: 1500,
           status: 'partially_paid',
           due_date: '2026-06-30',
-          description: 'Enterprise Monthly Subscription - June 2026',
+          description: 'Premium Monthly Subscription - June 2026',
           payment_method: 'Bank Transfer',
           reference_number: 'TXN-AK-88410',
           payment_date: '2026-06-12'
@@ -847,17 +848,23 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/me') ||
     url.includes('/superadmin/') ||
     url.includes('/tenants') ||
+    url.includes('/subscription') ||
     url.includes('/subscriptions') ||
     url.includes('/invoices') ||
     url.includes('/plans') ||
     url.includes('/finance') ||
     url.includes('/master-admins') ||
     url.includes('/monitoring') ||
-    url.includes('/incidents')
-    url.includes('/announcements')
+    url.includes('/incidents') ||
+    url.includes('/announcements') ||
+    url === '/stats'
 
   if (!MOCK_ENABLED || useRealBackend) {
-    if (url.startsWith('/tenants')) {
+    if (url === '/subscription' || url.startsWith('/subscription/')) {
+      config.url = `/tenant${url}`
+    } else if (url === '/stats') {
+      config.url = `/tenant/stats`
+    } else if (url.startsWith('/tenants')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/master-admins')) {
       config.url = `/superadmin/users`
@@ -878,6 +885,7 @@ apiClient.defaults.adapter = async (config) => {
     } else if (url.startsWith('/plans')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/finance')) {
+      config.url = `/superadmin${url}`
     } else if (url.startsWith('/announcements')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/monitoring/health')) {
@@ -1136,6 +1144,28 @@ apiClient.defaults.adapter = async (config) => {
     }, { 'x-impersonation-banner': 'true' })
   }
 
+  // Master: Exit Impersonation
+  if (url.endsWith('/auth/impersonate/exit') && method === 'post') {
+    const tenant_id = localStorage.getItem('impersonated_tenant_id') || 'unknown'
+    const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
+    const hospital = tenants.find((t: any) => t.tenant_id === tenant_id)
+    const hospitalName = hospital ? (hospital.hospital_name || hospital.name) : tenant_id
+
+    // Audit Log
+    const auditLogs = JSON.parse(localStorage.getItem('hf_mock_audit_logs') || '[]')
+    auditLogs.unshift({
+      id: `log-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      actor: 'admin',
+      action: 'IMPERSONATION_EXIT',
+      details: `Stopped support impersonation mode for tenant: ${hospitalName}`,
+      ip_address: '197.248.33.109'
+    })
+    localStorage.setItem('hf_mock_audit_logs', JSON.stringify(auditLogs))
+
+    return respond(200, { detail: 'Impersonation session exited' })
+  }
+
   // Master: Tenants CRUD
   if (url.includes('/tenants')) {
     const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
@@ -1380,6 +1410,51 @@ apiClient.defaults.adapter = async (config) => {
     }
   }
 
+  // Master: Subscription Audit Logs
+  if (url.includes('/subscription-audit-log')) {
+    const auditLogs = JSON.parse(localStorage.getItem('hf_mock_audit_logs') || '[]')
+    if (method === 'get') {
+      // Map global audit events to the subscription event schema
+      const mapped = auditLogs
+        .filter((l: any) => l.action === 'SUBSCRIPTION_UPDATE' || l.action === 'PLAN_UPGRADE' || l.action === 'PLAN_DOWNGRADE')
+        .map((l: any) => ({
+          log_id: l.id,
+          tenant_id: 'aga-khan',
+          event_type: l.action.toLowerCase(),
+          actor_id: l.actor,
+          actor_type: 'super_admin',
+          reason: l.details || 'Plan changed',
+          created_at: l.timestamp
+        }))
+      return respond(200, mapped)
+    }
+  }
+
+  // Master: Tenant Payments
+  if (url.includes('/payments') && !url.includes('/billing/pending-bills')) {
+    const payments = JSON.parse(localStorage.getItem('hf_mock_saas_payments') || '[]')
+    if (method === 'get') {
+      return respond(200, payments)
+    }
+    if (method === 'post') {
+      const newPay = {
+        payment_id: `pay-${Date.now().toString().slice(-6)}`,
+        invoice_id: data.invoice_id,
+        tenant_id: url.split('/')[2] || 'unknown',
+        amount: Number(data.amount),
+        currency: data.currency || 'USD',
+        payment_method: data.payment_method,
+        reference_number: data.reference_number || null,
+        recorded_by: `admin-${Date.now().toString().slice(-4)}`,
+        receipt_sent_at: new Date().toISOString(),
+        paid_at: new Date().toISOString()
+      }
+      payments.unshift(newPay)
+      localStorage.setItem('hf_mock_saas_payments', JSON.stringify(payments))
+      return respond(201, newPay)
+    }
+  }
+
   // New: System Health / Incident Alerts Telemetry
   if (url.includes('/monitoring/health')) {
     const incidents: MockIncident[] = JSON.parse(localStorage.getItem('hf_mock_incidents') || '[]')
@@ -1520,6 +1595,40 @@ apiClient.defaults.adapter = async (config) => {
     const announcements: MockAnnouncement[] = JSON.parse(localStorage.getItem('hf_mock_announcements') || '[]')
 
     if (method === 'get') {
+      if (url.includes('/tenant/announcements')) {
+        const authHeader = typeof config.headers?.Authorization === 'string' ? config.headers.Authorization : ''
+        let currentTenantId = 't1'
+        try {
+          const token = authHeader.replace('Bearer ', '')
+          if (token) {
+            const parts = token.split('.')
+            if (parts.length === 3) {
+              const payload = JSON.parse(atob(parts[1]))
+              if (payload.tenant_id) {
+                currentTenantId = payload.tenant_id
+              }
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+        const impTenantId = localStorage.getItem('impersonated_tenant_id')
+        if (impTenantId) {
+          currentTenantId = impTenantId
+        }
+
+        const filtered = announcements.filter((a: any) => {
+          if (a.scope === 'all' || a.audience === 'all') return true
+          if (a.target_tenant_ids && Array.isArray(a.target_tenant_ids)) {
+            return a.target_tenant_ids.includes(currentTenantId)
+          }
+          if (typeof a.target_tenant_ids === 'string') {
+            return a.target_tenant_ids.includes(currentTenantId)
+          }
+          return false
+        })
+        return respond(200, filtered)
+      }
       return respond(200, announcements)
     }
 
@@ -2019,6 +2128,25 @@ apiClient.interceptors.response.use(
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
     if (error.response?.status !== 401 || original._retry) {
+      return Promise.reject(error)
+    }
+
+    // Impersonation tokens cannot be refreshed. Restore the original super-admin
+    // session from localStorage and redirect back to the master portal.
+    const { isImpersonating } = useAuthStore.getState()
+    if (isImpersonating) {
+      const originalAccess = localStorage.getItem('original_access_token')
+      const originalRefresh = localStorage.getItem('original_refresh_token')
+      if (originalAccess) {
+        useAuthStore.getState().setTokens(originalAccess, originalRefresh || '')
+        localStorage.removeItem('original_access_token')
+        localStorage.removeItem('original_refresh_token')
+      } else {
+        useAuthStore.getState().clearAuth()
+      }
+      localStorage.removeItem('impersonated_tenant_id')
+      window.dispatchEvent(new Event('impersonation-change'))
+      window.location.href = '/master/tenants'
       return Promise.reject(error)
     }
 

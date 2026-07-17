@@ -16,7 +16,7 @@ const mockTenants = [
     tenant_id: 'aga-khan',
     name: 'Aga Khan Hospital',
     status: 'active',
-    subscription_plan: 'enterprise',
+    subscription_plan: 'premium',
     subscription_status: 'active',
     is_active: true,
     created_at: '2025-01-10T08:00:00Z',
