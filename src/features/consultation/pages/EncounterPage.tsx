@@ -642,7 +642,6 @@ const DISPOSITION_OPTIONS: DispositionConfig[] = [
   },
 ]
 
-const WARDS = ['Medical Ward', 'Surgical Ward', 'ICU', 'High Dependency Unit (HDU)', 'Paediatric Ward', 'Maternity Ward', 'Orthopaedic Ward', 'Oncology Ward']
 const SPECIALTIES = ['Cardiology', 'Pulmonology', 'Neurology', 'Gastroenterology', 'Nephrology', 'Endocrinology', 'Orthopaedics', 'Oncology', 'Psychiatry', 'Paediatrics']
 
 // ── What happens next illustration (Admit flow) ───────────────────────────────
@@ -685,17 +684,60 @@ function AdmissionFlowIllustration() {
   )
 }
 
+// ── Disposition detail fields interface ───────────────────────────────────────
+
+export interface DispositionDetails {
+  admitReason: string
+  specialty: string
+  referUrgency: 'routine' | 'urgent' | 'emergency'
+  referReason: string
+  dischargeInstructions: string
+  followUpDate: string
+  returnReason: string
+}
+
+function validateDisposition(
+  disp: DispositionType,
+  fields: DispositionDetails,
+  pendingOrdersCount: number
+): string[] {
+  const errors: string[] = []
+
+  if (disp === 'discharge' && pendingOrdersCount > 0) {
+    errors.push('Cannot discharge — there are pending investigation orders. Consider scheduling a return-visit instead.')
+  }
+  if (disp === 'admit') {
+    if (!fields.admitReason.trim()) errors.push('Admission reason is required.')
+  }
+  if (disp === 'refer') {
+    if (!fields.specialty.trim()) errors.push('Department / Specialty is required.')
+    if (!fields.referReason.trim()) errors.push('Referral reason is required.')
+  }
+  if (disp === 'return-visit') {
+    if (!fields.followUpDate.trim()) errors.push('Return date is required.')
+    if (!fields.returnReason.trim()) errors.push('Return reason is required.')
+  }
+
+  return errors
+}
+
 // ── Disposition section content ───────────────────────────────────────────────
 
 function DispositionContent({
-  disposition, setDisposition, pendingOrdersCount,
+  disposition,
+  confirmedDisposition,
+  onSelectDisposition,
+  onConfirmDisposition,
+  pendingOrdersCount,
+  confirmingDisposition,
 }: {
   disposition: DispositionType | null
-  setDisposition: (d: DispositionType) => void
+  confirmedDisposition: DispositionType | null
+  onSelectDisposition: (d: DispositionType) => void
+  onConfirmDisposition: (d: DispositionType, details: DispositionDetails) => void
   pendingOrdersCount: number
+  confirmingDisposition: boolean
 }) {
-  const [ward, setWard]               = useState(WARDS[0])
-  const [bedType, setBedType]         = useState<'general' | 'semi-private' | 'private'>('general')
   const [admitReason, setAdmitReason] = useState('')
   const [specialty, setSpecialty]     = useState(SPECIALTIES[0])
   const [referUrgency, setReferUrgency] = useState<'routine' | 'urgent' | 'emergency'>('routine')
@@ -703,9 +745,45 @@ function DispositionContent({
   const [dischargeInstructions, setDischargeInstructions] = useState('')
   const [followUpDate, setFollowUpDate] = useState('')
   const [returnReason, setReturnReason] = useState('')
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [warningDismissed, setWarningDismissed] = useState(false)
 
   const showWarning = pendingOrdersCount > 0 && !warningDismissed
+
+  // Clear fields when switching disposition
+  const handleSelectDisposition = (d: DispositionType) => {
+    if (d !== disposition) {
+      setAdmitReason('')
+      setSpecialty(SPECIALTIES[0])
+      setReferUrgency('routine')
+      setReferReason('')
+      setDischargeInstructions('')
+      setFollowUpDate('')
+      setReturnReason('')
+      setValidationErrors([])
+    }
+    onSelectDisposition(d)
+  }
+
+  const handleConfirm = () => {
+    if (!disposition) return
+    const details: DispositionDetails = {
+      admitReason,
+      specialty,
+      referUrgency,
+      referReason,
+      dischargeInstructions,
+      followUpDate,
+      returnReason,
+    }
+    const errors = validateDisposition(disposition, details, pendingOrdersCount)
+    setValidationErrors(errors)
+    if (errors.length > 0) return
+    onConfirmDisposition(disposition, details)
+  }
+
+  const inputErrorClass = 'border-error focus:border-error focus:ring-error'
+  const inputBaseClass = 'w-full rounded-lg border bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm outline-none transition-all'
 
   return (
     <div className="space-y-md">
@@ -743,21 +821,43 @@ function DispositionContent({
           </button>
         </div>
       )}
+
+      {/* Validation errors */}
+      {validationErrors.length > 0 && (
+        <div className="bg-error/5 border border-error/30 rounded-xl p-md">
+          <div className="flex items-center gap-sm mb-xs">
+            <span className="material-symbols-outlined text-error text-[18px] leading-none">error</span>
+            <p className="font-label-md text-label-md text-error uppercase tracking-wider m-0">Please fix the following</p>
+          </div>
+          <ul className="list-disc pl-lg m-0 space-y-xs">
+            {validationErrors.map((err) => (
+              <li key={err} className="font-body-sm text-body-sm text-error">{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Option cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-sm">
         {DISPOSITION_OPTIONS.map((opt) => {
           const isSelected = disposition === opt.id
+          const isConfirmed = confirmedDisposition === opt.id
           return (
             <button
               key={opt.id}
               type="button"
-              onClick={() => setDisposition(opt.id)}
-              className={`flex flex-col items-center text-center gap-sm p-md rounded-xl border-2 transition-all cursor-pointer ${
+              onClick={() => handleSelectDisposition(opt.id)}
+              className={`relative flex flex-col items-center text-center gap-sm p-md rounded-xl border-2 transition-all cursor-pointer ${
                 isSelected
                   ? `${opt.selectedBorder} ${opt.selectedBg} shadow-sm`
                   : 'border-border-subtle bg-surface-container-low hover:bg-hover-tint hover:border-border-subtle'
               }`}
             >
+              {isConfirmed && (
+                <div className="absolute top-2 right-2">
+                  <span className="material-symbols-outlined text-success text-[18px] leading-none" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                </div>
+              )}
               <div className={`w-11 h-11 rounded-full flex items-center justify-center ${isSelected ? `${opt.selectedBg} border border-current` : 'bg-surface-container'}`}>
                 <span className={`material-symbols-outlined leading-none text-[22px] ${isSelected ? opt.selectedColor : 'text-secondary'}`} style={isSelected ? { fontVariationSettings: "'FILL' 1" } : {}}>
                   {opt.icon}
@@ -775,28 +875,15 @@ function DispositionContent({
       {/* Conditional fields */}
       {disposition === 'admit' && (
         <div className="space-y-md pt-sm border-t border-border-subtle">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
-            <div>
-              <label className="block font-label-md text-label-md text-secondary mb-xs">Admitting Ward <span className="text-error">*</span></label>
-              <select value={ward} onChange={(e) => setWard(e.target.value)} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all cursor-pointer">
-                {WARDS.map((w) => <option key={w}>{w}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block font-label-md text-label-md text-secondary mb-xs">Bed Type</label>
-              <div className="flex gap-sm">
-                {(['general', 'semi-private', 'private'] as const).map((b) => (
-                  <button key={b} type="button" onClick={() => setBedType(b)}
-                    className={`flex-1 py-2 rounded-lg font-label-md text-label-md capitalize border transition-all cursor-pointer ${bedType === b ? 'bg-primary text-white border-primary' : 'bg-surface-container text-secondary border-border-subtle hover:bg-surface-container-high'}`}>
-                    {b}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
           <div>
             <label className="block font-label-md text-label-md text-secondary mb-xs">Reason for Admission <span className="text-error">*</span></label>
-            <textarea value={admitReason} onChange={(e) => setAdmitReason(e.target.value)} rows={3} placeholder="Describe the clinical indication for inpatient admission…" className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all" />
+            <textarea
+              value={admitReason}
+              onChange={(e) => setAdmitReason(e.target.value)}
+              rows={3}
+              placeholder="Describe the clinical indication for inpatient admission…"
+              className={`${inputBaseClass} p-sm resize-none ${validationErrors.some((e) => e.includes('Admission reason')) ? inputErrorClass : 'border-border-subtle'}`}
+            />
           </div>
           <AdmissionFlowIllustration />
         </div>
@@ -807,12 +894,16 @@ function DispositionContent({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
             <div>
               <label className="block font-label-md text-label-md text-secondary mb-xs">Specialty / Department <span className="text-error">*</span></label>
-              <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all cursor-pointer">
+              <select
+                value={specialty}
+                onChange={(e) => setSpecialty(e.target.value)}
+                className={`${inputBaseClass} px-sm py-2 cursor-pointer ${validationErrors.some((e) => e.includes('Department')) ? inputErrorClass : 'border-border-subtle'}`}
+              >
                 {SPECIALTIES.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="block font-label-md text-label-md text-secondary mb-xs">Urgency</label>
+              <label className="block font-label-md text-label-md text-secondary mb-xs">Urgency <span className="text-error">*</span></label>
               <div className="flex gap-sm">
                 {(['routine', 'urgent', 'emergency'] as const).map((u) => (
                   <button key={u} type="button" onClick={() => setReferUrgency(u)}
@@ -831,7 +922,13 @@ function DispositionContent({
           </div>
           <div>
             <label className="block font-label-md text-label-md text-secondary mb-xs">Referral Reason <span className="text-error">*</span></label>
-            <textarea value={referReason} onChange={(e) => setReferReason(e.target.value)} rows={3} placeholder="Clinical reason for referral and relevant history…" className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all" />
+            <textarea
+              value={referReason}
+              onChange={(e) => setReferReason(e.target.value)}
+              rows={3}
+              placeholder="Clinical reason for referral and relevant history…"
+              className={`${inputBaseClass} p-sm resize-none ${validationErrors.some((e) => e.includes('Referral reason')) ? inputErrorClass : 'border-border-subtle'}`}
+            />
           </div>
           <div className="bg-[#00B8D9]/5 border border-[#00B8D9]/20 rounded-xl p-md flex items-start gap-sm">
             <span className="material-symbols-outlined text-[#00B8D9] leading-none shrink-0">info</span>
@@ -846,11 +943,11 @@ function DispositionContent({
         <div className="space-y-md pt-sm border-t border-border-subtle">
           <div>
             <label className="block font-label-md text-label-md text-secondary mb-xs">Discharge Instructions</label>
-            <textarea value={dischargeInstructions} onChange={(e) => setDischargeInstructions(e.target.value)} rows={3} placeholder="Instructions for the patient on medications, activity, diet and when to return…" className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all" />
+            <textarea value={dischargeInstructions} onChange={(e) => setDischargeInstructions(e.target.value)} rows={3} placeholder="Instructions for the patient on medications, activity, diet and when to return…" className={`${inputBaseClass} p-sm resize-none border-border-subtle`} />
           </div>
           <div className="w-56">
             <label className="block font-label-md text-label-md text-secondary mb-xs">Follow-up Date <span className="text-outline font-normal">(optional)</span></label>
-            <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all cursor-pointer" />
+            <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} className={`${inputBaseClass} px-sm py-2 cursor-pointer border-border-subtle`} />
           </div>
           <div className="bg-success/5 border border-success/20 rounded-xl p-md flex items-start gap-sm">
             <span className="material-symbols-outlined text-success leading-none shrink-0">check_circle</span>
@@ -866,11 +963,22 @@ function DispositionContent({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
             <div>
               <label className="block font-label-md text-label-md text-secondary mb-xs">Return Date <span className="text-error">*</span></label>
-              <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all cursor-pointer" />
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                className={`${inputBaseClass} px-sm py-2 cursor-pointer ${validationErrors.some((e) => e.includes('Return date')) ? inputErrorClass : 'border-border-subtle'}`}
+              />
             </div>
             <div>
-              <label className="block font-label-md text-label-md text-secondary mb-xs">Return Reason</label>
-              <input type="text" value={returnReason} onChange={(e) => setReturnReason(e.target.value)} placeholder="e.g. Review results, wound check…" className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all" />
+              <label className="block font-label-md text-label-md text-secondary mb-xs">Return Reason <span className="text-error">*</span></label>
+              <input
+                type="text"
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                placeholder="e.g. Review results, wound check…"
+                className={`${inputBaseClass} px-sm py-2 ${validationErrors.some((e) => e.includes('Return reason')) ? inputErrorClass : 'border-border-subtle'}`}
+              />
             </div>
           </div>
           <div className="bg-warning/5 border border-warning/20 rounded-xl p-md flex items-start gap-sm">
@@ -879,6 +987,37 @@ function DispositionContent({
               A follow-up appointment will be scheduled and the patient will receive a reminder. The encounter is closed as <strong>Return Visit</strong>.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Confirm disposition button */}
+      {disposition && (
+        <div className="flex justify-end pt-sm border-t border-border-subtle">
+          {confirmedDisposition === disposition ? (
+            <span className="inline-flex items-center gap-xs font-label-md text-label-md text-success">
+              <span className="material-symbols-outlined text-[18px] leading-none" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              Disposition confirmed
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={confirmingDisposition}
+              className="inline-flex items-center gap-sm px-lg py-2 bg-primary text-white font-label-md text-label-md rounded-lg border-0 cursor-pointer hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {confirmingDisposition ? (
+                <>
+                  <span className="material-symbols-outlined text-[18px] leading-none animate-spin">sync</span>
+                  Confirming…
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[18px] leading-none">check</span>
+                  Confirm Disposition
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -927,9 +1066,15 @@ export function EncounterPage() {
       setImpression(data.consultation.clinical_impression || '')
       if (data.consultation.disposition) {
         const disp = data.consultation.disposition
-        if (disp === 'outpatient') setDisposition('discharge')
-        else if (disp === 'admission') setDisposition('admit')
-        else if (disp === 'referral') setDisposition('refer')
+        let uiDisp: DispositionType | null = null
+        if (disp === 'outpatient') uiDisp = 'discharge'
+        else if (disp === 'admission') uiDisp = 'admit'
+        else if (disp === 'referral') uiDisp = 'refer'
+        else if (disp === 'return_visit') uiDisp = 'return-visit'
+        if (uiDisp) {
+          setDisposition(uiDisp)
+          setConfirmedDisposition(uiDisp)
+        }
       }
     } catch (err: any) {
       if (err.response?.status === 404) {
@@ -962,9 +1107,15 @@ export function EncounterPage() {
       setEncounter(data)
       if (data.consultation.disposition) {
         const disp = data.consultation.disposition
-        if (disp === 'outpatient') setDisposition('discharge')
-        else if (disp === 'admission') setDisposition('admit')
-        else if (disp === 'referral') setDisposition('refer')
+        let uiDisp: DispositionType | null = null
+        if (disp === 'outpatient') uiDisp = 'discharge'
+        else if (disp === 'admission') uiDisp = 'admit'
+        else if (disp === 'referral') uiDisp = 'refer'
+        else if (disp === 'return_visit') uiDisp = 'return-visit'
+        if (uiDisp) {
+          setDisposition(uiDisp)
+          setConfirmedDisposition(uiDisp)
+        }
       }
     } catch (err) {
       console.error("Failed to refresh encounter:", err)
@@ -1199,20 +1350,43 @@ export function EncounterPage() {
     }
   }
 
-  const handleDispositionChange = async (dispKey: DispositionType) => {
+  // Track both selected (card click) and confirmed (validated + saved) disposition
+  const [confirmedDisposition, setConfirmedDisposition] = useState<DispositionType | null>(null)
+  const [confirmingDisposition, setConfirmingDisposition] = useState(false)
+
+  const handleSelectDisposition = (dispKey: DispositionType) => {
+    setDisposition(dispKey)
+    // Don't clear confirmed — user might be switching to review then come back
+  }
+
+  const handleConfirmDisposition = async (dispKey: DispositionType, details: DispositionDetails) => {
     if (!encounter?.consultation?.id) return
+
     let mappedDisp = 'outpatient'
     if (dispKey === 'admit') mappedDisp = 'admission'
     else if (dispKey === 'refer') mappedDisp = 'referral'
-    
+    else if (dispKey === 'return-visit') mappedDisp = 'return_visit'
+
+    setConfirmingDisposition(true)
     try {
-      await consultationService.updateDisposition(encounter.consultation.id, mappedDisp)
+      await consultationService.updateDisposition(encounter.consultation.id, mappedDisp, {
+        admissionReason: details.admitReason || undefined,
+        referralType: details.specialty || undefined,
+        referralNotes: details.referReason || undefined,
+        dischargeInstructions: details.dischargeInstructions || undefined,
+        followUpDate: details.followUpDate || undefined,
+        returnDate: dispKey === 'return-visit' ? details.followUpDate : undefined,
+        returnReason: details.returnReason || undefined,
+      })
       setDisposition(dispKey)
-      toast.success("Disposition updated.")
+      setConfirmedDisposition(dispKey)
+      toast.success("Disposition confirmed.")
       await refreshEncounter()
     } catch (err: any) {
       console.error(err)
       toast.error(err.response?.data?.detail || "Failed to update disposition.")
+    } finally {
+      setConfirmingDisposition(false)
     }
   }
 
@@ -1511,20 +1685,28 @@ export function EncounterPage() {
         <SectionCard number={6} title="Disposition">
           <DispositionContent
             disposition={disposition}
-            setDisposition={handleDispositionChange}
+            confirmedDisposition={confirmedDisposition}
+            onSelectDisposition={handleSelectDisposition}
+            onConfirmDisposition={handleConfirmDisposition}
             pendingOrdersCount={orders.filter((o) => o.status === 'requested' || o.status === 'in-progress').length}
+            confirmingDisposition={confirmingDisposition}
           />
         </SectionCard>
       </div>
 
       {/* Sticky bottom bar */}
       <div className="fixed bottom-0 right-0 w-full lg:w-[calc(100%-240px)] bg-surface-white border-t border-border-subtle p-md flex justify-end items-center gap-md z-40 shadow-[0_-8px_12px_-1px_rgba(0,0,0,0.03)]">
-        {disposition && (
+        {confirmedDisposition ? (
           <span className="mr-auto flex items-center gap-xs font-label-sm text-label-sm text-success">
-            <span className="material-symbols-outlined text-[16px] leading-none">check_circle</span>
-            Disposition set: {DISPOSITION_OPTIONS.find((d) => d.id === disposition)?.label}
+            <span className="material-symbols-outlined text-[16px] leading-none" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            Disposition confirmed: {DISPOSITION_OPTIONS.find((d) => d.id === confirmedDisposition)?.label}
           </span>
-        )}
+        ) : disposition ? (
+          <span className="mr-auto flex items-center gap-xs font-label-sm text-label-sm text-warning">
+            <span className="material-symbols-outlined text-[16px] leading-none">pending</span>
+            Disposition selected but not confirmed
+          </span>
+        ) : null}
         <button 
           type="button" 
           onClick={handleSaveNotes}
@@ -1535,15 +1717,15 @@ export function EncounterPage() {
         </button>
         <button
           type="button"
-          disabled={!disposition || saving}
+          disabled={!confirmedDisposition || saving}
           onClick={handleCompleteEncounter}
           className={`px-6 py-2 font-semibold font-label-md text-label-md rounded-lg flex items-center gap-sm h-[44px] border-0 transition-all ${
-            disposition && !saving
+            confirmedDisposition && !saving
               ? 'bg-primary text-white cursor-pointer hover:opacity-90 active:scale-95'
               : 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed opacity-70'
           }`}
         >
-          {disposition ? (
+          {confirmedDisposition ? (
             <>
               <span className="material-symbols-outlined text-[20px] leading-none">check_circle</span>
               {saving ? 'Completing...' : 'Complete Encounter'}
@@ -1551,7 +1733,7 @@ export function EncounterPage() {
           ) : (
             <>
               <span className="material-symbols-outlined text-[20px] leading-none">lock</span>
-              Set Disposition to Complete
+              {disposition ? 'Confirm Disposition to Complete' : 'Set Disposition to Complete'}
             </>
           )}
         </button>

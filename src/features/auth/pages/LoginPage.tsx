@@ -8,7 +8,7 @@ import { getDefaultRoute } from '@/lib/roles'
 import { getRolesFromToken } from '@/lib/token'
 
 function getApiErrorMessage(err: any): string {
-  let detail = err?.response?.data?.detail
+  const detail = err?.response?.data?.detail
   if (typeof detail === 'string') {
     if (detail.includes('Keycloak error') && detail.includes('{')) {
       try {

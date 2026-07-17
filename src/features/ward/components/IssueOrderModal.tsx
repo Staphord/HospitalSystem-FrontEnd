@@ -118,7 +118,7 @@ export function IssueOrderModal({ isOpen, onClose, onAddOrder }: IssueOrderModal
 
     let detail = ''
     let dueTime = 'Due now'
-    let overdue = false
+    const overdue = false
 
     if (activeTab === 'Medication') {
       // Build detail string for Medication

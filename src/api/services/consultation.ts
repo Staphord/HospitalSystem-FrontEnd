@@ -108,14 +108,26 @@ export const consultationService = {
   updateDisposition: (
     consultationId: string, 
     disposition: string, 
-    referralType?: string, 
-    referralNotes?: string
+    options?: {
+      referralType?: string
+      referralNotes?: string
+      admissionReason?: string
+      dischargeInstructions?: string
+      followUpDate?: string
+      returnDate?: string
+      returnReason?: string
+    }
   ) =>
     apiClient
       .put(`/consultation/${consultationId}/disposition`, {
         disposition,
-        referral_type: referralType,
-        referral_notes: referralNotes,
+        referral_type: options?.referralType,
+        referral_notes: options?.referralNotes,
+        admission_reason: options?.admissionReason,
+        discharge_instructions: options?.dischargeInstructions,
+        follow_up_date: options?.followUpDate,
+        return_date: options?.returnDate,
+        return_reason: options?.returnReason,
       })
       .then((r) => r.data),
 
