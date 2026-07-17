@@ -34,13 +34,24 @@ vi.mock('@/api/services/master', () => ({
     listSubscriptions: vi.fn(),
     listPlans: vi.fn(),
     listInvoices: vi.fn(),
+    getMyTenantDetails: vi.fn(),
+    getMySubscription: vi.fn(),
+    listMyPlans: vi.fn(),
+    listMyInvoices: vi.fn(),
+    getMyTenantStats: vi.fn(),
     updateSubscription: vi.fn(),
+    toggleAutoRenew: vi.fn(),
     createInvoice: vi.fn(),
     subscribeTenant: vi.fn(),
     upgradeTenantSubscription: vi.fn(),
     downgradeTenantSubscription: vi.fn(),
     upgradeSubscriptionEndpoint: vi.fn(),
     downgradeSubscriptionEndpoint: vi.fn(),
+    getMyRequestStatus: vi.fn(),
+    requestPlanChange: vi.fn(),
+    requestCancellation: vi.fn(),
+    downloadInvoice: vi.fn(),
+    listMySubscriptionRequests: vi.fn(),
   },
 }))
 
@@ -49,6 +60,7 @@ describe('SubscriptionPage', () => {
     vi.clearAllMocks()
     localStorage.clear()
     window.open = vi.fn()
+    vi.mocked(masterService.listMySubscriptionRequests).mockResolvedValue([])
   })
 
   const mockTenant: any = {
@@ -68,6 +80,7 @@ describe('SubscriptionPage', () => {
       start_date: '2026-06-01T00:00:00Z',
       end_date: '2026-07-01T00:00:00Z',
       auto_renew: true,
+      billing_cycle: 'monthly',
     },
   ]
 
@@ -80,6 +93,7 @@ describe('SubscriptionPage', () => {
       max_patients: 10000,
       storage_gb: 10,
       monthly_price: 299,
+      annual_price: 2990,
       uptime_sla_pct: 99.9,
       backup_frequency_hours: 24,
       modules_included: ['reception', 'triage'],
@@ -92,6 +106,7 @@ describe('SubscriptionPage', () => {
       max_patients: 100000,
       storage_gb: 200,
       monthly_price: 1199,
+      annual_price: 11990,
       uptime_sla_pct: 99.99,
       backup_frequency_hours: 4,
       modules_included: ['reception', 'triage', 'consultation'],
@@ -110,11 +125,19 @@ describe('SubscriptionPage', () => {
     },
   ]
 
+  const mockStatsObj = {
+    staffCount: 5,
+    patientCount: 450,
+    storageUsed: 2.4,
+  }
+
   it('loads and renders subscription dashboard elements', async () => {
-    vi.mocked(masterService.getTenant).mockResolvedValue(mockTenant)
-    vi.mocked(masterService.listSubscriptions).mockResolvedValue(mockSubscriptions)
-    vi.mocked(masterService.listPlans).mockResolvedValue(mockPlans)
-    vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices)
+    vi.mocked(masterService.getMyTenantDetails).mockResolvedValue(mockTenant)
+    vi.mocked(masterService.getMySubscription).mockResolvedValue(mockSubscriptions)
+    vi.mocked(masterService.listMyPlans).mockResolvedValue(mockPlans)
+    vi.mocked(masterService.listMyInvoices).mockResolvedValue(mockInvoices)
+    vi.mocked(masterService.getMyRequestStatus).mockResolvedValue(null)
+    vi.mocked(masterService.getMyTenantStats).mockResolvedValue(mockStatsObj)
 
     render(
       <MemoryRouter>
@@ -136,19 +159,17 @@ describe('SubscriptionPage', () => {
   })
 
   it('toggles subscription auto-renew status switch', async () => {
-    const mockUpdateSubscription = vi.fn().mockResolvedValue({
-      id: 'sub-gilgal',
-      tenant_id: 'gilgal',
-      plan_name: 'Basic',
-      status: 'active',
-      auto_renew: false,
+    const mockToggleAutoRenew = vi.fn().mockResolvedValue({
+      success: true,
     })
 
-    vi.mocked(masterService.getTenant).mockResolvedValue(mockTenant)
-    vi.mocked(masterService.listSubscriptions).mockResolvedValue(mockSubscriptions)
-    vi.mocked(masterService.listPlans).mockResolvedValue(mockPlans)
-    vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices)
-    vi.mocked(masterService.updateSubscription).mockImplementation(mockUpdateSubscription)
+    vi.mocked(masterService.getMyTenantDetails).mockResolvedValue(mockTenant)
+    vi.mocked(masterService.getMySubscription).mockResolvedValue(mockSubscriptions)
+    vi.mocked(masterService.listMyPlans).mockResolvedValue(mockPlans)
+    vi.mocked(masterService.listMyInvoices).mockResolvedValue(mockInvoices)
+    vi.mocked(masterService.getMyRequestStatus).mockResolvedValue(null)
+    vi.mocked(masterService.getMyTenantStats).mockResolvedValue(mockStatsObj)
+    vi.mocked(masterService.toggleAutoRenew).mockImplementation(mockToggleAutoRenew)
 
     render(
       <MemoryRouter>
@@ -166,36 +187,24 @@ describe('SubscriptionPage', () => {
     })
 
     await waitFor(() => {
-      expect(mockUpdateSubscription).toHaveBeenCalledWith('sub-gilgal', { auto_renew: false })
+      expect(mockToggleAutoRenew).toHaveBeenCalledWith(false)
     })
   })
 
-  it('triggers upgrade plan flow and calculates prorated invoices', async () => {
-    const mockUpgradeEndpoint = vi.fn().mockResolvedValue({
-      invoice: { amount: 1199, status: 'pending' },
-      payment_checkout_url: 'https://checkout.stripe.com/pay'
+  it('submits a plan change request for approval', async () => {
+    const mockRequestPlanChange = vi.fn().mockResolvedValue({
+      id: 'req-1',
+      status: 'pending',
+      message: 'Request submitted for review',
     })
 
-    const listSubsMock = vi.fn()
-      .mockResolvedValueOnce(mockSubscriptions) // initial fetch
-      .mockResolvedValueOnce([                  // poll fetch
-        {
-          id: 'sub-gilgal',
-          subscription_id: 'sub-gilgal',
-          tenant_id: 'gilgal',
-          plan_name: 'Premium',
-          status: 'active',
-          start_date: '2026-06-01T00:00:00Z',
-          end_date: '2026-07-01T00:00:00Z',
-          auto_renew: true,
-        }
-      ])
-
-    vi.mocked(masterService.getTenant).mockResolvedValue(mockTenant)
-    vi.mocked(masterService.listSubscriptions).mockImplementation(listSubsMock)
-    vi.mocked(masterService.listPlans).mockResolvedValue(mockPlans)
-    vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices)
-    vi.mocked(masterService.upgradeSubscriptionEndpoint).mockImplementation(mockUpgradeEndpoint)
+    vi.mocked(masterService.getMyTenantDetails).mockResolvedValue(mockTenant)
+    vi.mocked(masterService.getMySubscription).mockResolvedValue(mockSubscriptions)
+    vi.mocked(masterService.listMyPlans).mockResolvedValue(mockPlans)
+    vi.mocked(masterService.listMyInvoices).mockResolvedValue(mockInvoices)
+    vi.mocked(masterService.getMyRequestStatus).mockResolvedValue(null)
+    vi.mocked(masterService.getMyTenantStats).mockResolvedValue(mockStatsObj)
+    vi.mocked(masterService.requestPlanChange).mockImplementation(mockRequestPlanChange)
 
     render(
       <MemoryRouter>
@@ -216,54 +225,44 @@ describe('SubscriptionPage', () => {
     expect(screen.getByText('Select Subscription Plan')).toBeInTheDocument()
 
     // Select the premium upgrade plan option
-    const upgradeBtn = screen.getByRole('button', { name: /upgrade now/i })
+    const upgradeBtn = screen.getByRole('button', { name: /select upgrade/i })
     await act(async () => {
       fireEvent.click(upgradeBtn)
     })
 
     // Assert that confirmation modal is open
-    expect(screen.getByText('Upgrade to Premium')).toBeInTheDocument()
+    expect(screen.getByText('Request Upgrade to Premium')).toBeInTheDocument()
 
-    // Confirm upgrade execution
-    const confirmBtn = screen.getByRole('button', { name: /confirm upgrade/i })
+    // Submit request
+    const confirmBtn = screen.getByRole('button', { name: /submit request/i })
     await act(async () => {
       fireEvent.click(confirmBtn)
     })
 
     await waitFor(() => {
-      expect(mockUpgradeEndpoint).toHaveBeenCalledWith('gilgal', {
-        plan_id: 'premium',
+      expect(mockRequestPlanChange).toHaveBeenCalledWith({
+        plan: 'Premium',
+        reason: 'Requested change to Premium (monthly, effective immediately).',
+        billing_cycle: 'monthly',
+        effective_at_end: false,
       })
     })
   })
 
-  it('cancels subscription and then reactivates it', async () => {
-    const mockUpdateSubscription = vi.fn().mockResolvedValue({
-      id: 'sub-gilgal',
-      tenant_id: 'gilgal',
-      plan_name: 'Basic',
-      status: 'cancelled',
-      auto_renew: false,
+  it('submits a cancellation request for super admin approval', async () => {
+    const mockRequestCancellation = vi.fn().mockResolvedValue({
+      id: 'cancel-req-1',
+      status: 'pending',
+      message: 'Cancellation request submitted for review',
     })
 
-    const listSubscriptionsMock = vi
-      .fn()
-      .mockResolvedValueOnce(mockSubscriptions)
-      .mockResolvedValueOnce([
-        {
-          id: 'sub-gilgal',
-          tenant_id: 'gilgal',
-          plan_name: 'Basic',
-          status: 'cancelled',
-          auto_renew: false,
-        },
-      ])
-
-    vi.mocked(masterService.getTenant).mockResolvedValue(mockTenant)
-    vi.mocked(masterService.listSubscriptions).mockImplementation(listSubscriptionsMock)
-    vi.mocked(masterService.listPlans).mockResolvedValue(mockPlans)
-    vi.mocked(masterService.listInvoices).mockResolvedValue(mockInvoices)
-    vi.mocked(masterService.updateSubscription).mockImplementation(mockUpdateSubscription)
+    vi.mocked(masterService.getMyTenantDetails).mockResolvedValue(mockTenant)
+    vi.mocked(masterService.getMySubscription).mockResolvedValue(mockSubscriptions)
+    vi.mocked(masterService.listMyPlans).mockResolvedValue(mockPlans)
+    vi.mocked(masterService.listMyInvoices).mockResolvedValue(mockInvoices)
+    vi.mocked(masterService.getMyRequestStatus).mockResolvedValue(null)
+    vi.mocked(masterService.getMyTenantStats).mockResolvedValue(mockStatsObj)
+    vi.mocked(masterService.requestCancellation).mockImplementation(mockRequestCancellation)
 
     render(
       <MemoryRouter>
@@ -281,17 +280,22 @@ describe('SubscriptionPage', () => {
     })
 
     // Assert confirmation modal is shown
-    expect(screen.getByRole('heading', { name: 'Cancel Subscription' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Request Cancellation' })).toBeInTheDocument()
 
-    const confirmCancelBtn = screen.getByRole('button', { name: /yes, cancel subscription/i })
+    // Fill in cancellation reason
+    const reasonTextarea = screen.getByPlaceholderText(/reason for cancelling/i)
     await act(async () => {
-      fireEvent.click(confirmCancelBtn)
+      fireEvent.change(reasonTextarea, { target: { value: 'Switching to a different system' } })
+    })
+
+    const submitBtn = screen.getByRole('button', { name: /submit cancellation request/i })
+    await act(async () => {
+      fireEvent.click(submitBtn)
     })
 
     await waitFor(() => {
-      expect(mockUpdateSubscription).toHaveBeenCalledWith('sub-gilgal', {
-        status: 'cancelled',
-        auto_renew: false,
+      expect(mockRequestCancellation).toHaveBeenCalledWith({
+        reason: 'Switching to a different system',
       })
     })
   })
