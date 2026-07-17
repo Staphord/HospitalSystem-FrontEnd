@@ -2,7 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/store/authStore'
 import { apiClient } from '@/api/client'
+import { authService } from '@/api/services/auth'
 
 export function SimultaneousSessionWarningModal({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -41,9 +43,18 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
       try {
         const resp = await apiClient.get('/auth/session-check')
         if (resp.data?.session_revoked) {
-          clearAuth()
-          navigate('/login')
-          toast.error('Session terminated from another device.')
+          try {
+            const { refreshToken } = useAuthStore.getState()
+            if (refreshToken) {
+              await authService.logout(refreshToken)
+            }
+          } catch {
+            // Logout API failure is non-fatal — proceed with local cleanup
+          } finally {
+            clearAuth()
+            navigate('/login')
+            toast.error('Session terminated from another device.')
+          }
           return
         }
         if (resp.data?.has_other_active) {
