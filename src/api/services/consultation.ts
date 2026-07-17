@@ -6,6 +6,7 @@ import type {
   InvestigationRequestResponse, 
   PrescriptionResponse 
 } from '@/api/types/consultation'
+import type { Referral, NewReferralInput } from '@/features/consultation/types/referrals'
 
 export const consultationService = {
   /** Fetch active doctor queue for consultation */
@@ -146,6 +147,36 @@ export const consultationService = {
   acknowledgeInvestigation: (requestId: string) =>
     apiClient
       .put(`/consultation/investigations/${requestId}/acknowledge`)
+      .then((r) => r.data),
+
+  /** Get all outgoing clinical referrals */
+  getReferrals: () =>
+    apiClient
+      .get('/consultation/referrals')
+      .then((r) => r.data as any[]),
+
+  /** Create a new outgoing referral */
+  addReferral: (input: NewReferralInput) =>
+    apiClient
+      .post('/consultation/referrals', {
+        patient_id: input.patientId,
+        type: input.type,
+        referred_to: input.referredTo,
+        reason: input.reason,
+        urgency: input.urgency,
+        category: input.category,
+        department: input.department,
+        preferred_doctor: input.preferredDoctor,
+        hospital_name: input.hospitalName,
+        external_doctor: input.externalDoctor,
+        contact_number: input.contactNumber,
+      })
+      .then((r) => r.data as any),
+
+  /** Cancel an outgoing referral */
+  cancelReferral: (id: string) =>
+    apiClient
+      .put(`/consultation/referrals/${id}/cancel`)
       .then((r) => r.data),
 }
 
