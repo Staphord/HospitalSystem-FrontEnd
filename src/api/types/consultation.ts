@@ -98,6 +98,11 @@ export interface ConsultationResponse {
   disposition?: string | null
   referral_type?: string | null
   referral_notes?: string | null
+  admission_reason?: string | null
+  discharge_instructions?: string | null
+  follow_up_date?: string | null
+  return_date?: string | null
+  return_reason?: string | null
   diagnoses: DiagnosisResponse[]
   investigation_requests: InvestigationRequestResponse[]
   prescriptions: PrescriptionResponse[]

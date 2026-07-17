@@ -730,6 +730,8 @@ function DispositionContent({
   onConfirmDisposition,
   pendingOrdersCount,
   confirmingDisposition,
+  isReadOnly,
+  initialDetails,
 }: {
   disposition: DispositionType | null
   confirmedDisposition: DispositionType | null
@@ -737,6 +739,8 @@ function DispositionContent({
   onConfirmDisposition: (d: DispositionType, details: DispositionDetails) => void
   pendingOrdersCount: number
   confirmingDisposition: boolean
+  isReadOnly: boolean
+  initialDetails: any
 }) {
   const [admitReason, setAdmitReason] = useState('')
   const [specialty, setSpecialty]     = useState(SPECIALTIES[0])
@@ -748,25 +752,54 @@ function DispositionContent({
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [warningDismissed, setWarningDismissed] = useState(false)
 
-  const showWarning = pendingOrdersCount > 0 && !warningDismissed
+  const showWarning = pendingOrdersCount > 0 && !warningDismissed && !isReadOnly
 
-  // Clear fields when switching disposition
+  // Load initial details on mount / load
+  useEffect(() => {
+    if (initialDetails) {
+      if (initialDetails.admission_reason) setAdmitReason(initialDetails.admission_reason)
+      if (initialDetails.referral_type) setSpecialty(initialDetails.referral_type)
+      if (initialDetails.referral_notes) setReferReason(initialDetails.referral_notes)
+      if (initialDetails.discharge_instructions) setDischargeInstructions(initialDetails.discharge_instructions)
+      if (initialDetails.follow_up_date) {
+        setFollowUpDate(initialDetails.follow_up_date.substring(0, 10))
+      } else if (initialDetails.return_date) {
+        setFollowUpDate(initialDetails.return_date.substring(0, 10))
+      }
+      if (initialDetails.return_reason) setReturnReason(initialDetails.return_reason)
+    }
+  }, [initialDetails])
+
+  // Clear fields when switching disposition (or restore if switching back to confirmed)
   const handleSelectDisposition = (d: DispositionType) => {
     if (d !== disposition) {
-      setAdmitReason('')
-      setSpecialty(SPECIALTIES[0])
-      setReferUrgency('routine')
-      setReferReason('')
-      setDischargeInstructions('')
-      setFollowUpDate('')
-      setReturnReason('')
+      if (d === confirmedDisposition && initialDetails) {
+        setAdmitReason(initialDetails.admission_reason || '')
+        setSpecialty(initialDetails.referral_type || SPECIALTIES[0])
+        setReferReason(initialDetails.referral_notes || '')
+        setDischargeInstructions(initialDetails.discharge_instructions || '')
+        setFollowUpDate(
+          initialDetails.follow_up_date?.substring(0, 10) || 
+          initialDetails.return_date?.substring(0, 10) || 
+          ''
+        )
+        setReturnReason(initialDetails.return_reason || '')
+      } else {
+        setAdmitReason('')
+        setSpecialty(SPECIALTIES[0])
+        setReferUrgency('routine')
+        setReferReason('')
+        setDischargeInstructions('')
+        setFollowUpDate('')
+        setReturnReason('')
+      }
       setValidationErrors([])
     }
     onSelectDisposition(d)
   }
 
   const handleConfirm = () => {
-    if (!disposition) return
+    if (!disposition || isReadOnly) return
     const details: DispositionDetails = {
       admitReason,
       specialty,
@@ -783,7 +816,7 @@ function DispositionContent({
   }
 
   const inputErrorClass = 'border-error focus:border-error focus:ring-error'
-  const inputBaseClass = 'w-full rounded-lg border bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm outline-none transition-all'
+  const inputBaseClass = 'w-full rounded-lg border bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm outline-none transition-all disabled:bg-surface-container-low disabled:text-secondary disabled:cursor-not-allowed'
 
   return (
     <div className="space-y-md">
@@ -881,6 +914,7 @@ function DispositionContent({
               value={admitReason}
               onChange={(e) => setAdmitReason(e.target.value)}
               rows={3}
+              disabled={isReadOnly}
               placeholder="Describe the clinical indication for inpatient admission…"
               className={`${inputBaseClass} p-sm resize-none ${validationErrors.some((e) => e.includes('Admission reason')) ? inputErrorClass : 'border-border-subtle'}`}
             />
@@ -897,6 +931,7 @@ function DispositionContent({
               <select
                 value={specialty}
                 onChange={(e) => setSpecialty(e.target.value)}
+                disabled={isReadOnly}
                 className={`${inputBaseClass} px-sm py-2 cursor-pointer ${validationErrors.some((e) => e.includes('Department')) ? inputErrorClass : 'border-border-subtle'}`}
               >
                 {SPECIALTIES.map((s) => <option key={s}>{s}</option>)}
@@ -906,14 +941,19 @@ function DispositionContent({
               <label className="block font-label-md text-label-md text-secondary mb-xs">Urgency <span className="text-error">*</span></label>
               <div className="flex gap-sm">
                 {(['routine', 'urgent', 'emergency'] as const).map((u) => (
-                  <button key={u} type="button" onClick={() => setReferUrgency(u)}
+                  <button
+                    key={u}
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => setReferUrgency(u)}
                     className={`flex-1 py-2 rounded-lg font-label-md text-label-md capitalize border transition-all cursor-pointer ${
                       referUrgency === u
                         ? u === 'emergency' ? 'bg-error text-white border-error'
                           : u === 'urgent' ? 'bg-warning text-white border-warning'
                           : 'bg-primary text-white border-primary'
                         : 'bg-surface-container text-secondary border-border-subtle hover:bg-surface-container-high'
-                    }`}>
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
                     {u}
                   </button>
                 ))}
@@ -926,6 +966,7 @@ function DispositionContent({
               value={referReason}
               onChange={(e) => setReferReason(e.target.value)}
               rows={3}
+              disabled={isReadOnly}
               placeholder="Clinical reason for referral and relevant history…"
               className={`${inputBaseClass} p-sm resize-none ${validationErrors.some((e) => e.includes('Referral reason')) ? inputErrorClass : 'border-border-subtle'}`}
             />
@@ -943,11 +984,24 @@ function DispositionContent({
         <div className="space-y-md pt-sm border-t border-border-subtle">
           <div>
             <label className="block font-label-md text-label-md text-secondary mb-xs">Discharge Instructions</label>
-            <textarea value={dischargeInstructions} onChange={(e) => setDischargeInstructions(e.target.value)} rows={3} placeholder="Instructions for the patient on medications, activity, diet and when to return…" className={`${inputBaseClass} p-sm resize-none border-border-subtle`} />
+            <textarea
+              value={dischargeInstructions}
+              onChange={(e) => setDischargeInstructions(e.target.value)}
+              rows={3}
+              disabled={isReadOnly}
+              placeholder="Instructions for the patient on medications, activity, diet and when to return…"
+              className={`${inputBaseClass} p-sm resize-none border-border-subtle`}
+            />
           </div>
           <div className="w-56">
             <label className="block font-label-md text-label-md text-secondary mb-xs">Follow-up Date <span className="text-outline font-normal">(optional)</span></label>
-            <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} className={`${inputBaseClass} px-sm py-2 cursor-pointer border-border-subtle`} />
+            <input
+              type="date"
+              value={followUpDate}
+              onChange={(e) => setFollowUpDate(e.target.value)}
+              disabled={isReadOnly}
+              className={`${inputBaseClass} px-sm py-2 cursor-pointer border-border-subtle`}
+            />
           </div>
           <div className="bg-success/5 border border-success/20 rounded-xl p-md flex items-start gap-sm">
             <span className="material-symbols-outlined text-success leading-none shrink-0">check_circle</span>
@@ -967,6 +1021,7 @@ function DispositionContent({
                 type="date"
                 value={followUpDate}
                 onChange={(e) => setFollowUpDate(e.target.value)}
+                disabled={isReadOnly}
                 className={`${inputBaseClass} px-sm py-2 cursor-pointer ${validationErrors.some((e) => e.includes('Return date')) ? inputErrorClass : 'border-border-subtle'}`}
               />
             </div>
@@ -976,6 +1031,7 @@ function DispositionContent({
                 type="text"
                 value={returnReason}
                 onChange={(e) => setReturnReason(e.target.value)}
+                disabled={isReadOnly}
                 placeholder="e.g. Review results, wound check…"
                 className={`${inputBaseClass} px-sm py-2 ${validationErrors.some((e) => e.includes('Return reason')) ? inputErrorClass : 'border-border-subtle'}`}
               />
@@ -991,7 +1047,7 @@ function DispositionContent({
       )}
 
       {/* Confirm disposition button */}
-      {disposition && (
+      {disposition && !isReadOnly && (
         <div className="flex justify-end pt-sm border-t border-border-subtle">
           {confirmedDisposition === disposition ? (
             <span className="inline-flex items-center gap-xs font-label-md text-label-md text-success">
@@ -1033,6 +1089,7 @@ export function EncounterPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [encounter, setEncounter] = useState<EncounterViewResponse | null>(null)
+  const isReadOnly = encounter?.consultation?.consultation_status === 'completed'
   
   const hasLoadedRef = useRef<string | null>(null)
 
@@ -1498,15 +1555,33 @@ export function EncounterPage() {
           <div className="space-y-md">
             <div>
               <label className="block font-label-md text-label-md text-secondary mb-xs">History of Presenting Complaint</label>
-              <textarea value={hpc} onChange={(e) => setHpc(e.target.value)} rows={3} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all" />
+              <textarea
+                value={hpc}
+                onChange={(e) => setHpc(e.target.value)}
+                rows={3}
+                disabled={isReadOnly}
+                className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all disabled:bg-surface-container-low disabled:text-secondary disabled:cursor-not-allowed"
+              />
             </div>
             <div>
               <label className="block font-label-md text-label-md text-secondary mb-xs">Physical Examination</label>
-              <textarea value={exam} onChange={(e) => setExam(e.target.value)} rows={3} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all" />
+              <textarea
+                value={exam}
+                onChange={(e) => setExam(e.target.value)}
+                rows={3}
+                disabled={isReadOnly}
+                className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all disabled:bg-surface-container-low disabled:text-secondary disabled:cursor-not-allowed"
+              />
             </div>
             <div>
               <label className="block font-label-md text-label-md text-secondary mb-xs">Impression / Assessment</label>
-              <textarea value={impression} onChange={(e) => setImpression(e.target.value)} rows={2} className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all" />
+              <textarea
+                value={impression}
+                onChange={(e) => setImpression(e.target.value)}
+                rows={2}
+                disabled={isReadOnly}
+                className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm p-sm outline-none resize-none transition-all disabled:bg-surface-container-low disabled:text-secondary disabled:cursor-not-allowed"
+              />
             </div>
           </div>
         </SectionCard>
@@ -1539,13 +1614,15 @@ export function EncounterPage() {
                       )}
                     </div>
                   </div>
-                  <button 
-                    type="button" 
-                    onClick={() => handleDeleteDiagnosis(d.id)}
-                    className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                  </button>
+                  {!isReadOnly && (
+                    <button 
+                      type="button" 
+                      onClick={() => handleDeleteDiagnosis(d.id)}
+                      className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  )}
                 </div>
               ))}
               {encounter?.consultation?.diagnoses.length === 0 && (
@@ -1556,63 +1633,70 @@ export function EncounterPage() {
             </div>
 
             {/* Add Diagnosis Form */}
-            <div className="p-sm bg-surface-container-lowest rounded-lg border border-border-subtle space-y-sm">
-              <p className="font-label-md text-label-md text-secondary uppercase m-0">Add Diagnosis</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
-                <input
-                  type="text"
-                  placeholder="Diagnosis name (e.g. Acute Bronchitis)"
-                  value={diagDesc}
-                  onChange={(e) => setDiagDesc(e.target.value)}
-                  className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="ICD-10 Code (e.g. J20.9)"
-                  value={diagCode}
-                  onChange={(e) => setDiagCode(e.target.value)}
-                  className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none"
-                />
-                <select
-                  value={diagType}
-                  onChange={(e) => setDiagType(e.target.value as any)}
-                  className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none cursor-pointer"
-                >
-                  <option value="provisional">Provisional</option>
-                  <option value="differential">Differential</option>
-                  <option value="final">Final Diagnosis</option>
-                </select>
+            {!isReadOnly && (
+              <div className="p-sm bg-surface-container-lowest rounded-lg border border-border-subtle space-y-sm">
+                <p className="font-label-md text-label-md text-secondary uppercase m-0">Add Diagnosis</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+                  <input
+                    type="text"
+                    placeholder="Diagnosis name (e.g. Acute Bronchitis)"
+                    value={diagDesc}
+                    onChange={(e) => setDiagDesc(e.target.value)}
+                    className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="ICD-10 Code (e.g. J20.9)"
+                    value={diagCode}
+                    onChange={(e) => setDiagCode(e.target.value)}
+                    className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none"
+                  />
+                  <select
+                    value={diagType}
+                    onChange={(e) => setDiagType(e.target.value as any)}
+                    className="rounded-lg border border-border-subtle bg-surface-white font-body-sm text-body-sm px-sm py-2 outline-none cursor-pointer"
+                  >
+                    <option value="provisional">Provisional</option>
+                    <option value="differential">Differential</option>
+                    <option value="final">Final Diagnosis</option>
+                  </select>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddDiagnosis}
+                    disabled={!diagDesc.trim()}
+                    className="h-9 px-md rounded-lg font-label-md text-label-md text-white bg-primary hover:bg-primary-container border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-xs"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    Record Diagnosis
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleAddDiagnosis}
-                  disabled={!diagDesc.trim()}
-                  className="h-9 px-md rounded-lg font-label-md text-label-md text-white bg-primary hover:bg-primary-container border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-xs"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add</span>
-                  Record Diagnosis
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </SectionCard>
 
         {/* §4 Investigations */}
-        <SectionCard number={4} title="Investigations" actionLabel="Add Order" onAction={() => setShowAddOrder(true)}>
+        <SectionCard
+          number={4}
+          title="Investigations"
+          actionLabel={isReadOnly ? undefined : "Add Order"}
+          onAction={isReadOnly ? undefined : () => setShowAddOrder(true)}
+        >
           {/* Chips */}
           <div className="flex flex-wrap gap-2 mb-md">
             {orders.map((o) => (
               <span key={o.id} className="inline-flex items-center gap-sm px-sm py-1.5 rounded-lg bg-surface-container border border-border-subtle font-body-sm text-body-sm text-on-surface">
                 {o.testName}
-                {o.status === 'requested' && (
+                {!isReadOnly && o.status === 'requested' && (
                   <button type="button" onClick={() => handleCancelInvestigation(o.id)} className="text-secondary hover:text-error transition-colors border-0 bg-transparent cursor-pointer p-0 flex items-center">
                     <span className="material-symbols-outlined text-[16px]">close</span>
                   </button>
                 )}
               </span>
             ))}
-            {orders.length === 0 && <span className="font-body-sm text-body-sm text-secondary italic">No active orders — click Add Order to begin.</span>}
+            {orders.length === 0 && <span className="font-body-sm text-body-sm text-secondary italic">No active orders.</span>}
           </div>
           {/* Table */}
           {orders.length > 0 && (
@@ -1620,15 +1704,17 @@ export function EncounterPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border-subtle">
-                    {['Test', 'Department', 'Priority', 'Time', 'Status'].map((h, i) => (
-                      <th key={h} className={`py-3 font-label-md text-label-md text-secondary ${i === 4 ? 'text-right' : ''}`}>{h}</th>
-                    ))}
+                    <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Test Name</th>
+                    <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Department</th>
+                    <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Priority</th>
+                    <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Requested At</th>
+                    <th className="py-2 text-right font-label-sm text-label-sm text-outline uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((o) => (
-                    <tr key={o.id} className="border-b border-border-subtle last:border-0 hover:bg-hover-tint/30 transition-colors">
-                      <td className="py-3 font-body-sm text-body-sm font-medium">{o.testName}</td>
+                    <tr key={o.id} className="border-b border-border-subtle hover:bg-hover-tint/30 transition-colors">
+                      <td className="py-3 font-body-sm text-body-sm font-semibold text-on-surface">{o.testName}</td>
                       <td className="py-3 font-body-sm text-body-sm text-secondary">{o.department}</td>
                       <td className="py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded font-bold text-[10px] uppercase ${ORDER_PRIORITY_BADGE[o.priority]}`}>{o.priority}</span>
@@ -1646,15 +1732,22 @@ export function EncounterPage() {
         </SectionCard>
 
         {/* §5 Prescription */}
-        <SectionCard number={5} title="Prescription" actionLabel="Add Medication" onAction={() => setShowAddMedication(true)}>
+        <SectionCard
+          number={5}
+          title="Prescription"
+          actionLabel={isReadOnly ? undefined : "Add Medication"}
+          onAction={isReadOnly ? undefined : () => setShowAddMedication(true)}
+        >
           {/* Drug interaction warning */}
-          <div className="bg-error/10 border border-error/20 rounded-lg p-sm mb-md flex items-start gap-sm">
-            <span className="material-symbols-outlined text-error mt-0.5 shrink-0">warning</span>
-            <div>
-              <h4 className="font-label-md text-label-md text-error font-bold">Drug interaction warning active</h4>
-              <p className="font-body-sm text-body-sm text-on-surface-variant mt-xs">Always verify contraindications for polypharmacy prescriptions.</p>
+          {!isReadOnly && (
+            <div className="bg-error/10 border border-error/20 rounded-lg p-sm mb-md flex items-start gap-sm">
+              <span className="material-symbols-outlined text-error mt-0.5 shrink-0">warning</span>
+              <div>
+                <h4 className="font-label-md text-label-md text-error font-bold">Drug interaction warning active</h4>
+                <p className="font-body-sm text-body-sm text-on-surface-variant mt-xs">Always verify contraindications for polypharmacy prescriptions.</p>
+              </div>
             </div>
-          </div>
+          )}
           {/* Medication list */}
           <div className="space-y-sm">
             {prescriptions.map((rx) => (
@@ -1663,11 +1756,13 @@ export function EncounterPage() {
                   <span className="block font-body-sm text-body-sm font-bold text-on-surface">{rx.name}</span>
                   <span className="block font-label-sm text-label-sm text-secondary">{rx.dose} — {rx.route} ({rx.frequency} for {rx.duration})</span>
                 </div>
-                <div className="flex items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button type="button" onClick={() => handleRemovePrescription(rx.id)} className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer">
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                  </button>
-                </div>
+                {!isReadOnly && (
+                  <div className="flex items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button type="button" onClick={() => handleRemovePrescription(rx.id)} className="p-1.5 text-secondary hover:text-error rounded-md hover:bg-surface-white border border-transparent hover:border-border-subtle bg-transparent cursor-pointer">
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
             {prescriptions.length === 0 && (
@@ -1685,53 +1780,64 @@ export function EncounterPage() {
             onConfirmDisposition={handleConfirmDisposition}
             pendingOrdersCount={orders.filter((o) => o.status === 'requested' || o.status === 'in-progress').length}
             confirmingDisposition={confirmingDisposition}
+            isReadOnly={isReadOnly}
+            initialDetails={encounter?.consultation}
           />
         </SectionCard>
       </div>
 
       {/* Sticky bottom bar */}
       <div className="fixed bottom-0 right-0 w-full lg:w-[calc(100%-240px)] bg-surface-white border-t border-border-subtle p-md flex justify-end items-center gap-md z-40 shadow-[0_-8px_12px_-1px_rgba(0,0,0,0.03)]">
-        {confirmedDisposition ? (
-          <span className="mr-auto flex items-center gap-xs font-label-sm text-label-sm text-success">
-            <span className="material-symbols-outlined text-[16px] leading-none" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-            Disposition confirmed: {DISPOSITION_OPTIONS.find((d) => d.id === confirmedDisposition)?.label}
+        {isReadOnly ? (
+          <span className="flex items-center gap-sm font-label-md text-label-md text-success font-bold py-2">
+            <span className="material-symbols-outlined text-[22px] leading-none text-success font-semibold" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            Encounter Completed (Read-Only Mode)
           </span>
-        ) : disposition ? (
-          <span className="mr-auto flex items-center gap-xs font-label-sm text-label-sm text-warning">
-            <span className="material-symbols-outlined text-[16px] leading-none">pending</span>
-            Disposition selected but not confirmed
-          </span>
-        ) : null}
-        <button 
-          type="button" 
-          onClick={handleSaveNotes}
-          disabled={saving}
-          className="px-6 py-2 border border-border-subtle text-on-surface font-semibold font-label-md text-label-md rounded-lg hover:bg-surface-container transition-all active:scale-95 h-[44px] cursor-pointer bg-transparent disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save Draft'}
-        </button>
-        <button
-          type="button"
-          disabled={!confirmedDisposition || saving}
-          onClick={handleCompleteEncounter}
-          className={`px-6 py-2 font-semibold font-label-md text-label-md rounded-lg flex items-center gap-sm h-[44px] border-0 transition-all ${
-            confirmedDisposition && !saving
-              ? 'bg-primary text-white cursor-pointer hover:opacity-90 active:scale-95'
-              : 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed opacity-70'
-          }`}
-        >
-          {confirmedDisposition ? (
-            <>
-              <span className="material-symbols-outlined text-[20px] leading-none">check_circle</span>
-              {saving ? 'Completing...' : 'Complete Encounter'}
-            </>
-          ) : (
-            <>
-              <span className="material-symbols-outlined text-[20px] leading-none">lock</span>
-              {disposition ? 'Confirm Disposition to Complete' : 'Set Disposition to Complete'}
-            </>
-          )}
-        </button>
+        ) : (
+          <>
+            {confirmedDisposition ? (
+              <span className="mr-auto flex items-center gap-xs font-label-sm text-label-sm text-success">
+                <span className="material-symbols-outlined text-[16px] leading-none" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                Disposition confirmed: {DISPOSITION_OPTIONS.find((d) => d.id === confirmedDisposition)?.label}
+              </span>
+            ) : disposition ? (
+              <span className="mr-auto flex items-center gap-xs font-label-sm text-label-sm text-warning">
+                <span className="material-symbols-outlined text-[16px] leading-none">pending</span>
+                Disposition selected but not confirmed
+              </span>
+            ) : null}
+            <button 
+              type="button" 
+              onClick={handleSaveNotes}
+              disabled={saving}
+              className="px-6 py-2 border border-border-subtle text-on-surface font-semibold font-label-md text-label-md rounded-lg hover:bg-surface-container transition-all active:scale-95 h-[44px] cursor-pointer bg-transparent disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save Draft'}
+            </button>
+            <button
+              type="button"
+              disabled={!confirmedDisposition || saving}
+              onClick={handleCompleteEncounter}
+              className={`px-6 py-2 font-semibold font-label-md text-label-md rounded-lg flex items-center gap-sm h-[44px] border-0 transition-all ${
+                confirmedDisposition && !saving
+                  ? 'bg-primary text-white cursor-pointer hover:opacity-90 active:scale-95'
+                  : 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed opacity-70'
+              }`}
+            >
+              {confirmedDisposition ? (
+                <>
+                  <span className="material-symbols-outlined text-[20px] leading-none">check_circle</span>
+                  {saving ? 'Completing...' : 'Complete Encounter'}
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px] leading-none">lock</span>
+                  {disposition ? 'Confirm Disposition to Complete' : 'Set Disposition to Complete'}
+                </>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Modals */}
