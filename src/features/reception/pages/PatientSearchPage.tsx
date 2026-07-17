@@ -1,13 +1,8 @@
-import { useState, type InputHTMLAttributes } from 'react'
+import { useState, useEffect, type InputHTMLAttributes } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  addMockCheckIn,
-  isPatientInQueueToday,
-  searchPatients,
-  type MockPatient,
-  type SearchField,
-} from '@/features/reception/data/mockPatients'
+import { receptionService } from '@/api/services/reception'
+import type { BackendPatient, BackendInsurancePolicy } from '@/api/types/reception'
 
 const FIELD_LABEL = 'block text-label-md font-label-md text-secondary mb-xs'
 const INPUT_CLASS =
@@ -24,9 +19,11 @@ const ICON_VARIATION = {
   fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20",
 } as const
 
+type ActiveField = 'id' | 'phone' | 'name'
+
 type SearchState = {
-  results: MockPatient[]
-  field: SearchField
+  results: BackendPatient[]
+  field: ActiveField
   term: string
 }
 
@@ -47,33 +44,18 @@ function SearchInput({
   )
 }
 
-function paymentBadgeClass(type: MockPatient['paymentType']) {
-  switch (type) {
-    case 'Cash':
-      return 'bg-success/10 text-success'
-    case 'Insurance':
+function genderBadgeClass(gender: string) {
+  switch (gender?.toLowerCase()) {
+    case 'female':
       return 'bg-primary-fixed text-primary'
-    case 'Exempt':
-      return 'bg-surface-container-high text-on-surface-variant'
-  }
-}
-
-function queueStatusClass(status: MockPatient['queueStatus']) {
-  switch (status) {
-    case 'Waiting':
-      return 'bg-warning/10 text-warning'
-    case 'In Triage':
+    case 'male':
       return 'bg-info/10 text-info'
-    case 'With Doctor':
-      return 'bg-success/10 text-success'
-    case 'Complete':
-      return 'bg-surface-container-high text-on-surface-variant'
     default:
       return 'bg-surface-container-high text-on-surface-variant'
   }
 }
 
-function PatientDetailModal({ patient, onClose }: { patient: MockPatient; onClose: () => void }) {
+function PatientDetailModal({ patient, onClose }: { patient: BackendPatient; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-md"
@@ -81,15 +63,15 @@ function PatientDetailModal({ patient, onClose }: { patient: MockPatient; onClos
       role="presentation"
     >
       <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[520px] overflow-hidden"
+        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[500px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="patient-detail-title"
       >
-        <div className="p-lg border-b border-border-subtle flex justify-between items-center">
+        <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
           <h2 id="patient-detail-title" className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Patient Details
+            Patient profile Details
           </h2>
           <button
             type="button"
@@ -100,38 +82,66 @@ function PatientDetailModal({ patient, onClose }: { patient: MockPatient; onClos
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        <div className="p-lg grid grid-cols-2 gap-md">
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Full Name</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{patient.fullName}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.patientNumber}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">National ID</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.nationalId}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Phone</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Date of Birth</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.dateOfBirth}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Gender</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.gender}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Last Visit</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.lastVisit}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Emergency Contact</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.emergencyContact}</p>
+        <div className="p-lg space-y-md max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-sm bg-surface-bright border border-border-subtle p-md rounded-lg">
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Full Name</p>
+              <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{patient.full_name}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient #</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.patient_number}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Identification No</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.national_id ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Phone Number</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Gender</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0" style={{ textTransform: 'capitalize' }}>{patient.gender}</p>
+            </div>
+            <div>
+              <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Date of Birth</p>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.date_of_birth}</p>
+            </div>
+            {patient.blood_group && (
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Blood Group</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.blood_group}</p>
+              </div>
+            )}
+            {patient.email && (
+              <div className="col-span-2">
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Email</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.email}</p>
+              </div>
+            )}
+            {patient.allergies && (
+              <div className="col-span-2">
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Allergies</p>
+                <p className="font-body-sm text-body-sm text-error font-medium m-0">{patient.allergies}</p>
+              </div>
+            )}
+            {patient.next_of_kin_name && (
+              <>
+                <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Next of Kin</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                    {patient.next_of_kin_name} ({patient.next_of_kin_relationship ?? '—'})
+                  </p>
+                </div>
+                <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Kin Contact</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                    {patient.next_of_kin_phone ?? '—'}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -141,22 +151,215 @@ function PatientDetailModal({ patient, onClose }: { patient: MockPatient; onClos
 
 function PatientFoundCard({
   patient,
+  checkingIn,
   onCheckIn,
   onViewQueue,
-  onVerifyInsurance,
   onViewDetails,
+  onPatientUpdated,
 }: {
-  patient: MockPatient
-  onCheckIn: () => void
+  patient: BackendPatient
+  checkingIn: boolean
+  onCheckIn: (
+    paymentType: 'cash' | 'insurance',
+    insuranceId?: string,
+    contactDetails?: {
+      name: string
+      phone: string
+      kinName: string
+      kinRelation: string
+      kinPhone: string
+    }
+  ) => void
   onViewQueue: () => void
-  onVerifyInsurance: () => void
   onViewDetails: () => void
+  onPatientUpdated?: (updatedPatient: BackendPatient) => void
 }) {
-  const inQueue = isPatientInQueueToday(patient)
-  const needsInsurance = patient.paymentType === 'Insurance' && patient.insuranceStatus === 'Pending'
+  const [policies, setPolicies] = useState<BackendInsurancePolicy[]>([])
+  const [loadingPolicies, setLoadingPolicies] = useState(false)
+  const [paymentType, setPaymentType] = useState<'cash' | 'insurance'>('cash')
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>('')
+
+  // Contact & Next of Kin states
+  const [patientPhone, setPatientPhone] = useState(patient.phone_primary || '')
+  const [kinName, setKinName] = useState(patient.next_of_kin_name || '')
+  const [kinRelation, setKinRelation] = useState(patient.next_of_kin_relationship || '')
+  const [kinPhone, setKinPhone] = useState(patient.next_of_kin_phone || '')
+  const [isEditingPhone, setIsEditingPhone] = useState(false)
+  const [patientName, setPatientName] = useState(patient.full_name || '')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [isEditingKinName, setIsEditingKinName] = useState(false)
+  const [isEditingKinRelation, setIsEditingKinRelation] = useState(false)
+  const [isEditingKinPhone, setIsEditingKinPhone] = useState(false)
+
+  // Queue Status States
+  const [queueStatus, setQueueStatus] = useState<string | null>(null)
+  const [queueNumber, setQueueNumber] = useState<string | null>(null)
+  const [loadingQueue, setLoadingQueue] = useState(false)
+
+  // Inline Add Policy form states
+  const [showAddPolicy, setShowAddPolicy] = useState(false)
+  const [insurerName, setInsurerName] = useState('')
+  const [policyNumber, setPolicyNumber] = useState('')
+  const [savingPolicy, setSavingPolicy] = useState(false)
+
+  const loadPatientStatus = async () => {
+    setLoadingPolicies(true)
+    setLoadingQueue(true)
+    try {
+      // Load policies
+      const data = await receptionService.getInsurancePolicies(patient.id)
+      setPolicies(data)
+      // Auto-select the first active policy if any
+      const active = data.filter((p) => p.is_active)
+      if (active.length > 0) {
+        setSelectedPolicyId(active[0].insurance_id)
+        setPaymentType('insurance')
+      } else {
+        setPaymentType('cash')
+      }
+
+      // Check active queue status
+      const activeStatus = await receptionService.getActiveVisit(patient.id)
+      if (activeStatus.active) {
+        const qStatus = activeStatus.queue_status?.toLowerCase()
+        const qType = activeStatus.queue_type?.toLowerCase()
+
+        if (qType === 'triage' && (qStatus === 'waiting' || qStatus === 'in_progress')) {
+          setQueueStatus(qStatus)
+        } else {
+          setQueueStatus('in_consultation')
+        }
+        setQueueNumber(activeStatus.queue_number || null)
+      } else {
+        setQueueStatus(null)
+        setQueueNumber(null)
+      }
+    } catch {
+      toast.error('Failed to load patient insurance or queue details.')
+    } finally {
+      setLoadingPolicies(false)
+      setLoadingQueue(false)
+    }
+  }
+
+  useEffect(() => {
+    let active = true
+    const init = async () => {
+      await Promise.resolve()
+      if (!active) return
+      void loadPatientStatus()
+    }
+    void init()
+    return () => {
+      active = false
+    }
+  }, [patient.id])
+
+  const handleAddPolicy = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!insurerName.trim() || !policyNumber.trim()) {
+      toast.error('Please enter insurer name and policy number.')
+      return
+    }
+    setSavingPolicy(true)
+    try {
+      const newPolicy = await receptionService.addInsurancePolicy(patient.id, {
+        insurer_name: insurerName.trim(),
+        policy_number: policyNumber.trim(),
+      })
+      toast.success('Insurance policy registered!')
+      setInsurerName('')
+      setPolicyNumber('')
+      setShowAddPolicy(false)
+      // Reload policies and select new one
+      const data = await receptionService.getInsurancePolicies(patient.id)
+      setPolicies(data)
+      setSelectedPolicyId(newPolicy.insurance_id)
+      setPaymentType('insurance')
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to add insurance policy.')
+    } finally {
+      setSavingPolicy(false)
+    }
+  }
+
+  const handleSaveName = async () => {
+    if (!patientName.trim()) {
+      toast.error('Patient name cannot be empty')
+      return
+    }
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        full_name: patientName.trim(),
+      })
+      setIsEditingName(false)
+      toast.success('Patient name updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update patient name')
+    }
+  }
+
+  const handleSavePhone = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        phone_primary: patientPhone.trim() || null,
+      })
+      setIsEditingPhone(false)
+      toast.success('Patient phone updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update phone number')
+    }
+  }
+
+  const handleSaveKinName = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        next_of_kin_name: kinName.trim() || null,
+      })
+      setIsEditingKinName(false)
+      toast.success('Next of kin name updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update next of kin name')
+    }
+  }
+
+  const handleSaveKinRelation = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        next_of_kin_relationship: kinRelation.trim() || null,
+      })
+      setIsEditingKinRelation(false)
+      toast.success('Next of kin relationship updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update next of kin relationship')
+    }
+  }
+
+  const handleSaveKinPhone = async () => {
+    try {
+      const updated = await receptionService.updatePatient(patient.id, {
+        next_of_kin_phone: kinPhone.trim() || null,
+      })
+      setIsEditingKinPhone(false)
+      toast.success('Next of kin contact updated successfully!')
+      onPatientUpdated?.(updated)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Failed to update next of kin contact')
+    }
+  }
 
   return (
-    <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden">
+    <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
       <div className="p-md border-b border-border-subtle bg-surface-bright flex justify-between items-center gap-md">
         <div>
           <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
@@ -164,101 +367,431 @@ function PatientFoundCard({
           </h3>
           <p className="font-body-sm text-body-sm text-secondary m-0 mt-xs">Returning patient record</p>
         </div>
-        <span className={`${STATUS_BADGE} ${paymentBadgeClass(patient.paymentType)}`}>
-          {patient.paymentType}
+        <span className={`${STATUS_BADGE} ${genderBadgeClass(patient.gender)}`} style={{ textTransform: 'capitalize' }}>
+          {patient.gender}
         </span>
       </div>
-
-      {inQueue && (
-        <div className="mx-md mt-md p-md rounded-lg bg-warning/10 border border-warning/20 flex items-start gap-sm">
-          <span className="material-symbols-outlined text-warning text-[20px] shrink-0">info</span>
-          <div>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">
-              Already in today&apos;s queue
-            </p>
-            <p className="font-body-sm text-body-sm text-secondary m-0 mt-xs">
-              {patient.fullName} ({patient.patientNumber}) is{' '}
-              {patient.queueStatus ? `currently ${patient.queueStatus.toLowerCase()}` : 'already checked in'}.
-            </p>
-          </div>
-        </div>
-      )}
 
       <div className="p-lg grid grid-cols-1 md:grid-cols-2 gap-md">
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient Name</p>
-          <p className="font-body-md text-body-md font-semibold text-on-surface m-0">{patient.fullName}</p>
+          {isEditingName ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-md font-semibold bg-white outline-none w-48"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSaveName}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Name"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md font-semibold text-on-surface">{patient.full_name}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPatientName(patient.full_name || '')
+                    setIsEditingName(true)
+                  }}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Name"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-          <p className="font-body-md text-body-md text-on-surface m-0">{patient.patientNumber}</p>
+          <p className="font-body-md text-body-md text-on-surface m-0">{patient.patient_number}</p>
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">National ID</p>
-          <p className="font-body-md text-body-md text-on-surface m-0">{patient.nationalId}</p>
+          <p className="font-body-md text-body-md text-on-surface m-0">{patient.national_id ?? '—'}</p>
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Phone</p>
-          <p className="font-body-md text-body-md text-on-surface m-0">{patient.phone}</p>
+          {isEditingPhone ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={patientPhone}
+                onChange={(e) => setPatientPhone(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-36"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSavePhone}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Contact"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.phone_primary || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPatientPhone(patient.phone_primary || '')
+                    setIsEditingPhone(true)
+                  }}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Contact"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Date of Birth</p>
-          <p className="font-body-md text-body-md text-on-surface m-0">{patient.dateOfBirth}</p>
+          <p className="font-body-md text-body-md text-on-surface m-0">{patient.date_of_birth}</p>
         </div>
         <div>
-          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Last Visit</p>
-          <p className="font-body-md text-body-md text-on-surface m-0">{patient.lastVisit}</p>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Registered</p>
+          <p className="font-body-md text-body-md text-on-surface m-0">
+            {new Date(patient.created_at).toLocaleDateString()}
+          </p>
         </div>
-        {patient.insurer && (
-          <>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Insurer</p>
-              <p className="font-body-md text-body-md text-on-surface m-0">{patient.insurer}</p>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Insurance Status</p>
-              <span
-                className={`${STATUS_BADGE} ${
-                  patient.insuranceStatus === 'Verified'
-                    ? 'bg-success/10 text-success'
-                    : patient.insuranceStatus === 'Pending'
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-error/10 text-error'
-                }`}
+        <div>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin Name</p>
+          {isEditingKinName ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={kinName}
+                onChange={(e) => setKinName(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-36"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSaveKinName}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Kin Name"
               >
-                {patient.insuranceStatus}
-              </span>
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
             </div>
-          </>
-        )}
-        {patient.queueStatus && inQueue && (
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Queue Status</p>
-            <span className={`${STATUS_BADGE} ${queueStatusClass(patient.queueStatus)}`}>
-              {patient.queueStatus}
-            </span>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.next_of_kin_name || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKinName(patient.next_of_kin_name || '')
+                    setIsEditingKinName(true)
+                  }}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Kin Name"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin Relationship</p>
+          {isEditingKinRelation ? (
+            <div className="flex items-center gap-xs">
+              <select
+                value={kinRelation}
+                onChange={(e) => setKinRelation(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-48"
+                autoFocus
+              >
+                <option value="">-- Choose Relationship --</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Child">Child</option>
+                <option value="Parent">Parent</option>
+                <option value="Sibling">Sibling</option>
+                <option value="Guardian">Guardian</option>
+                <option value="Other">Other</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleSaveKinRelation}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Relationship"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.next_of_kin_relationship || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKinRelation(patient.next_of_kin_relationship || '')
+                    setIsEditingKinRelation(true)
+                  }}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Relationship"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Next of Kin Contact</p>
+          {isEditingKinPhone ? (
+            <div className="flex items-center gap-xs">
+              <input
+                type="text"
+                value={kinPhone}
+                onChange={(e) => setKinPhone(e.target.value)}
+                className="h-8 px-sm border border-primary rounded font-body-sm bg-white outline-none w-36"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSaveKinPhone}
+                className="text-success hover:text-success/80 border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                title="Save Kin Contact"
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-xs">
+              <span className="font-body-md text-body-md text-on-surface font-semibold">{patient.next_of_kin_phone || '—'}</span>
+              {!queueStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKinPhone(patient.next_of_kin_phone || '')
+                    setIsEditingKinPhone(true)
+                  }}
+                  className="text-secondary hover:text-primary border-0 bg-transparent cursor-pointer p-xs flex items-center"
+                  title="Edit Kin Contact"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Payment Selection Section (Only rendered if not already in queue) */}
+      {!queueStatus && (
+        <div className="p-lg border-t border-border-subtle bg-surface-bright/50">
+          <h4 className="font-label-md text-label-md text-secondary uppercase mb-sm m-0">Check-In Payment Option</h4>
+          <div className="flex gap-md mb-md mt-sm">
+            <label className="flex items-center gap-sm cursor-pointer font-body-sm text-body-sm m-0 text-on-surface">
+              <input
+                type="radio"
+                name="search_payment_type"
+                checked={paymentType === 'cash'}
+                onChange={() => setPaymentType('cash')}
+                className="text-primary focus:ring-primary w-4 h-4"
+              />
+              Cash / Private
+            </label>
+            <label className="flex items-center gap-sm cursor-pointer font-body-sm text-body-sm m-0 text-on-surface">
+              <input
+                type="radio"
+                name="search_payment_type"
+                checked={paymentType === 'insurance'}
+                onChange={() => setPaymentType('insurance')}
+                className="text-primary focus:ring-primary w-4 h-4"
+              />
+              Insurance
+            </label>
+          </div>
+
+          {paymentType === 'insurance' && (
+            <div className="space-y-sm mb-md mt-sm max-w-md">
+              {loadingPolicies ? (
+                <p className="text-body-sm text-secondary animate-pulse m-0">Loading insurance policies...</p>
+              ) : policies.length === 0 ? (
+                <div className="p-md rounded-lg bg-warning/5 border border-warning/20 text-warning text-body-sm">
+                  No insurance policies registered for this patient.
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Select Insurance Policy</label>
+                  <select
+                    value={selectedPolicyId}
+                    onChange={(e) => setSelectedPolicyId(e.target.value)}
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">-- Choose registered policy --</option>
+                    {policies.map((p) => (
+                      <option key={p.insurance_id} value={p.insurance_id}>
+                        {p.insurer_name} (Policy: {p.policy_number}) — [{p.verification_status}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!showAddPolicy && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddPolicy(true)}
+                  className="text-primary hover:underline text-body-sm font-medium border-0 bg-transparent p-0 cursor-pointer flex items-center gap-xs mt-sm"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add</span> Add New Policy
+                </button>
+              )}
+            </div>
+          )}
+
+          {showAddPolicy && (
+            <form onSubmit={handleAddPolicy} className="p-md bg-white rounded-lg border border-border-subtle space-y-md mb-md mt-sm max-w-md">
+              <div className="flex justify-between items-center pb-xs border-b border-border-subtle">
+                <span className="font-label-md text-label-md font-semibold text-on-surface">Add Insurance Policy</span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPolicy(false)}
+                  className="text-secondary hover:text-on-surface border-0 bg-transparent cursor-pointer font-body-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-sm">
+                <div>
+                  <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Insurer Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jubilee"
+                    value={insurerName}
+                    onChange={(e) => setInsurerName(e.target.value)}
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
+                    list="insurer-suggestions"
+                  />
+                  <datalist id="insurer-suggestions">
+                    <option value="Aetna International" />
+                    <option value="BlueCross BlueShield" />
+                    <option value="Cigna Healthcare" />
+                    <option value="Jubilee Insurance" />
+                    <option value="NHIF" />
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Policy Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. POL-1002"
+                    value={policyNumber}
+                    onChange={(e) => setPolicyNumber(e.target.value)}
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-xs">
+                <button
+                  type="submit"
+                  disabled={savingPolicy}
+                  className="px-md h-8 bg-primary-container text-white text-body-sm rounded-md font-medium hover:opacity-90 transition-opacity border-0 cursor-pointer disabled:opacity-60"
+                >
+                  {savingPolicy ? 'Saving...' : 'Register Policy'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
       <div className="p-lg border-t border-border-subtle bg-surface-bright flex flex-wrap gap-sm">
-        {inQueue ? (
-          <button
-            type="button"
-            onClick={onViewQueue}
-            className="h-10 px-lg rounded font-body-sm text-body-sm font-semibold text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer"
-          >
-            View in Queue
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onCheckIn}
-            className="h-10 px-lg rounded font-body-sm text-body-sm font-semibold text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer"
-          >
-            Check In to Queue
-          </button>
-        )}
+        {(() => {
+          const getCheckInBtnConfig = () => {
+            if (loadingQueue) {
+              return {
+                text: 'Checking Queue Status...',
+                className: 'bg-surface-container text-secondary border border-border-subtle cursor-not-allowed opacity-75',
+                disabled: true,
+                icon: 'progress_activity',
+              }
+            }
+            if (queueStatus) {
+              const statusLower = queueStatus.toLowerCase()
+              const isWaiting = statusLower === 'waiting'
+              const isInConsultation = statusLower === 'in_consultation'
+              return {
+                text: isWaiting 
+                  ? `Already Waiting (Queue #${queueNumber})` 
+                  : isInConsultation 
+                    ? 'Active Visit (With Doctor)' 
+                    : 'Currently in Triage',
+                className: isWaiting
+                  ? 'bg-warning/10 text-warning border border-warning/30 cursor-not-allowed font-bold font-semibold'
+                  : isInConsultation
+                    ? 'bg-success/10 text-success border border-success/30 cursor-not-allowed font-bold font-semibold'
+                    : 'bg-info/10 text-info border border-info/30 cursor-not-allowed font-bold font-semibold',
+                disabled: true,
+                icon: isWaiting 
+                  ? 'hourglass_empty' 
+                  : isInConsultation 
+                    ? 'medical_services' 
+                    : 'clinical_fe',
+              }
+            }
+            return {
+              text: 'Check In to Queue',
+              className: 'text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+              disabled: checkingIn || (paymentType === 'insurance' && !selectedPolicyId),
+              icon: checkingIn ? 'progress_activity' : 'assignment_ind',
+            }
+          }
+
+          const btnConfig = getCheckInBtnConfig()
+
+          return (
+            <button
+              type="button"
+              onClick={() =>
+                !btnConfig.disabled &&
+                onCheckIn(paymentType, selectedPolicyId || undefined, {
+                  name: patientName,
+                  phone: patientPhone,
+                  kinName,
+                  kinRelation,
+                  kinPhone,
+                })
+              }
+              disabled={btnConfig.disabled}
+              className={`h-10 px-lg rounded font-body-sm text-body-sm flex items-center gap-sm ${btnConfig.className}`}
+            >
+              {btnConfig.icon && (
+                <span className={`material-symbols-outlined text-[16px] ${btnConfig.icon === 'progress_activity' ? 'animate-spin' : ''}`}>
+                  {btnConfig.icon}
+                </span>
+              )}
+              {btnConfig.text}
+            </button>
+          )
+        })()}
+        <button
+          type="button"
+          onClick={onViewQueue}
+          className="h-10 px-lg rounded font-body-sm text-body-sm font-semibold text-white bg-success/80 hover:bg-success transition-colors border-0 cursor-pointer"
+        >
+          View Queue
+        </button>
         <button
           type="button"
           onClick={onViewDetails}
@@ -266,15 +799,6 @@ function PatientFoundCard({
         >
           View Details
         </button>
-        {needsInsurance && (
-          <button
-            type="button"
-            onClick={onVerifyInsurance}
-            className="h-10 px-lg rounded font-body-sm text-body-sm font-medium text-primary-container border border-primary-container bg-white hover:bg-hover-tint transition-colors cursor-pointer"
-          >
-            Verify Insurance
-          </button>
-        )}
       </div>
     </div>
   )
@@ -284,8 +808,8 @@ function SearchResultsTable({
   results,
   onSelect,
 }: {
-  results: MockPatient[]
-  onSelect: (patient: MockPatient) => void
+  results: BackendPatient[]
+  onSelect: (patient: BackendPatient) => void
 }) {
   return (
     <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden">
@@ -295,7 +819,7 @@ function SearchResultsTable({
         </h3>
         <p className="font-body-sm text-body-sm text-secondary m-0 mt-xs">Select a patient to continue</p>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead className="bg-surface-container-low">
             <tr>
@@ -303,7 +827,7 @@ function SearchResultsTable({
               <th className={TH_CLASS}>Patient #</th>
               <th className={TH_CLASS}>National ID</th>
               <th className={TH_CLASS}>Phone</th>
-              <th className={TH_CLASS}>Last Visit</th>
+              <th className={TH_CLASS}>Date of Birth</th>
               <th className={`${TH_CLASS} text-right`}>Actions</th>
             </tr>
           </thead>
@@ -311,12 +835,12 @@ function SearchResultsTable({
             {results.map((patient) => (
               <tr key={patient.id} className="hover:bg-hover-tint transition-colors">
                 <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
-                  {patient.fullName}
+                  {patient.full_name}
                 </td>
-                <td className={TD_MUTED}>{patient.patientNumber}</td>
-                <td className={TD_MUTED}>{patient.nationalId}</td>
-                <td className={TD_MUTED}>{patient.phone}</td>
-                <td className={TD_MUTED}>{patient.lastVisit}</td>
+                <td className={TD_MUTED}>{patient.patient_number}</td>
+                <td className={TD_MUTED}>{patient.national_id ?? '—'}</td>
+                <td className={TD_MUTED}>{patient.phone_primary ?? '—'}</td>
+                <td className={TD_MUTED}>{patient.date_of_birth}</td>
                 <td className="py-md px-md text-right">
                   <button
                     type="button"
@@ -348,10 +872,9 @@ function EmptySearchHint() {
         Search for a returning patient
       </h3>
       <p className="font-body-md text-body-md text-outline text-center max-w-lg px-md m-0 leading-relaxed">
-        Try <span className="font-semibold text-on-surface">Grace Kimaro</span>, phone{' '}
-        <span className="font-semibold text-on-surface">0712 345 678</span>, or ID{' '}
-        <span className="font-semibold text-on-surface">1989051234567</span>. Use{' '}
-        <span className="font-semibold text-on-surface">9945123476</span> to demo a not-found result.
+        Enter the patient's <span className="font-semibold text-on-surface">National ID / Passport #</span>,{' '}
+        <span className="font-semibold text-on-surface">Contact Phone Number</span>, or{' '}
+        <span className="font-semibold text-on-surface">Full Name</span> to look up their record and check them in.
       </p>
     </div>
   )
@@ -363,28 +886,40 @@ export function PatientSearchPage() {
   const [nationalId, setNationalId] = useState('')
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
-  const [activeField, setActiveField] = useState<SearchField>('id')
+  const [activeField, setActiveField] = useState<ActiveField>('id')
   const [hasSearched, setHasSearched] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const [checkingIn, setCheckingIn] = useState(false)
   const [searchState, setSearchState] = useState<SearchState | null>(null)
-  const [selectedPatient, setSelectedPatient] = useState<MockPatient | null>(null)
-  const [detailPatient, setDetailPatient] = useState<MockPatient | null>(null)
-  const [checkInVersion, setCheckInVersion] = useState(0)
+  const [selectedPatient, setSelectedPatient] = useState<BackendPatient | null>(null)
+  const [detailPatient, setDetailPatient] = useState<BackendPatient | null>(null)
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     setSelectedPatient(null)
 
-    const outcome = searchPatients({ nationalId, phone, name }, activeField)
-    if (!outcome) {
+    const term = nationalId.trim() || phone.trim() || name.trim()
+    if (!term) {
       toast.error('Enter a National ID, phone number, or patient name to search.')
       return
     }
 
-    setSearchState(outcome)
-    setHasSearched(true)
+    const field: ActiveField = nationalId.trim() ? 'id' : phone.trim() ? 'phone' : 'name'
+    setActiveField(field)
 
-    if (outcome.results.length === 1) {
-      setSelectedPatient(outcome.results[0])
+    setSearching(true)
+    try {
+      const response = await receptionService.searchPatients(term)
+      const results = response.patients
+      setSearchState({ results, field, term })
+      setHasSearched(true)
+      if (results.length === 1) {
+        setSelectedPatient(results[0])
+      }
+    } catch {
+      toast.error('Search failed. Please check your connection and try again.')
+    } finally {
+      setSearching(false)
     }
   }
 
@@ -411,13 +946,54 @@ export function PatientSearchPage() {
       </>
     )
 
-  const handleCheckIn = (patient: MockPatient) => {
-    addMockCheckIn(patient.id)
-    setCheckInVersion((v) => v + 1)
-    toast.success(`${patient.fullName} checked in and added to today's queue.`)
-  }
+  const handleCheckIn = async (
+    patient: BackendPatient,
+    paymentType: 'cash' | 'insurance',
+    insuranceId?: string,
+    contactDetails?: {
+      phone: string
+      kinName: string
+      kinRelation: string
+      kinPhone: string
+    }
+  ) => {
+    setCheckingIn(true)
+    try {
+      if (contactDetails) {
+        const hasContactChanges =
+          contactDetails.phone.trim() !== (patient.phone_primary || '') ||
+          contactDetails.kinName.trim() !== (patient.next_of_kin_name || '') ||
+          contactDetails.kinRelation.trim() !== (patient.next_of_kin_relationship || '') ||
+          contactDetails.kinPhone.trim() !== (patient.next_of_kin_phone || '')
 
-  void checkInVersion
+        if (hasContactChanges) {
+          await receptionService.updatePatient(patient.id, {
+            phone_primary: contactDetails.phone.trim() || null,
+            next_of_kin_name: contactDetails.kinName.trim() || null,
+            next_of_kin_relationship: contactDetails.kinRelation.trim() || null,
+            next_of_kin_phone: contactDetails.kinPhone.trim() || null,
+          })
+          toast.success('Patient contact & Next of Kin updated!')
+        }
+      }
+
+      const result = await receptionService.createVisit({
+        patient_id: patient.id,
+        visit_type: 'outpatient',
+        payment_type: paymentType,
+        insurance_id: insuranceId || undefined,
+      })
+      toast.success(
+        `${patient.full_name} checked in — Queue Position ${result.queue.queue_number}`
+      )
+      navigate('/reception/queue')
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail ?? 'Check-in failed. Please try again.')
+    } finally {
+      setCheckingIn(false)
+    }
+  }
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
@@ -431,7 +1007,13 @@ export function PatientSearchPage() {
               type="text"
               value={nationalId}
               onFocus={() => setActiveField('id')}
-              onChange={(e) => setNationalId(e.target.value)}
+              onChange={(e) => {
+                setNationalId(e.target.value)
+                if (e.target.value) {
+                  setPhone('')
+                  setName('')
+                }
+              }}
             />
           </div>
           <div className="col-span-12 md:col-span-4">
@@ -442,7 +1024,13 @@ export function PatientSearchPage() {
               type="text"
               value={phone}
               onFocus={() => setActiveField('phone')}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                setPhone(e.target.value)
+                if (e.target.value) {
+                  setNationalId('')
+                  setName('')
+                }
+              }}
             />
           </div>
           <div className="col-span-12 md:col-span-3">
@@ -453,15 +1041,25 @@ export function PatientSearchPage() {
               type="text"
               value={name}
               onFocus={() => setActiveField('name')}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                if (e.target.value) {
+                  setNationalId('')
+                  setPhone('')
+                }
+              }}
             />
           </div>
           <div className="col-span-12 md:col-span-1">
             <button
               type="submit"
-              className="w-full h-10 bg-primary-container text-on-primary rounded font-medium hover:bg-primary transition-colors flex items-center justify-center border-0 cursor-pointer active:scale-95"
+              disabled={searching}
+              className="w-full h-10 bg-primary-container text-on-primary rounded font-medium hover:bg-primary transition-colors flex items-center justify-center border-0 cursor-pointer active:scale-95 disabled:opacity-60"
             >
-              <span className="material-symbols-outlined text-[20px]">search</span>
+              {searching
+                ? <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                : <span className="material-symbols-outlined text-[20px]">search</span>
+              }
             </button>
           </div>
         </form>
@@ -507,12 +1105,26 @@ export function PatientSearchPage() {
 
       {hasSearched && displayPatient && (
         <PatientFoundCard
-          key={`${displayPatient.id}-${checkInVersion}`}
+          key={displayPatient.id}
           patient={displayPatient}
-          onCheckIn={() => handleCheckIn(displayPatient)}
+          checkingIn={checkingIn}
+          onCheckIn={(payType, insId, contactDetails) =>
+            handleCheckIn(displayPatient, payType, insId, contactDetails)
+          }
           onViewQueue={() => navigate('/reception/queue')}
-          onVerifyInsurance={() => navigate('/billing')}
           onViewDetails={() => setDetailPatient(displayPatient)}
+          onPatientUpdated={(updatedPatient) => {
+            setSelectedPatient(updatedPatient)
+            setSearchState((prev) => {
+              if (!prev) return null
+              return {
+                ...prev,
+                results: prev.results.map((p) =>
+                  p.id === updatedPatient.id ? updatedPatient : p
+                ),
+              }
+            })
+          }}
         />
       )}
 

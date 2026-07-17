@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useAuth } from '@/hooks/useAuth'
 import { useApp } from '@/features/admin/context/AppContext'
@@ -12,9 +12,12 @@ import { PharmacyDashboardContent } from '@/features/pharmacy/components/Pharmac
 import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
 import { useNavigate } from 'react-router-dom'
+import { receptionService } from '@/api/services/reception'
+import type { BackendPatient } from '@/api/types/reception'
 
 interface ReceptionQueuePreviewItem {
   pos: number
+  ticketNumber: string
   name: string
   patientNumber: string
   registeredAt: string
@@ -24,70 +27,9 @@ interface ReceptionQueuePreviewItem {
   paymentBadgeClass: string
   status: string
   statusBadgeClass: string
+  patientId: string
+  queueId: string
 }
-
-const RECEPTION_QUEUE_PREVIEW: ReceptionQueuePreviewItem[] = [
-  {
-    pos: 1,
-    name: 'Amani Khatib',
-    patientNumber: 'PT-1029',
-    registeredAt: '09:20',
-    wait: '12 min',
-    waitColor: 'text-error',
-    payment: 'Cash',
-    paymentBadgeClass: 'bg-success/10 text-success',
-    status: 'In Triage',
-    statusBadgeClass: 'bg-tertiary-fixed-dim/20 text-tertiary-container',
-  },
-  {
-    pos: 2,
-    name: 'Zuwena Salum',
-    patientNumber: 'PT-3841',
-    registeredAt: '09:30',
-    wait: '18 min',
-    waitColor: 'text-warning',
-    payment: 'Insurance',
-    paymentBadgeClass: 'bg-primary-fixed text-primary',
-    status: 'Waiting',
-    statusBadgeClass: 'bg-warning/10 text-[#B37700]',
-  },
-  {
-    pos: 3,
-    name: 'Joseph Mwinyi',
-    patientNumber: 'PT-9201',
-    registeredAt: '09:45',
-    wait: '24 min',
-    waitColor: 'text-warning',
-    payment: 'Cash',
-    paymentBadgeClass: 'bg-success/10 text-success',
-    status: 'With Doctor',
-    statusBadgeClass: 'bg-success/20 text-[#178551]',
-  },
-  {
-    pos: 4,
-    name: 'Faustina Mwita',
-    patientNumber: 'PT-0045',
-    registeredAt: '09:10',
-    wait: '31 min',
-    waitColor: 'text-outline',
-    payment: 'Insurance',
-    paymentBadgeClass: 'bg-primary-fixed text-primary',
-    status: 'Waiting',
-    statusBadgeClass: 'bg-warning/10 text-[#B37700]',
-  },
-  {
-    pos: 5,
-    name: 'Hamza Bakari',
-    patientNumber: 'PT-5521',
-    registeredAt: '08:55',
-    wait: '45 min',
-    waitColor: 'text-outline',
-    payment: 'Cash',
-    paymentBadgeClass: 'bg-success/10 text-success',
-    status: 'Waiting',
-    statusBadgeClass: 'bg-warning/10 text-[#B37700]',
-  },
-]
 
 function ReceptionQueueViewModal({
   item,
@@ -98,6 +40,24 @@ function ReceptionQueueViewModal({
   onClose: () => void
   onManageQueue: () => void
 }) {
+  const [patient, setPatient] = useState<BackendPatient | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const loadPatient = async () => {
+      setLoading(true)
+      try {
+        const data = await receptionService.getPatient(item.patientId)
+        setPatient(data)
+      } catch (err) {
+        console.error('Failed to load patient details on dashboard preview modal', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadPatient()
+  }, [item.patientId])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-md"
@@ -105,18 +65,18 @@ function ReceptionQueueViewModal({
       role="presentation"
     >
       <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[480px] overflow-hidden"
+        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[500px] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="dashboard-queue-view-title"
       >
-        <div className="p-lg border-b border-border-subtle flex justify-between items-center">
+        <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-bright">
           <h2
             id="dashboard-queue-view-title"
             className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0"
           >
-            Queue Entry Details
+            Queue &amp; Patient Record
           </h2>
           <button
             type="button"
@@ -127,42 +87,95 @@ function ReceptionQueueViewModal({
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        <div className="p-lg grid grid-cols-2 gap-md">
+        <div className="p-lg max-h-[70vh] overflow-y-auto space-y-md">
+          {/* Queue entry details */}
           <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Position</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">#{item.pos}</p>
+            <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Queue Details</h3>
+            <div className="grid grid-cols-2 gap-sm bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Ticket Number</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.ticketNumber}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Status</p>
+                <span className={`inline-flex items-center px-sm py-xs rounded-full font-label-md text-label-md font-bold ${item.statusBadgeClass}`}>{item.status}</span>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient Name</p>
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.name}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Patient #</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.patientNumber}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Registered At</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.registeredAt}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Wait Time</p>
+                <p className={`font-body-sm text-body-sm font-semibold m-0 ${item.waitColor}`}>{item.wait}</p>
+              </div>
+              <div>
+                <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Payment Type</p>
+                <p className="font-body-sm text-body-sm text-on-surface m-0">{item.payment}</p>
+              </div>
+            </div>
           </div>
+
+          {/* Patient demographic details */}
           <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient Name</p>
-            <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{item.name}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.patientNumber}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Registered At</p>
-            <p className="font-body-sm text-body-sm text-on-surface m-0">{item.registeredAt}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Wait Time</p>
-            <p className={`font-body-sm text-body-sm font-semibold m-0 ${item.waitColor}`}>{item.wait}</p>
-          </div>
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Payment</p>
-            <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.paymentBadgeClass}`}
-            >
-              {item.payment}
-            </span>
-          </div>
-          <div className="col-span-2">
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Status</p>
-            <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.statusBadgeClass}`}
-            >
-              {item.status}
-            </span>
+            <h3 className="font-title-sm text-title-sm font-semibold text-primary m-0 mb-sm">Patient Demographics</h3>
+            {loading ? (
+              <div className="p-lg bg-surface-bright border border-border-subtle rounded-lg flex items-center justify-center min-h-[140px]">
+                <span className="material-symbols-outlined text-[32px] text-primary animate-spin">progress_activity</span>
+              </div>
+            ) : patient ? (
+              <div className="grid grid-cols-2 gap-sm bg-surface-bright border border-border-subtle p-md rounded-lg">
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Identification No</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.national_id ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Phone Number</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.phone_primary ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Gender</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0" style={{ textTransform: 'capitalize' }}>{patient.gender}</p>
+                </div>
+                <div>
+                  <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Date of Birth</p>
+                  <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.date_of_birth}</p>
+                </div>
+                {patient.email && (
+                  <div className="col-span-2">
+                    <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Email</p>
+                    <p className="font-body-sm text-body-sm text-on-surface m-0">{patient.email}</p>
+                  </div>
+                )}
+                {patient.next_of_kin_name && (
+                  <>
+                    <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                      <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Next of Kin</p>
+                      <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                        {patient.next_of_kin_name} ({patient.next_of_kin_relationship ?? '—'})
+                      </p>
+                    </div>
+                    <div className="mt-xs pt-xs border-t border-border-subtle/50">
+                      <p className="font-label-sm text-label-sm text-secondary uppercase m-0 mb-xs">Kin Contact</p>
+                      <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">
+                        {patient.next_of_kin_phone ?? '—'}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="p-md text-center font-body-sm text-secondary bg-surface-bright border border-border-subtle rounded-lg">
+                Patient record details unavailable.
+              </div>
+            )}
           </div>
         </div>
         <div className="p-lg border-t border-border-subtle bg-surface-bright flex justify-end gap-sm">
@@ -192,6 +205,16 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [queueViewItem, setQueueViewItem] = useState<ReceptionQueuePreviewItem | null>(null)
 
+  // Live state definitions
+  const [loading, setLoading] = useState(true)
+  const [queueItems, setQueueItems] = useState<ReceptionQueuePreviewItem[]>([])
+  const [recentPatients, setRecentPatients] = useState<BackendPatient[]>([])
+
+  const [patientsToday, setPatientsToday] = useState(0)
+  const [inQueueCount, setInQueueCount] = useState(0)
+  const [registeredThisHour, setRegisteredThisHour] = useState(0)
+  const [avgWaitTime, setAvgWaitTime] = useState(0)
+
   const isHospitalAdmin = hasEffectiveRole(roles, user?.role, ROLES.hospitalAdmin)
   const isReceptionist = hasEffectiveRole(roles, user?.role, ROLES.receptionist)
   const isTriageNurse = hasEffectiveRole(roles, user?.role, ROLES.triageNurse) && !isHospitalAdmin
@@ -199,6 +222,87 @@ export function DashboardPage() {
   const isLabTechnician = hasEffectiveRole(roles, user?.role, ROLES.labTechnician) && !isHospitalAdmin
   const isPharmacist = hasEffectiveRole(roles, user?.role, ROLES.pharmacist) && !isHospitalAdmin
   const isRadiographer = hasEffectiveRole(roles, user?.role, ROLES.radiographer) && !isHospitalAdmin
+
+  const loadDashboardData = async () => {
+    try {
+      // 1. Fetch today's queue list (total visits enqueued today)
+      const todayQueue = await receptionService.getTriageQueueToday()
+      setPatientsToday(todayQueue.length)
+
+      // Calculate Registered This Hour
+      const oneHourAgo = Date.now() - 3600000
+      const hourCount = todayQueue.filter(
+        (entry) => new Date(entry.created_at).getTime() >= oneHourAgo
+      ).length
+      setRegisteredThisHour(hourCount)
+
+      // 2. Fetch current active worklist queue
+      const currentQueue = await receptionService.getTriageQueue()
+      const activeEntries = currentQueue.filter(
+        (entry) => entry.status === 'waiting' || entry.status === 'in_progress'
+      )
+      console.log('Active Entries fetched:', activeEntries)
+      setInQueueCount(activeEntries.length)
+
+      // Calculate Average Wait Time of current active entries
+      const waitMinutes = (createdAt: string) => {
+        return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000)
+      }
+      if (activeEntries.length > 0) {
+        const totalWait = activeEntries.reduce((acc, entry) => {
+          const w = waitMinutes(entry.created_at)
+          return acc + (w > 0 ? w : 0)
+        }, 0)
+        setAvgWaitTime(Math.round(totalWait / activeEntries.length))
+      } else {
+        setAvgWaitTime(0)
+      }
+
+      // Map top 5 active entries to table previews
+      const previewItems = activeEntries.slice(0, 5).map((entry, index) => {
+        const mins = waitMinutes(entry.created_at)
+        return {
+          pos: index + 1,
+          ticketNumber: entry.queue_number,
+          name: entry.patient.full_name,
+          patientNumber: entry.patient.patient_number,
+          registeredAt: new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          wait: mins <= 0 ? '--' : `${mins} min`,
+          waitColor: mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success',
+          payment: entry.visit?.payment_type
+            ? entry.visit.payment_type.charAt(0).toUpperCase() + entry.visit.payment_type.slice(1)
+            : 'Cash',
+          paymentBadgeClass: entry.visit?.payment_type === 'insurance' 
+            ? 'bg-primary-fixed text-primary' 
+            : 'bg-success/10 text-success',
+          status: entry.status === 'in_progress' ? 'In Triage' : 'Waiting',
+          statusBadgeClass: entry.status === 'in_progress'
+            ? 'bg-tertiary-fixed-dim/20 text-tertiary-container'
+            : 'bg-warning/10 text-[#B37700]',
+          patientId: entry.patient.patient_id,
+          queueId: entry.queue_id,
+        }
+      })
+      setQueueItems(previewItems)
+
+      // 3. Fetch 5 most recent registrations
+      const patientResponse = await receptionService.searchPatients(undefined, 1, 5)
+      setRecentPatients(patientResponse.patients)
+
+    } catch (err) {
+      console.error('Failed to load receptionist dashboard data', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isReceptionist) {
+      void loadDashboardData()
+      const interval = setInterval(() => void loadDashboardData(), 30000)
+      return () => clearInterval(interval)
+    }
+  }, [isReceptionist])
 
   if (isRadiographer) {
     return <RadiologyDashboardContent />
@@ -232,7 +336,7 @@ export function DashboardPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
                     <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Patients Today</p>
-                    <h3 className="font-headline-md text-primary font-bold text-2xl">34</h3>
+                    <h3 className="font-headline-md text-primary font-bold text-2xl">{loading ? '...' : patientsToday}</h3>
                   </div>
                   <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
                     <span className="material-symbols-outlined text-[20px]">person_play</span>
@@ -240,7 +344,7 @@ export function DashboardPage() {
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-success text-[12px]">
                   <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                  <span className="font-label-sm">+12% vs yesterday</span>
+                  <span className="font-label-sm">Total checked in today</span>
                 </div>
               </div>
 
@@ -248,7 +352,7 @@ export function DashboardPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
                     <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">In Queue</p>
-                    <h3 className="font-headline-md text-primary font-bold text-2xl">8</h3>
+                    <h3 className="font-headline-md text-primary font-bold text-2xl">{loading ? '...' : inQueueCount}</h3>
                   </div>
                   <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
                     <span className="material-symbols-outlined text-[20px]">group</span>
@@ -256,7 +360,7 @@ export function DashboardPage() {
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-secondary text-[12px]">
                   <span className="material-symbols-outlined text-[14px]">horizontal_rule</span>
-                  <span className="font-label-sm">Stable load</span>
+                  <span className="font-label-sm">Active waiting patients</span>
                 </div>
               </div>
 
@@ -264,23 +368,25 @@ export function DashboardPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
                     <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Registered This Hour</p>
-                    <h3 className="font-headline-md text-primary font-bold text-2xl">4</h3>
+                    <h3 className="font-headline-md text-primary font-bold text-2xl">{loading ? '...' : registeredThisHour}</h3>
                   </div>
                   <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
                     <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-warning text-[12px]">
-                  <span className="material-symbols-outlined text-[14px]">trending_down</span>
-                  <span className="font-label-sm">-2 from peak</span>
+                  <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                  <span className="font-label-sm">Added in last 60m</span>
                 </div>
               </div>
 
               <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm">
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
-                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Avg Reg Time</p>
-                    <h3 className="font-headline-md text-primary font-bold text-2xl">4.2m</h3>
+                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Avg Wait Time</p>
+                    <h3 className="font-headline-md text-primary font-bold text-2xl">
+                      {loading ? '...' : avgWaitTime > 0 ? `${avgWaitTime}m` : '--'}
+                    </h3>
                   </div>
                   <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
                     <span className="material-symbols-outlined text-[20px]">hourglass_empty</span>
@@ -288,7 +394,7 @@ export function DashboardPage() {
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-error text-[12px]">
                   <span className="material-symbols-outlined text-[14px]">priority_high</span>
-                  <span className="font-label-sm">Requires attention</span>
+                  <span className="font-label-sm">Triage wait duration</span>
                 </div>
               </div>
             </div>
@@ -308,7 +414,7 @@ export function DashboardPage() {
                 <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
                     <tr className="font-label-md text-label-md text-secondary border-b border-border-subtle bg-surface-bright text-[11px] uppercase tracking-wider">
-                      <th className="py-3 px-4 font-semibold">Pos</th>
+                      <th className="py-3 px-4 font-semibold">Ticket #</th>
                       <th className="py-3 px-4 font-semibold">Patient Name</th>
                       <th className="py-3 px-4 font-semibold">Patient #</th>
                       <th className="py-3 px-4 font-semibold">Wait Time</th>
@@ -318,46 +424,60 @@ export function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="font-body-sm text-body-sm text-on-surface">
-                    {RECEPTION_QUEUE_PREVIEW.map((item) => (
-                      <tr
-                        key={item.patientNumber}
-                        className="border-b border-border-subtle hover:bg-hover-tint transition-colors cursor-pointer"
-                        onClick={() => setQueueViewItem(item)}
-                      >
-                        <td className="py-3 px-4 font-medium text-secondary">{item.pos}</td>
-                        <td className="py-3 px-4 font-medium">{item.name}</td>
-                        <td className="py-3 px-4 text-outline">{item.patientNumber}</td>
-                        <td className={`py-3 px-4 font-medium ${item.waitColor}`}>{item.wait}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.paymentBadgeClass}`}
-                          >
-                            {item.payment}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.statusBadgeClass}`}
-                          >
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
-                            title="View detail"
-                            aria-label={`View details for ${item.name}`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setQueueViewItem(item)
-                            }}
-                            className="text-primary-container bg-transparent border-0 cursor-pointer p-1 inline-flex items-center justify-center rounded hover:bg-surface-container-low transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">visibility</span>
-                          </button>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} className="py-md text-center">
+                          <span className="material-symbols-outlined text-primary animate-spin">progress_activity</span>
                         </td>
                       </tr>
-                    ))}
+                    ) : queueItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-md text-center text-secondary">
+                          No patients currently in queue
+                        </td>
+                      </tr>
+                    ) : (
+                      queueItems.map((item) => (
+                        <tr
+                          key={item.queueId}
+                          className="border-b border-border-subtle hover:bg-hover-tint transition-colors cursor-pointer"
+                          onClick={() => setQueueViewItem(item)}
+                        >
+                          <td className="py-3 px-4 font-medium text-secondary">{item.ticketNumber}</td>
+                          <td className="py-3 px-4 font-medium">{item.name}</td>
+                          <td className="py-3 px-4 text-outline">{item.patientNumber}</td>
+                          <td className={`py-3 px-4 font-medium ${item.waitColor}`}>{item.wait}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.paymentBadgeClass}`}
+                            >
+                              {item.payment}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${item.statusBadgeClass}`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              title="View detail"
+                              aria-label={`View details for ${item.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setQueueViewItem(item)
+                              }}
+                              className="text-primary-container bg-transparent border-0 cursor-pointer p-1 inline-flex items-center justify-center rounded hover:bg-surface-container-low transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">visibility</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -387,13 +507,7 @@ export function DashboardPage() {
                 <span className="material-symbols-outlined text-[18px]">manage_search</span>
                 Returning Patient
               </button>
-              <button 
-                onClick={() => navigate('/reception/queue')} 
-                className="bg-error hover:bg-[#D94524] text-on-error font-body-sm text-sm font-semibold h-10 px-6 rounded-lg transition-colors flex items-center gap-2 md:ml-auto cursor-pointer border-0"
-              >
-                <span className="material-symbols-outlined text-[18px]">emergency</span>
-                Walk-in Emergency
-              </button>
+
             </div>
           </div>
 
@@ -407,33 +521,35 @@ export function DashboardPage() {
                 <span className="ml-auto bg-warning text-white font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">2</span>
               </div>
               <div className="p-md space-y-3">
-                <div className="flex items-start justify-between bg-white p-3 rounded border border-border-subtle">
+                {/* Urgent Queue Time Alert */}
+                <div className="flex items-start justify-between bg-white p-3 rounded border-l-4 border-l-error border-y border-r border-border-subtle">
                   <div className="overflow-hidden">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Verification Pending</p>
-                    <p className="font-body-sm text-[11px] text-secondary">Zuwena Salum (#MH-3841)</p>
+                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">High Wait Time Warning</p>
+                    <p className="font-body-sm text-[11px] text-secondary">Triage queue is moving slower than normal.</p>
                   </div>
                   <button 
-                    onClick={() => navigate('/billing')} 
-                    className="font-body-sm text-[11px] text-primary-container font-medium hover:underline whitespace-nowrap ml-2 mt-0.5 bg-transparent border-0 cursor-pointer"
+                    onClick={() => navigate('/reception/queue')} 
+                    className="font-body-sm text-[11px] text-error font-medium hover:underline whitespace-nowrap ml-2 mt-0.5 bg-transparent border-0 cursor-pointer"
                   >
-                    Verify Now
+                    Check Queue
                   </button>
                 </div>
-                <div className="flex items-start justify-between bg-white p-3 rounded border border-border-subtle">
+
+                {/* Important Verification Alert */}
+                <div className="flex items-start justify-between bg-white p-3 rounded border-l-4 border-l-warning border-y border-r border-border-subtle">
                   <div className="overflow-hidden">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Verification Pending</p>
-                    <p className="font-body-sm text-[11px] text-secondary">Lulu Kapinga (#MH-7712)</p>
+                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Review Required</p>
+                    <p className="font-body-sm text-[11px] text-secondary">Checked-in patients have pending insurance verifications.</p>
                   </div>
                   <button 
-                    onClick={() => navigate('/billing')} 
+                    onClick={() => navigate('/reception/queue')} 
                     className="font-body-sm text-[11px] text-primary-container font-medium hover:underline whitespace-nowrap ml-2 mt-0.5 bg-transparent border-0 cursor-pointer"
                   >
-                    Verify Now
+                    Manage
                   </button>
                 </div>
               </div>
             </div>
-
             {/* Recent Registrations Card */}
             <div className="bg-surface-white rounded-lg border border-border-subtle flex flex-col flex-1 min-h-[280px] shadow-sm">
               <div className="p-md border-b border-border-subtle flex justify-between items-center shrink-0">
@@ -445,47 +561,41 @@ export function DashboardPage() {
                   View All
                 </button>
               </div>
-              <div className="overflow-y-auto flex-1 p-2">
-                <div className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer border-b border-border-subtle last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[11px] shrink-0 border border-border-subtle">AK</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Amani Khatib</p>
-                    <p className="font-body-sm text-[10px] text-outline truncate">#MH-1029 • 10:45 AM</p>
+              <div className="overflow-y-auto flex-1 p-2 max-h-[300px]">
+                {loading ? (
+                  <div className="flex justify-center items-center py-lg">
+                    <span className="material-symbols-outlined text-primary animate-spin">progress_activity</span>
                   </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border border-success/30 text-success bg-white shrink-0">Cash</span>
-                </div>
-                <div className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer border-b border-border-subtle last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[11px] shrink-0 border border-border-subtle">ZS</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Zuwena Salum</p>
-                    <p className="font-body-sm text-[10px] text-outline truncate">#MH-3841 • 10:32 AM</p>
+                ) : recentPatients.length === 0 ? (
+                  <div className="text-center py-lg text-secondary font-body-sm">
+                    No recent registrations
                   </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border border-primary/30 text-primary bg-white shrink-0">Insurance</span>
-                </div>
-                <div className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer border-b border-border-subtle last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[11px] shrink-0 border border-border-subtle">JM</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Joseph Mwinyi</p>
-                    <p className="font-body-sm text-[10px] text-outline truncate">#MH-9201 • 10:15 AM</p>
-                  </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border border-success/30 text-success bg-white shrink-0">Cash</span>
-                </div>
-                <div className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer border-b border-border-subtle last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[11px] shrink-0 border border-border-subtle">FM</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Faustina Mwita</p>
-                    <p className="font-body-sm text-[10px] text-outline truncate">#MH-0045 • 09:55 AM</p>
-                  </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border border-primary/30 text-primary bg-white shrink-0">Insurance</span>
-                </div>
-                <div className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer border-b border-border-subtle last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[11px] shrink-0 border border-border-subtle">HB</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Hamza Bakari</p>
-                    <p className="font-body-sm text-[10px] text-outline truncate">#MH-5521 • 09:42 AM</p>
-                  </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border border-success/30 text-success bg-white shrink-0">Cash</span>
-                </div>
+                ) : (
+                  recentPatients.map((patient) => {
+                    const initials = patient.full_name
+                      .split(' ')
+                      .map((n: string) => n[0])
+                      .join('')
+                      .substring(0, 2)
+                      .toUpperCase()
+                    const regTime = new Date(patient.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    const regDate = new Date(patient.created_at).toLocaleDateString()
+                    return (
+                      <div
+                        key={patient.id}
+                        className="flex items-center gap-3 p-2 hover:bg-surface-container-low rounded-lg transition-colors cursor-pointer border-b border-border-subtle last:border-0"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-secondary font-bold text-[11px] shrink-0 border border-border-subtle">
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body-sm text-xs font-semibold text-on-surface truncate">{patient.full_name}</p>
+                          <p className="font-body-sm text-[10px] text-outline truncate">{patient.patient_number} • {regDate} {regTime}</p>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </div>
           </div>
