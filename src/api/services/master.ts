@@ -168,4 +168,108 @@ export const masterService = {
 
   exportTenantData: (tenantId: string) =>
     apiClient.get<any>(`/tenants/${tenantId}/export`).then((r) => r.data),
+
+  // --- Subscription Request Workflow ---
+  requestPlanChange: (data: { plan: string; reason?: string; billing_cycle?: 'monthly' | 'annual'; effective_at_end?: boolean }) =>
+    apiClient.post<any>('/subscription/request-plan-change', data).then((r) => r.data),
+
+  requestCancellation: (data: { reason: string }) =>
+    apiClient.post<any>('/subscription/request-cancellation', data).then((r) => r.data),
+
+  getMyRequestStatus: () =>
+    apiClient.get<any>('/subscription/requests').then((r) => r.data),
+
+  listMySubscriptionRequests: (status?: string) =>
+    apiClient
+      .get<any[]>('/subscription/requests', { params: { all: true, status } })
+      .then((r) => r.data),
+
+  listPendingRequests: (tenantId?: string, status?: string) =>
+    apiClient
+      .get<any[]>('/superadmin/subscription-requests', { params: { tenant_id: tenantId, status } })
+      .then((r) => r.data),
+
+  approveRequest: (tenantId: string, notes?: string) =>
+    apiClient
+      .post<any>(`/superadmin/subscription-requests/${tenantId}/approve`, { notes })
+      .then((r) => r.data),
+
+  rejectRequest: (tenantId: string, notes: string) =>
+    apiClient
+      .post<any>(`/superadmin/subscription-requests/${tenantId}/reject`, { notes })
+      .then((r) => r.data),
+
+  // --- Invoice / Receipt PDF Download  ---
+  downloadInvoice: (invoiceId: string) =>
+    apiClient
+      .get(`/subscription/invoices/${invoiceId}/download`, { responseType: 'blob' })
+      .then((r) => r.data),
+
+  downloadReceipt: (invoiceId: string) =>
+    apiClient
+      .get(`/subscription/invoices/${invoiceId}/receipt`, { responseType: 'blob' })
+      .then((r) => r.data),
+
+  listMyInvoices: () =>
+    apiClient
+      .get<Invoice[]>('/subscription/invoices')
+      .then((r) => r.data),
+
+  toggleAutoRenew: (autoRenew: boolean) =>
+    apiClient
+      .patch<any>('/subscription/auto-renew', { auto_renew: autoRenew })
+      .then((r) => r.data),
+
+  getMySubscription: () =>
+    apiClient
+      .get<any>('/subscription')
+      .then((r) => {
+        const state = r.data;
+        if (!state || !state.subscription) return [];
+        const sub = state.subscription;
+        return [
+          {
+            id: sub.plan,
+            subscription_id: sub.plan,
+            tenant_id: state.tenant_id,
+            plan_name: sub.display_name || sub.plan,
+            status: sub.status,
+            start_date: sub.start,
+            end_date: sub.end,
+            auto_renew: sub.auto_renew,
+            pending_plan_name: sub.pending_plan,
+          } as any,
+        ];
+      }),
+
+  getMyTenantDetails: () =>
+    apiClient
+      .get<any>('/subscription')
+      .then((r) => {
+        const state = r.data;
+        if (!state) return null;
+        return {
+          tenant_id: state.tenant_id,
+          hospital_name: state.name,
+          status: state.status,
+          is_active: state.is_active,
+          subscription_plan: state.subscription?.plan || 'basic',
+          subscription_status: state.subscription?.status || 'active',
+          subscription_billing_cycle: state.subscription?.billing_cycle || 'monthly',
+          subscription_start: state.subscription?.start,
+          subscription_end: state.subscription?.end,
+          currency: state.currency || 'USD',
+          grace_days: state.grace_days ?? 14,
+        } as Tenant;
+      }),
+
+  listMyPlans: () =>
+    apiClient
+      .get<SubscriptionPlan[]>('/subscription/plans')
+      .then((r) => r.data),
+
+  getMyTenantStats: () =>
+    apiClient
+      .get<any>('/stats')
+      .then((r) => r.data),
 }

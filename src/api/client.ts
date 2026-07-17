@@ -42,6 +42,7 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     const mapKeys = (obj: any): any => {
       if (!obj || typeof obj !== 'object') return obj
+      if (obj instanceof Blob || obj instanceof ArrayBuffer) return obj
       if (Array.isArray(obj)) {
         return obj.map(mapKeys)
       }
@@ -847,6 +848,7 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/me') ||
     url.includes('/superadmin/') ||
     url.includes('/tenants') ||
+    url.includes('/subscription') ||
     url.includes('/subscriptions') ||
     url.includes('/invoices') ||
     url.includes('/plans') ||
@@ -854,10 +856,15 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/master-admins') ||
     url.includes('/monitoring') ||
     url.includes('/incidents') ||
-    url.includes('/announcements')
+    url.includes('/announcements') ||
+    url === '/stats'
 
   if (!MOCK_ENABLED || useRealBackend) {
-    if (url.startsWith('/tenants')) {
+    if (url === '/subscription' || url.startsWith('/subscription/')) {
+      config.url = `/tenant${url}`
+    } else if (url === '/stats') {
+      config.url = `/tenant/stats`
+    } else if (url.startsWith('/tenants')) {
       config.url = `/superadmin${url}`
     } else if (url.startsWith('/master-admins')) {
       config.url = `/superadmin/users`
@@ -1589,7 +1596,7 @@ apiClient.defaults.adapter = async (config) => {
 
     if (method === 'get') {
       if (url.includes('/tenant/announcements')) {
-        const authHeader = config.headers?.Authorization || ''
+        const authHeader = typeof config.headers?.Authorization === 'string' ? config.headers.Authorization : ''
         let currentTenantId = 't1'
         try {
           const token = authHeader.replace('Bearer ', '')
