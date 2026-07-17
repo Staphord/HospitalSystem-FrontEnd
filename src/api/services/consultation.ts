@@ -135,5 +135,36 @@ export const consultationService = {
     apiClient
       .post(`/consultation/${consultationId}/complete`)
       .then((r) => r.data),
+
+  /** Get all investigation results for the dashboard */
+  getInvestigationResults: () =>
+    apiClient
+      .get('/consultation/investigations/results')
+      .then((r) => r.data as InvestigationResultData[]),
+
+  /** Acknowledge an investigation result */
+  acknowledgeInvestigation: (requestId: string) =>
+    apiClient
+      .put(`/consultation/investigations/${requestId}/acknowledge`)
+      .then((r) => r.data),
+}
+
+export interface InvestigationResultData {
+  id: string
+  patient: {
+    id: string
+    patient_number: string
+    full_name: string
+  }
+  visit_id: string
+  test_name: string
+  request_type: string
+  urgency: string
+  status: 'critical' | 'ready' | 'pending' | 'acknowledged'
+  ordered_at: string
+  completed_at: string | null
+  result_values?: string | null
+  reference_range?: string | null
+  lab_notes?: string | null
 }
 
