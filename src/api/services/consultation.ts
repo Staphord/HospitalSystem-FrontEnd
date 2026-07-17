@@ -178,6 +178,48 @@ export const consultationService = {
     apiClient
       .put(`/consultation/referrals/${id}/cancel`)
       .then((r) => r.data),
+
+  /** Get doctor dashboard statistics and queues */
+  getDashboardStats: () =>
+    apiClient
+      .get('/consultation/dashboard/stats')
+      .then((r) => r.data as DoctorDashboardStatsResponse),
+}
+
+export interface DoctorDashboardStatsResponse {
+  stats: {
+    waiting_patients: number
+    in_progress: number
+    completed_today: number
+    pending_results: number
+  }
+  next_patients: {
+    name: string
+    patient_id: string
+    condition: string
+    wait_time: string
+    urgency: 'urgent' | 'normal' | 'consulting'
+    visit_id: string
+  }[]
+  pending_results: {
+    id: string
+    patient_name: string
+    test: string
+    time: string
+    status: 'critical' | 'ready' | 'pending'
+  }[]
+  summary: {
+    diagnoses_count: number
+    prescriptions_issued: number
+    investigations_ordered: number
+    referrals_made: number
+  }
+  critical_alerts: {
+    id: string
+    title: string
+    description: string
+    is_highlight: boolean
+  }[]
 }
 
 export interface InvestigationResultData {

@@ -46,6 +46,16 @@ const mapInvestigationResult = (data: InvestigationResultData): InvestigationRes
     }
   }
 
+  let mappedStatus: ResultStatus = 'pending'
+  if (
+    data.status === 'critical' ||
+    data.status === 'ready' ||
+    data.status === 'pending' ||
+    data.status === 'acknowledged'
+  ) {
+    mappedStatus = data.status
+  }
+
   return {
     id: data.id,
     patientName: name,
@@ -56,7 +66,7 @@ const mapInvestigationResult = (data: InvestigationResultData): InvestigationRes
     dept: data.request_type.toLowerCase() === 'radiology' ? 'radiology' : 'lab',
     orderedAt: formatDate(data.ordered_at) || '—',
     completedAt: formatDate(data.completed_at),
-    status: data.status,
+    status: mappedStatus,
     resultValues: data.result_values || undefined,
     referenceRange: data.reference_range || undefined,
     labNotes: data.lab_notes || undefined,
@@ -622,9 +632,9 @@ export function InvestigationResultsPage() {
                 </tr>
               ) : (
                 paginated.map((r) => {
-                  const sCfg   = STATUS_CONFIG[r.status]
+                  const sCfg   = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending
                   const dCfg   = DEPT_CONFIG[r.dept]
-                  const avatar = AVATAR_BG[r.status]
+                  const avatar = AVATAR_BG[r.status] || AVATAR_BG.pending
 
                   return (
                     <tr key={r.id} className={`transition-colors hover:bg-hover-tint ${sCfg.rowBg}`}>
