@@ -222,7 +222,7 @@ export function InpatientPage() {
       </div>
 
       {/* Patient Table Card */}
-      <div className="bg-surface-white border border-border-subtle rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-surface-white border border-border-subtle rounded-xl shadow-sm overflow-visible">
 
         {/* Card header with filters */}
         <div className="px-lg py-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
@@ -255,7 +255,7 @@ export function InpatientPage() {
             <span className="material-symbols-outlined text-primary text-[32px] animate-spin">sync</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-visible">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-border-subtle">
@@ -346,7 +346,12 @@ export function InpatientPage() {
                         <div className="relative inline-block">
                           <button
                             type="button"
-                            onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              console.log('Action button clicked:', p.id, p)
+                              setOpenMenuId(openMenuId === p.id ? null : p.id)
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${
                               openMenuId === p.id
                                 ? 'bg-surface-container text-on-surface'
