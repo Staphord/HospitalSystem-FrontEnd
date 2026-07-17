@@ -2,13 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { InpatientPatientHeader } from '@/features/consultation/components/InpatientPatientHeader'
-import {
-  canDischargePatient,
-  getAdmittedPatientById,
-  getAdmissionSummary,
-  getDischargeDefaults,
-  markPatientDischarged,
-} from '@/features/consultation/data/mockInpatientOrders'
+import { wardService } from '@/api/services/ward'
 import type { DischargeCondition, DischargeMedication } from '@/features/consultation/types/inpatientOrders'
 
 const CONDITION_LABELS: Record<DischargeCondition, string> = {
@@ -126,30 +120,60 @@ function ConfirmDischargeModal({
 export function InpatientDischargePage() {
   const { admissionId } = useParams<{ admissionId: string }>()
   const navigate = useNavigate()
-  const patient = admissionId ? getAdmittedPatientById(admissionId) : undefined
-  const summary = admissionId ? getAdmissionSummary(admissionId) : undefined
-  const defaults = admissionId ? getDischargeDefaults(admissionId) : undefined
 
-  const [dischargeDiagnosis, setDischargeDiagnosis] = useState(defaults?.dischargeDiagnosis ?? '')
-  const [condition, setCondition] = useState<DischargeCondition>(defaults?.condition ?? 'improved')
-  const [careSummary, setCareSummary] = useState(defaults?.careSummary ?? '')
-  const [instructions, setInstructions] = useState(defaults?.instructions ?? '')
-  const [medications, setMedications] = useState<DischargeMedication[]>(defaults?.medications ?? [])
-  const [followUpDate, setFollowUpDate] = useState(defaults?.followUpDate ?? '')
+  const [patient, setPatient] = useState<AdmittedPatient | null>(null)
+  const [summary, setSummary] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  const [dischargeDiagnosis, setDischargeDiagnosis] = useState('')
+  const [condition, setCondition] = useState<DischargeCondition>('improved')
+  const [careSummary, setCareSummary] = useState('')
+  const [instructions, setInstructions] = useState('')
+  const [medications, setMedications] = useState<DischargeMedication[]>([])
+  const [followUpDate, setFollowUpDate] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   const [newDrug, setNewDrug] = useState('')
   const [newDose, setNewDose] = useState('')
 
+  const loadData = async () => {
+    if (!admissionId) return
+    try {
+      const res = await wardService.getAdmissionDetails(admissionId)
+      setPatient(res.data.patient)
+      setSummary(res.data.summary)
+      
+      // Populate defaults from admission info if available
+      setDischargeDiagnosis(res.data.patient.primaryDiagnosis || '')
+    } catch (err) {
+      console.error('Failed to load discharge details:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [admissionId])
+
   const isFormValid =
     dischargeDiagnosis.trim().length > 0 &&
     careSummary.trim().length > 0 &&
     condition.length > 0
 
+  if (loading) {
+    return (
+      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center bg-surface-white">
+        <span className="material-symbols-outlined text-primary text-[42px] animate-spin">sync</span>
+        <p className="font-body-md text-body-md text-outline mt-md">Loading discharge records...</p>
+      </div>
+    )
+  }
+
   if (!patient || !summary) {
     return (
-      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center gap-md">
+      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center gap-md bg-surface-white">
         <span className="material-symbols-outlined text-[64px] text-outline/40 leading-none select-none" style={{ fontVariationSettings: "'wght' 200" }}>bed</span>
         <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Admission not found</h3>
         <p className="font-body-md text-body-md text-outline max-w-sm m-0">No admission record found for ID &quot;{admissionId ?? ''}&quot;.</p>
@@ -161,9 +185,9 @@ export function InpatientDischargePage() {
     )
   }
 
-  if (!canDischargePatient(patient)) {
+  if (patient.status === 'critical') {
     return (
-      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center gap-md">
+      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center gap-md bg-surface-white">
         <span className="material-symbols-outlined text-[64px] text-error/40 leading-none">block</span>
         <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Discharge not available</h3>
         <p className="font-body-md text-body-md text-outline max-w-sm m-0">
@@ -181,10 +205,23 @@ export function InpatientDischargePage() {
     toast.success('Discharge draft saved.')
   }
 
-  const handleConfirmDischarge = () => {
-    markPatientDischarged(patient.id)
-    toast.success(`${patient.name} has been discharged successfully.`)
-    navigate('/consultation/inpatient')
+  const handleConfirmDischarge = async () => {
+    if (!admissionId) return
+    try {
+      await wardService.dischargePatient(admissionId, {
+        discharge_diagnosis: dischargeDiagnosis,
+        condition: condition,
+        care_summary: careSummary,
+        instructions: instructions,
+        follow_up_date: followUpDate || null,
+        medications: medications.map(m => ({ drug_name: m.drugName, dose_freq: m.doseFreq })),
+      })
+      toast.success(`${patient.name} has been discharged successfully.`)
+      navigate('/consultation/inpatient')
+    } catch (err) {
+      console.error('Failed to discharge patient:', err)
+      toast.error('Failed to complete discharge. Please try again.')
+    }
   }
 
   const addMedication = () => {

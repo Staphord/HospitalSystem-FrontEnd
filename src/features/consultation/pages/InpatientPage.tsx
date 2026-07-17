@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MOCK_ADMITTED_PATIENTS, getActiveAdmittedPatients } from '@/features/consultation/data/mockInpatientOrders'
+import { wardService } from '@/api/services/ward'
 import type { AdmittedPatient, AdmissionStatus } from '@/features/consultation/types/inpatientOrders'
 
 const PAGE_SIZE = 5
@@ -20,8 +20,6 @@ const AVATAR_BG: Record<AdmissionStatus, string> = {
   monitoring:        'bg-primary/10 text-primary',
   'discharge-ready': 'bg-success/10 text-success',
 }
-
-const UNIQUE_WARDS = ['All Wards', ...Array.from(new Set(MOCK_ADMITTED_PATIENTS.map((p) => p.ward)))]
 
 // ── Row action dropdown ────────────────────────────────────────────────────────
 
@@ -112,13 +110,34 @@ function StatCard({ icon, iconBg, iconColor, label, value, valueColor = 'text-on
 
 export function InpatientPage() {
   const navigate = useNavigate()
+  const [patients, setPatients]               = useState<AdmittedPatient[]>([])
+  const [loading, setLoading]                 = useState(true)
   const [wardFilter, setWardFilter]           = useState('All Wards')
   const [conditionFilter, setConditionFilter] = useState<'all' | AdmissionStatus>('all')
   const [currentPage, setCurrentPage]         = useState(1)
   const [openMenuId, setOpenMenuId]           = useState<string | null>(null)
 
+  const loadPatients = async () => {
+    try {
+      const res = await wardService.getAdmittedPatients()
+      setPatients(res.data)
+    } catch (err) {
+      console.error('Failed to load admitted patients:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadPatients()
+  }, [])
+
+  const uniqueWards = useMemo(() => {
+    return ['All Wards', ...Array.from(new Set(patients.map((p) => p.ward)))]
+  }, [patients])
+
   const filtered = useMemo(() => {
-    let data = [...getActiveAdmittedPatients()]
+    let data = [...patients]
     if (wardFilter !== 'All Wards') data = data.filter((p) => p.ward === wardFilter)
     if (conditionFilter !== 'all')  data = data.filter((p) => p.status === conditionFilter)
     // Critical always pinned to top
@@ -128,17 +147,16 @@ export function InpatientPage() {
       return 0
     })
     return data
-  }, [wardFilter, conditionFilter])
+  }, [patients, wardFilter, conditionFilter])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated   = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const showingFrom = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
   const showingTo   = Math.min(currentPage * PAGE_SIZE, filtered.length)
 
-  const activePatients = getActiveAdmittedPatients()
-  const criticalCount      = activePatients.filter((p) => p.status === 'critical').length
-  const dischargeReady     = activePatients.filter((p) => p.status === 'discharge-ready').length
-  const avgLOS             = activePatients.length === 0 ? '0' : (activePatients.reduce((s, p) => s + p.lengthOfStay, 0) / activePatients.length).toFixed(1)
+  const criticalCount      = patients.filter((p) => p.status === 'critical').length
+  const dischargeReady     = patients.filter((p) => p.status === 'discharge-ready').length
+  const avgLOS             = patients.length === 0 ? '0' : (patients.reduce((s, p) => s + p.lengthOfStay, 0) / patients.length).toFixed(1)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -176,7 +194,7 @@ export function InpatientPage() {
           iconBg="bg-primary/10"
           iconColor="text-primary"
           label="My Admitted Patients"
-          value={activePatients.length}
+          value={patients.length}
         />
         <StatCard
           icon="emergency"
@@ -215,7 +233,7 @@ export function InpatientPage() {
               onChange={(e) => { setWardFilter(e.target.value); setCurrentPage(1) }}
               className="font-label-md text-label-md border border-border-subtle rounded-lg bg-surface-container-low px-sm py-1.5 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer transition-all"
             >
-              {UNIQUE_WARDS.map((w) => <option key={w}>{w}</option>)}
+              {uniqueWards.map((w) => <option key={w}>{w}</option>)}
             </select>
             <select
               value={conditionFilter}
@@ -232,7 +250,12 @@ export function InpatientPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        {loading ? (
+          <div className="flex justify-center items-center py-xl bg-surface-white">
+            <span className="material-symbols-outlined text-primary text-[32px] animate-spin">sync</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-border-subtle">
@@ -354,6 +377,7 @@ export function InpatientPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Pagination footer */}
         <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between gap-md">

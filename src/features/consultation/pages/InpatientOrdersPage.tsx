@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { InpatientPatientHeader } from '@/features/consultation/components/InpatientPatientHeader'
-import { getAdmittedPatientById, getInitialOrdersForAdmission } from '@/features/consultation/data/mockInpatientOrders'
+import { wardService } from '@/api/services/ward'
 import type {
   InpatientOrder,
   OrderStatus,
   OrderType,
 } from '@/features/consultation/types/inpatientOrders'
+
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -294,16 +295,44 @@ function IssueOrderModal({
 export function InpatientOrdersPage() {
   const { admissionId } = useParams<{ admissionId: string }>()
   const navigate = useNavigate()
-  const patient = admissionId ? getAdmittedPatientById(admissionId) : undefined
 
-  const [orders, setOrders] = useState<InpatientOrder[]>(() =>
-    admissionId ? getInitialOrdersForAdmission(admissionId).filter((o) => o.status !== 'discontinued') : [],
-  )
+  const [patient, setPatient] = useState<AdmittedPatient | null>(null)
+  const [orders, setOrders] = useState<InpatientOrder[]>([])
+  const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+
+  const loadData = async () => {
+    if (!admissionId) return
+    try {
+      const [patRes, ordRes] = await Promise.all([
+        wardService.getAdmissionDetails(admissionId),
+        wardService.getInpatientOrders(admissionId)
+      ])
+      setPatient(patRes.data.patient)
+      setOrders(ordRes.data)
+    } catch (err) {
+      console.error('Failed to load admission orders data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [admissionId])
+
+  if (loading) {
+    return (
+      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center bg-surface-white">
+        <span className="material-symbols-outlined text-primary text-[42px] animate-spin">sync</span>
+        <p className="font-body-md text-body-md text-outline mt-md">Loading patient orders...</p>
+      </div>
+    )
+  }
 
   if (!patient) {
     return (
-      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center gap-md">
+      <div className="max-w-container-max mx-auto flex flex-col items-center justify-center min-h-[400px] text-center gap-md bg-surface-white">
         <span className="material-symbols-outlined text-[64px] text-outline/40 leading-none select-none" style={{ fontVariationSettings: "'wght' 200" }}>bed</span>
         <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Admission not found</h3>
         <p className="font-body-md text-body-md text-outline max-w-sm m-0">No admission record found for ID &quot;{admissionId ?? ''}&quot;.</p>
@@ -317,12 +346,28 @@ export function InpatientOrdersPage() {
 
   const activeOrders = orders.filter((o) => o.status !== 'discontinued')
 
-  const discontinueOrder = (id: string) => {
-    setOrders((prev) => prev.filter((o) => o.id !== id))
+  const handleUpdateStatus = async (orderId: string, status: string) => {
+    try {
+      await wardService.updateOrderStatus(orderId, status)
+      loadData()
+    } catch (err) {
+      console.error('Failed to update order status:', err)
+    }
   }
 
-  const addOrder = (order: InpatientOrder) => {
-    setOrders((prev) => [...prev, { ...order, admissionId: patient.id }])
+  const addOrder = async (order: InpatientOrder) => {
+    if (!admissionId) return
+    try {
+      await wardService.issueInpatientOrder(admissionId, {
+        order_type: order.type,
+        description: order.description,
+        sub_description: order.subDescription,
+        due_label: order.dueLabel,
+      })
+      loadData()
+    } catch (err) {
+      console.error('Failed to issue new order:', err)
+    }
   }
 
   return (
@@ -418,10 +463,19 @@ export function InpatientOrdersPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-lg py-md text-right">
+                      <td className="px-lg py-md text-right whitespace-nowrap space-x-md">
+                        {order.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStatus(order.id, 'done')}
+                            className="text-success font-semibold font-label-md text-label-md hover:underline bg-transparent border-0 cursor-pointer"
+                          >
+                            Mark Done
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => discontinueOrder(order.id)}
+                          onClick={() => handleUpdateStatus(order.id, 'discontinued')}
                           className="text-error font-semibold font-label-md text-label-md hover:underline bg-transparent border-0 cursor-pointer"
                         >
                           Discontinue
