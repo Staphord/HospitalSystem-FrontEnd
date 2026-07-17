@@ -160,32 +160,9 @@ export function InpatientPage() {
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
-
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
-        <div>
-          <h1 className="font-headline-md text-headline-md text-on-surface m-0">Admitted Patients</h1>
-          <p className="font-body-sm text-body-sm text-outline mt-xs m-0">
-            Managing current inpatient assignments and critical updates.
-          </p>
-        </div>
-        <div className="flex gap-sm">
-          <button
-            type="button"
-            className="bg-surface-white border border-border-subtle px-md py-2 rounded-lg flex items-center gap-xs font-label-md text-label-md text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px] leading-none">filter_list</span>
-            Filter Views
-          </button>
-          <button
-            type="button"
-            className="bg-primary text-white px-md py-2 rounded-lg flex items-center gap-xs font-label-md text-label-md hover:opacity-90 transition-opacity border-0 cursor-pointer active:scale-95"
-          >
-            <span className="material-symbols-outlined text-[20px] leading-none">add</span>
-            Admit New Patient
-          </button>
-        </div>
-      </div>
+      <p className="font-body-sm text-body-sm text-outline m-0">
+        Managing current inpatient assignments and critical updates.
+      </p>
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-md">
