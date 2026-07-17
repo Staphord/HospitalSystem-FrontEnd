@@ -1054,12 +1054,17 @@ export function EncounterPage() {
 
   const loadEncounter = async (showLoading = true) => {
     if (!visitId) return
-    if (hasLoadedRef.current === visitId) return
+    console.log("[DEBUG] loadEncounter called. hasLoadedRef.current:", hasLoadedRef.current, "visitId:", visitId)
+    if (hasLoadedRef.current === visitId) {
+      console.log("[DEBUG] loadEncounter bypassed because already loaded.")
+      return
+    }
     hasLoadedRef.current = visitId
 
     if (showLoading) setLoading(true)
     try {
       const data = await consultationService.getEncounter(visitId)
+      console.log("[DEBUG] loadEncounter fetched data:", data.consultation.disposition)
       setEncounter(data)
       setHpc(data.consultation.history_of_presenting_illness || '')
       setExam(data.consultation.examination_findings || '')
@@ -1072,6 +1077,7 @@ export function EncounterPage() {
         else if (disp === 'referral') uiDisp = 'refer'
         else if (disp === 'return_visit') uiDisp = 'return-visit'
         if (uiDisp) {
+          console.log("[DEBUG] loadEncounter setting disposition to:", uiDisp)
           setDisposition(uiDisp)
           setConfirmedDisposition(uiDisp)
         }
@@ -1102,21 +1108,10 @@ export function EncounterPage() {
 
   const refreshEncounter = async () => {
     if (!visitId) return
+    console.log("[DEBUG] refreshEncounter called.")
     try {
       const data = await consultationService.getEncounter(visitId)
       setEncounter(data)
-      if (data.consultation.disposition) {
-        const disp = data.consultation.disposition
-        let uiDisp: DispositionType | null = null
-        if (disp === 'outpatient') uiDisp = 'discharge'
-        else if (disp === 'admission') uiDisp = 'admit'
-        else if (disp === 'referral') uiDisp = 'refer'
-        else if (disp === 'return_visit') uiDisp = 'return-visit'
-        if (uiDisp) {
-          setDisposition(uiDisp)
-          setConfirmedDisposition(uiDisp)
-        }
-      }
     } catch (err) {
       console.error("Failed to refresh encounter:", err)
     }
