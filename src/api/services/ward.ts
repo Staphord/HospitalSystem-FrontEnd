@@ -84,6 +84,16 @@ export const wardService = {
   getPatientHistory: (patientId: string) =>
     apiClient.get(`/consultation/encounters/patient/${patientId}/history`)
       .then((r) => r.data as PatientHistoryData),
+
+  /** Search patients on the consultation service */
+  searchPatients: (search: string, page = 1, pageSize = 20) =>
+    apiClient.get('/consultation/patients', { params: { search, page, page_size: pageSize } })
+      .then((r) => r.data as PatientSearchResponse),
+
+  /** Get recently visited patients */
+  getRecentPatients: (limit = 6) =>
+    apiClient.get('/consultation/patients/recent', { params: { limit } })
+      .then((r) => r.data as PatientListItem[]),
 }
 
 // ── Type for the real backend PatientHistory response ────────────────────────
@@ -135,4 +145,22 @@ export interface PatientHistoryData {
       prescriptions: Array<{ drug_name: string; dose?: string; frequency?: string; duration?: string }>
     } | null
   }>
+}
+
+export interface PatientListItem {
+  id: string
+  patient_number: string
+  full_name: string
+  date_of_birth: string
+  gender: string
+  phone_primary?: string
+  allergies?: string
+  created_at?: string
+}
+
+export interface PatientSearchResponse {
+  patients: PatientListItem[]
+  total: number
+  page: number
+  page_size: number
 }
