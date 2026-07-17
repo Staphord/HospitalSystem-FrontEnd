@@ -1056,25 +1056,27 @@ export function EncounterPage() {
 
   const orders = useMemo((): InvestigationOrder[] => {
     if (!encounter?.consultation?.investigation_requests) return []
-    return encounter.consultation.investigation_requests.map((inv): InvestigationOrder => {
-      let uiStatus: InvestigationOrder['status'] = 'requested'
-      if (inv.status === 'in_progress') uiStatus = 'in-progress'
-      else if (inv.status === 'completed') uiStatus = 'resulted'
-      
-      let uiPriority: InvestigationOrder['priority'] = 'routine'
-      if (inv.urgency === 'urgent') uiPriority = 'urgent'
-      else if (inv.urgency === 'stat') uiPriority = 'stat'
+    return encounter.consultation.investigation_requests
+      .filter((inv) => inv.status !== 'cancelled')
+      .map((inv): InvestigationOrder => {
+        let uiStatus: InvestigationOrder['status'] = 'requested'
+        if (inv.status === 'in_progress') uiStatus = 'in-progress'
+        else if (inv.status === 'completed') uiStatus = 'resulted'
+        
+        let uiPriority: InvestigationOrder['priority'] = 'routine'
+        if (inv.urgency === 'urgent') uiPriority = 'urgent'
+        else if (inv.urgency === 'stat') uiPriority = 'stat'
 
-      return {
-        id: inv.id,
-        testName: inv.test_name,
-        department: inv.request_type === 'radiology' ? 'Radiology' : 'Laboratory',
-        priority: uiPriority,
-        time: inv.requested_at ? new Date(inv.requested_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
-        status: uiStatus,
-        notes: inv.clinical_history || undefined
-      }
-    })
+        return {
+          id: inv.id,
+          testName: inv.test_name,
+          department: inv.request_type === 'radiology' ? 'Radiology' : 'Laboratory',
+          priority: uiPriority,
+          time: inv.requested_at ? new Date(inv.requested_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+          status: uiStatus,
+          notes: inv.clinical_history || undefined
+        }
+      })
   }, [encounter])
 
   const prescriptions = useMemo((): Prescription[] => {
