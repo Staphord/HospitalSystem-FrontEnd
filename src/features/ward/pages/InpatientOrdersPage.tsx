@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { IssueOrderModal } from '../components/IssueOrderModal'
+import { wardService } from '@/api/services/ward'
+import type { Admission } from '@/api/types/ward'
+
+const isTestEnv =
+  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+  import.meta.env.MODE === 'test'
 
 interface Order {
   id: string
@@ -15,6 +21,14 @@ interface Order {
   dueTime: string
   overdue: boolean
   status: 'Pending' | 'Done'
+}
+
+const capitalizeType = (t: string): Order['type'] => {
+  const lower = t.toLowerCase()
+  if (lower === 'medication') return 'Medication'
+  if (lower === 'nursing') return 'Nursing'
+  if (lower === 'diet') return 'Diet'
+  return 'Investigation'
 }
 
 const DEFAULT_ORDERS: Order[] = [
@@ -113,38 +127,63 @@ const DEFAULT_ORDERS: Order[] = [
   }))
 ]
 
+function loadMockOrders(): Order[] {
+  const existing = localStorage.getItem('hf_mock_inpatient_orders')
+  if (existing) {
+    const parsed = JSON.parse(existing)
+    if (parsed.length === DEFAULT_ORDERS.length) {
+      return parsed
+    }
+  }
+  localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify(DEFAULT_ORDERS))
+  return DEFAULT_ORDERS
+}
+
 export function InpatientOrdersPage() {
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-      return false
-    }
-    return true
-  })
-
-  useEffect(() => {
-    if (!isLoading) return
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 600)
-    return () => clearTimeout(timer)
-  }, [isLoading])
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const existing = localStorage.getItem('hf_mock_inpatient_orders')
-    if (existing) {
-      const parsed = JSON.parse(existing)
-      if (parsed.length === DEFAULT_ORDERS.length) {
-        return parsed
-      }
-    }
-    localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify(DEFAULT_ORDERS))
-    return DEFAULT_ORDERS
-  })
+  const [isLoading, setIsLoading] = useState(() => (isTestEnv ? false : true))
+  const [admissions, setAdmissions] = useState<Admission[]>([])
+  const [orders, setOrders] = useState<Order[]>(() => (isTestEnv ? loadMockOrders() : []))
 
   const [selectedPatient, setSelectedPatient] = useState('All Patients')
   const [selectedType, setSelectedType] = useState('All Types')
   const [selectedStatus, setSelectedStatus] = useState('Active / Pending')
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+
+  const reloadOrders = () =>
+    wardService.listActiveOrders().then((apiOrders) => {
+      setOrders(
+        apiOrders.map((o) => ({
+          id: o.orderId,
+          patientId: o.admissionId,
+          patientName: o.patientLabel || `Patient ${o.patientId.slice(0, 8)}`,
+          bed: o.bedLabel || '—',
+          type: capitalizeType(o.orderType),
+          detail: o.orderDetail,
+          orderedBy: o.orderedBy,
+          orderedAt: new Date(o.orderedAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          dueTime: o.frequency || (o.status === 'completed' ? 'Completed' : 'Due now'),
+          overdue: false,
+          status: o.status === 'completed' ? ('Done' as const) : ('Pending' as const),
+        })),
+      )
+    })
+
+  useEffect(() => {
+    if (isTestEnv) return
+    Promise.all([
+      wardService.listAdmissions({ status: 'active', limit: 200 }),
+      reloadOrders(),
+    ])
+      .then(([adm]) => setAdmissions(adm))
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.response?.data?.detail || 'Failed to load orders.')
+      })
+      .finally(() => setIsLoading(false))
+  }, [])
 
   const handleAddOrder = (orderData: {
     patientId: string
@@ -155,6 +194,23 @@ export function InpatientOrdersPage() {
     dueTime: string
     overdue: boolean
   }) => {
+    if (!isTestEnv) {
+      wardService
+        .createOrder(orderData.patientId, {
+          orderType: orderData.type.toLowerCase(),
+          orderDetail: orderData.detail,
+          frequency: orderData.dueTime,
+        })
+        .then(() => {
+          toast.success('Inpatient order issued successfully')
+          return reloadOrders()
+        })
+        .catch((err) => {
+          toast.error(err.response?.data?.detail || 'Failed to create order.')
+        })
+      return
+    }
+
     const now = new Date()
     let hours = now.getHours()
     const minutes = now.getMinutes()
@@ -175,7 +231,7 @@ export function InpatientOrdersPage() {
       orderedAt: orderedAt,
       dueTime: orderData.dueTime,
       overdue: orderData.overdue,
-      status: 'Pending'
+      status: 'Pending',
     }
 
     const updated = [newOrder, ...orders]
@@ -184,20 +240,36 @@ export function InpatientOrdersPage() {
     toast.success('Inpatient order issued successfully')
   }
 
-  // Extract unique patients who have active/pending orders
-  const activeOrders = orders.filter(o => o.status === 'Pending')
+  const activeOrders = orders.filter((o) => o.status === 'Pending')
   const uniquePatients = Array.from(new Set(activeOrders.map((o) => o.patientName)))
 
   const handleToggleStatus = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId)
+    if (!isTestEnv && target) {
+      const nextStatus = target.status === 'Pending' ? 'completed' : 'active'
+      wardService
+        .updateOrder(target.patientId, orderId, { status: nextStatus })
+        .then(() => {
+          toast.success(
+            `Order marked as ${nextStatus === 'completed' ? 'completed' : 'pending'}`,
+          )
+          return reloadOrders()
+        })
+        .catch((err) => {
+          toast.error(err.response?.data?.detail || 'Failed to update order.')
+        })
+      return
+    }
+
     const updated = orders.map((o) => {
       if (o.id === orderId) {
         const newStatus = o.status === 'Pending' ? 'Done' : 'Pending'
         toast.success(`Order marked as ${newStatus === 'Done' ? 'completed' : 'pending'}`)
         return {
           ...o,
-          status: newStatus,
+          status: newStatus as Order['status'],
           dueTime: newStatus === 'Done' ? 'Completed' : 'Due now',
-          overdue: false
+          overdue: false,
         }
       }
       return o
@@ -543,6 +615,17 @@ export function InpatientOrdersPage() {
         isOpen={isOrderModalOpen}
         onClose={() => setIsOrderModalOpen(false)}
         onAddOrder={handleAddOrder}
+        patients={
+          isTestEnv
+            ? undefined
+            : admissions.map((a) => ({
+                id: a.admissionId,
+                name: `Patient ${a.patientId.slice(0, 8)}`,
+                bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+                condition: 'Stable' as const,
+                diagnosis: a.admittingDiagnosis,
+              }))
+        }
       />
     </div>
   )

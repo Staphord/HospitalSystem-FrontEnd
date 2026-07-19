@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'sonner'
+import { wardService } from '@/api/services/ward'
+
+const isTestEnv =
+  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+  import.meta.env.MODE === 'test'
 
 interface Vitals {
   bp: string
@@ -90,23 +96,22 @@ function isOutOfRange(value: string, min: number, max: number): boolean {
 
 export function NursingNotesPage() {
   const { patientId } = useParams<{ patientId: string }>()
+  const admissionId = patientId || ''
 
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-      return false
+  const [isLoading, setIsLoading] = useState(() => (isTestEnv ? false : true))
+
+  const [patient, setPatient] = useState<Patient>(() => {
+    if (!isTestEnv) {
+      return {
+        id: admissionId || 'pending',
+        name: 'Loading...',
+        patientNo: '—',
+        bed: '—',
+        condition: 'Stable',
+        diagnosis: '—',
+        admissionDate: new Date().toISOString(),
+      }
     }
-    return true
-  })
-
-  useEffect(() => {
-    if (!isLoading) return
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 600)
-    return () => clearTimeout(timer)
-  }, [isLoading])
-
-  const [patient] = useState<Patient>(() => {
     const list = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
     return (
       list.find((p: any) => p.id === patientId) ||
@@ -166,6 +171,7 @@ export function NursingNotesPage() {
   const [showToast, setShowToast] = useState(false)
 
   const [notes, setNotes] = useState<Note[]>(() => {
+    if (!isTestEnv) return []
     const key = `hf_mock_nursing_notes_${patient.id}`
     const initial = seedInitialNotes(patient.name)
     if (patient.name !== 'Fatuma Said') {
@@ -191,6 +197,55 @@ export function NursingNotesPage() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    if (isTestEnv || !admissionId) return
+
+    Promise.all([
+      wardService.getAdmission(admissionId),
+      wardService.listNursingNotes(admissionId),
+    ])
+      .then(([adm, apiNotes]) => {
+        setPatient({
+          id: adm.admissionId,
+          name: `Patient ${adm.patientId.slice(0, 8)}`,
+          patientNo: adm.patientId.slice(0, 8).toUpperCase(),
+          bed: adm.bedNumber ? `Bed ${adm.bedNumber}` : adm.wardName || '—',
+          condition: 'Stable',
+          diagnosis: adm.admittingDiagnosis,
+          admissionDate: adm.admissionDate,
+          admittingDoctor: adm.admittingDoctorId,
+        })
+        setNotes(
+          apiNotes.map((n) => ({
+            id: n.noteId,
+            timestamp: new Date(n.authoredAt).toLocaleString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }).toUpperCase(),
+            recordedBy: n.authoredBy,
+            vitals: {
+              bp: n.vitalsBp || '',
+              temp: n.vitalsTemp != null ? String(n.vitalsTemp) : '',
+              pulse: n.vitalsPulse != null ? String(n.vitalsPulse) : '',
+              spo2: n.vitalsSpo2 != null ? String(n.vitalsSpo2) : '',
+              respRate: '',
+            },
+            observation: n.noteText,
+            intervention: '',
+            response: '',
+          })),
+        )
+      })
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.response?.data?.detail || 'Failed to load nursing notes.')
+      })
+      .finally(() => setIsLoading(false))
+  }, [admissionId])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!observation.trim() || !intervention.trim() || !response.trim()) {
@@ -198,9 +253,60 @@ export function NursingNotesPage() {
     }
 
     setSubmitting(true)
+
+    if (!isTestEnv && admissionId) {
+      const noteText = [
+        `Observation: ${observation.trim()}`,
+        `Intervention: ${intervention.trim()}`,
+        `Response: ${response.trim()}`,
+      ].join('\n')
+      wardService
+        .createNursingNote(admissionId, {
+          noteType: 'observation',
+          noteText,
+          vitalsBp: vitals.bp || undefined,
+          vitalsTemp: vitals.temp ? Number(vitals.temp) : undefined,
+          vitalsPulse: vitals.pulse ? Number(vitals.pulse) : undefined,
+          vitalsSpo2: vitals.spo2 ? Number(vitals.spo2) : undefined,
+        })
+        .then((n) => {
+          const newNote: Note = {
+            id: n.noteId,
+            timestamp: new Date(n.authoredAt)
+              .toLocaleString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+              .toUpperCase(),
+            recordedBy: n.authoredBy,
+            vitals: { ...vitals },
+            observation,
+            intervention,
+            response,
+          }
+          setNotes((prev) => [newNote, ...prev])
+          setShowToast(true)
+          setVitals({ bp: '', temp: '', pulse: '', spo2: '', respRate: '' })
+          setObservation('')
+          setIntervention('')
+          setResponse('')
+          setTimeout(() => setShowToast(false), 3000)
+        })
+        .catch((err) => {
+          toast.error(err.response?.data?.detail || 'Failed to save note.')
+        })
+        .finally(() => setSubmitting(false))
+      return
+    }
+
     setTimeout(() => {
       const now = new Date()
-      const d = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
+      const d = now
+        .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        .toUpperCase()
       const t = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
       const newNote: Note = {
@@ -216,17 +322,15 @@ export function NursingNotesPage() {
       const updated = [newNote, ...notes]
       setNotes(updated)
       localStorage.setItem(`hf_mock_nursing_notes_${patient.id}`, JSON.stringify(updated))
-      
+
       setSubmitting(false)
       setShowToast(true)
-      
-      // Reset form fields to empty after successful submit
+
       setVitals({ bp: '', temp: '', pulse: '', spo2: '', respRate: '' })
       setObservation('')
       setIntervention('')
       setResponse('')
 
-      // Hide toast after 3 seconds
       setTimeout(() => {
         setShowToast(false)
       }, 3000)

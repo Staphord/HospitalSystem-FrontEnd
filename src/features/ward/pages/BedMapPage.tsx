@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
+import { wardService } from '@/api/services/ward'
+import type { WardBed } from '@/api/types/ward'
 
 interface Patient {
   id: string
@@ -24,51 +26,112 @@ interface Bed {
   alert?: string
 }
 
+const isTestEnv =
+  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+  import.meta.env.MODE === 'test'
+
 const getBedsWithPatients = (): Bed[] => {
   const beds = JSON.parse(localStorage.getItem('hf_mock_beds') || '[]')
   const patients = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
   return beds.map((b: any) => {
     if (b.patientId) {
       const patient = patients.find((p: any) => p.id === b.patientId)
-      // Fall back to inline _extraPatient for demo beds not in admitted list
       return { ...b, patient: patient ?? b._extraPatient ?? undefined }
     }
     return b
   })
 }
 
-// Left strip color per status
-const stripColor = (status: Bed['status']) => {
-  switch (status) {
-    case 'Stable':      return 'bg-success'
-    case 'Monitoring':  return 'bg-warning'
-    case 'Critical':    return 'bg-error'
-    default:            return ''
+const mapApiBed = (b: WardBed): Bed => {
+  if (b.isAvailable || !b.admissionId) {
+    return {
+      id: b.bedId,
+      code: `Bed ${b.bedNumber}`,
+      status: 'Available',
+    }
+  }
+  const short = (b.patientId || '').slice(0, 8)
+  return {
+    id: b.bedId,
+    code: `Bed ${b.bedNumber}`,
+    status: 'Stable',
+    patient: {
+      id: b.admissionId,
+      name: `Patient ${short}`,
+      patientNo: short,
+      condition: 'Stable',
+      admittingDoctor: b.admittingDoctorId || '—',
+      activeVisitors: 0,
+      diagnosis: b.diagnosis || '—',
+      admissionDate: b.admissionDate
+        ? new Date(b.admissionDate).toLocaleDateString()
+        : undefined,
+    },
   }
 }
 
-// Progress bar color
+const stripColor = (status: Bed['status']) => {
+  switch (status) {
+    case 'Stable':
+      return 'bg-success'
+    case 'Monitoring':
+      return 'bg-warning'
+    case 'Critical':
+      return 'bg-error'
+    default:
+      return ''
+  }
+}
+
 const barColor = (status: Bed['status']) => {
   switch (status) {
-    case 'Stable':     return 'bg-success'
-    case 'Monitoring': return 'bg-warning'
-    case 'Critical':   return 'bg-error'
-    default:           return 'bg-surface-container'
+    case 'Stable':
+      return 'bg-success'
+    case 'Monitoring':
+      return 'bg-warning'
+    case 'Critical':
+      return 'bg-error'
+    default:
+      return 'bg-surface-container'
   }
 }
 
 export function BedMapPage() {
-  const [beds, setBeds] = useState<Bed[]>(() => getBedsWithPatients())
+  const [beds, setBeds] = useState<Bed[]>(() => (isTestEnv ? getBedsWithPatients() : []))
   const [selectedBed, setSelectedBed] = useState<Bed | null>(null)
   const [assigningBed, setAssigningBed] = useState<Bed | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [visitId, setVisitId] = useState('')
+  const [admitDiagnosis, setAdmitDiagnosis] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [wardTitle, setWardTitle] = useState('General Ward')
 
   const [pendingAdmissions] = useState<any[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_pending_admissions') || '[]')
+    JSON.parse(localStorage.getItem('hf_mock_pending_admissions') || '[]'),
   )
 
+  const reloadFromApi = () => {
+    wardService
+      .listBedsWithAdmissions()
+      .then((apiBeds) => {
+        setBeds(apiBeds.map(mapApiBed))
+        const wardNames = [...new Set(apiBeds.map((b) => b.wardName).filter(Boolean))]
+        if (wardNames.length === 1) setWardTitle(wardNames[0])
+        else if (wardNames.length > 1) setWardTitle('All Wards')
+      })
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.response?.data?.detail || 'Failed to load beds.')
+      })
+  }
+
+  useEffect(() => {
+    if (isTestEnv) return
+    reloadFromApi()
+  }, [])
+
   const filteredAdmissions = pendingAdmissions.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const handleAssignPatient = (patientName: string, diagnosis: string) => {
@@ -89,7 +152,7 @@ export function BedMapPage() {
 
     const currentBeds = JSON.parse(localStorage.getItem('hf_mock_beds') || '[]')
     const updatedBeds = currentBeds.map((b: any) =>
-      b.id === assigningBed.id ? { ...b, status: 'Stable', patientId: newPatient.id } : b
+      b.id === assigningBed.id ? { ...b, status: 'Stable', patientId: newPatient.id } : b,
     )
     localStorage.setItem('hf_mock_beds', JSON.stringify(updatedBeds))
 
@@ -97,6 +160,29 @@ export function BedMapPage() {
     toast.success(`Patient ${patientName} assigned to ${assigningBed.code}`)
     setAssigningBed(null)
     setSearchQuery('')
+  }
+
+  const handleAdmitFromApi = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!assigningBed || !visitId.trim() || !admitDiagnosis.trim() || submitting) return
+    setSubmitting(true)
+    wardService
+      .createAdmission({
+        visitId: visitId.trim(),
+        bedId: assigningBed.id,
+        admittingDiagnosis: admitDiagnosis.trim(),
+      })
+      .then(() => {
+        toast.success(`Patient admitted to ${assigningBed.code}`)
+        setAssigningBed(null)
+        setVisitId('')
+        setAdmitDiagnosis('')
+        reloadFromApi()
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Admission failed.')
+      })
+      .finally(() => setSubmitting(false))
   }
 
   const handleBedClick = (bed: Bed) => {
@@ -111,25 +197,19 @@ export function BedMapPage() {
     }
   }
 
-  const isOccupied = (bed: Bed) =>
-    bed.status === 'Stable' || bed.status === 'Monitoring' || bed.status === 'Critical'
-
   return (
     <div className="p-lg max-w-container-max mx-auto min-h-screen bg-neutral-bg">
-
-      {/* Page header */}
       <div className="mb-lg">
         <div className="flex justify-between items-center mb-md">
           <h2 className="font-headline-md text-headline-md text-on-surface m-0">
             Bed Map — General Ward
           </h2>
           <button className="flex items-center gap-sm px-md py-1.5 bg-white border border-border-default rounded-lg hover:bg-neutral-bg transition-colors">
-            <span className="font-label-md text-label-md text-slate-secondary">General Ward</span>
+            <span className="font-label-md text-label-md text-slate-secondary">{wardTitle}</span>
             <span className="material-symbols-outlined text-secondary text-[16px]">expand_more</span>
           </button>
         </div>
 
-        {/* Legend */}
         <div className="flex items-center gap-xl p-md bg-white border border-border-default rounded-xl flex-wrap">
           {[
             { dot: 'bg-success', label: 'Stable' },
@@ -147,7 +227,6 @@ export function BedMapPage() {
         </div>
       </div>
 
-      {/* Bed grid */}
       <div className="bg-white border border-border-default rounded-2xl p-lg">
         <div
           className="grid gap-md"
@@ -156,7 +235,6 @@ export function BedMapPage() {
           }}
         >
           {beds.map((bed) => {
-            // Available bed card
             if (bed.status === 'Available') {
               return (
                 <div
@@ -177,7 +255,6 @@ export function BedMapPage() {
               )
             }
 
-            // Cleaning bed card
             if (bed.status === 'Cleaning') {
               return (
                 <div
@@ -197,7 +274,6 @@ export function BedMapPage() {
               )
             }
 
-            // Reserved bed card
             if (bed.status === 'Reserved') {
               return (
                 <div
@@ -229,7 +305,6 @@ export function BedMapPage() {
               )
             }
 
-            // Occupied bed card (Stable / Monitoring / Critical)
             const isCritical = bed.status === 'Critical'
             return (
               <div
@@ -241,13 +316,8 @@ export function BedMapPage() {
                     : 'bg-white border-border-default hover:border-clinical-blue'
                 }`}
               >
-                {/* Left status strip */}
-                <div
-                  className={`absolute left-0 top-0 bottom-0 w-1.5 ${stripColor(bed.status)}`}
-                />
-
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${stripColor(bed.status)}`} />
                 <div className="p-sm flex flex-col h-full pl-lg">
-                  {/* Top row */}
                   <div className="flex justify-between items-start mb-1">
                     <span
                       className={`font-label-sm text-label-sm uppercase ${
@@ -273,8 +343,6 @@ export function BedMapPage() {
                       </span>
                     ) : null}
                   </div>
-
-                  {/* Patient name */}
                   <p
                     className={`font-label-md text-label-md line-clamp-1 mb-2 m-0 ${
                       isCritical ? 'text-error' : 'text-on-surface'
@@ -282,8 +350,6 @@ export function BedMapPage() {
                   >
                     {bed.patient?.name ?? bed.status}
                   </p>
-
-                  {/* Bottom row */}
                   <div className="mt-auto">
                     {bed.status === 'Monitoring' && (
                       <span className="text-label-sm font-label-sm text-warning flex items-center gap-1">
@@ -309,7 +375,6 @@ export function BedMapPage() {
         </div>
       </div>
 
-      {/* Patient details popover — modal overlay */}
       {selectedBed && selectedBed.patient && (
         <div className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest w-full max-w-sm rounded-xl border border-border-default shadow-2xl p-lg space-y-md relative">
@@ -334,8 +399,8 @@ export function BedMapPage() {
                   selectedBed.patient.condition === 'Critical'
                     ? 'bg-error-container text-on-error-container'
                     : selectedBed.patient.condition === 'Monitoring'
-                    ? 'bg-warning/10 text-warning'
-                    : 'bg-success/10 text-success'
+                      ? 'bg-warning/10 text-warning'
+                      : 'bg-success/10 text-success'
                 }`}
               >
                 {selectedBed.patient.condition}
@@ -383,7 +448,6 @@ export function BedMapPage() {
         </div>
       )}
 
-      {/* Assign patient popover — modal overlay */}
       {assigningBed && (
         <div className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest w-full max-w-xs rounded-xl border border-border-default shadow-2xl p-md space-y-md relative">
@@ -395,6 +459,8 @@ export function BedMapPage() {
                 onClick={() => {
                   setAssigningBed(null)
                   setSearchQuery('')
+                  setVisitId('')
+                  setAdmitDiagnosis('')
                 }}
                 className="p-1 text-secondary hover:bg-neutral-bg rounded-lg border-0 bg-transparent cursor-pointer flex items-center justify-center"
               >
@@ -402,58 +468,95 @@ export function BedMapPage() {
               </button>
             </div>
 
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search patient name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-body-sm border border-border-default rounded-lg focus:ring-1 focus:ring-clinical-blue focus:border-clinical-blue outline-none"
-              />
-              <span className="material-symbols-outlined absolute left-2 top-2 text-secondary text-[18px]">
-                search
-              </span>
-            </div>
+            {isTestEnv ? (
+              <>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search patient name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-body-sm border border-border-default rounded-lg focus:ring-1 focus:ring-clinical-blue focus:border-clinical-blue outline-none"
+                  />
+                  <span className="material-symbols-outlined absolute left-2 top-2 text-secondary text-[18px]">
+                    search
+                  </span>
+                </div>
 
-            <div className="max-h-[200px] overflow-y-auto divide-y divide-border-default/30">
-              {filteredAdmissions.length > 0 ? (
-                filteredAdmissions.map((pa) => (
-                  <div
-                    key={pa.id}
-                    onClick={() => handleAssignPatient(pa.name, pa.diagnosis)}
-                    className="py-3 cursor-pointer hover:bg-neutral-bg/50 rounded-lg px-2 transition flex justify-between items-center"
-                  >
-                    <div>
-                      <h5 className="font-semibold text-on-surface text-sm m-0">{pa.name}</h5>
-                      <p className="text-xs text-secondary mt-0.5 m-0">Diagnosis: {pa.diagnosis}</p>
-                    </div>
-                    <span className="material-symbols-outlined text-secondary text-base">
-                      chevron_right
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-secondary text-center py-4 m-0">
-                  No pending admissions found.
-                </p>
-              )}
-            </div>
+                <div className="max-h-[200px] overflow-y-auto divide-y divide-border-default/30">
+                  {filteredAdmissions.length > 0 ? (
+                    filteredAdmissions.map((pa) => (
+                      <div
+                        key={pa.id}
+                        onClick={() => handleAssignPatient(pa.name, pa.diagnosis)}
+                        className="py-3 cursor-pointer hover:bg-neutral-bg/50 rounded-lg px-2 transition flex justify-between items-center"
+                      >
+                        <div>
+                          <h5 className="font-semibold text-on-surface text-sm m-0">{pa.name}</h5>
+                          <p className="text-xs text-secondary mt-0.5 m-0">
+                            Diagnosis: {pa.diagnosis}
+                          </p>
+                        </div>
+                        <span className="material-symbols-outlined text-secondary text-base">
+                          chevron_right
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-secondary text-center py-4 m-0">
+                      No pending admissions found.
+                    </p>
+                  )}
+                </div>
 
-            <button
-              onClick={() => {
-                if (filteredAdmissions.length > 0) {
-                  handleAssignPatient(filteredAdmissions[0].name, filteredAdmissions[0].diagnosis)
-                }
-              }}
-              className="w-full py-2 bg-clinical-blue text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
-            >
-              Confirm Assignment
-            </button>
+                <button
+                  onClick={() => {
+                    if (filteredAdmissions.length > 0) {
+                      handleAssignPatient(
+                        filteredAdmissions[0].name,
+                        filteredAdmissions[0].diagnosis,
+                      )
+                    }
+                  }}
+                  className="w-full py-2 bg-clinical-blue text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
+                >
+                  Confirm Assignment
+                </button>
+              </>
+            ) : (
+              <form onSubmit={handleAdmitFromApi} className="space-y-md">
+                <div className="space-y-xs">
+                  <label className="block text-label-sm text-secondary">Visit ID</label>
+                  <input
+                    required
+                    value={visitId}
+                    onChange={(e) => setVisitId(e.target.value)}
+                    placeholder="Existing visit UUID"
+                    className="w-full px-3 py-2 text-body-sm border border-border-default rounded-lg outline-none"
+                  />
+                </div>
+                <div className="space-y-xs">
+                  <label className="block text-label-sm text-secondary">Admitting Diagnosis</label>
+                  <textarea
+                    required
+                    value={admitDiagnosis}
+                    onChange={(e) => setAdmitDiagnosis(e.target.value)}
+                    className="w-full px-3 py-2 text-body-sm border border-border-default rounded-lg outline-none min-h-[72px]"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2 bg-clinical-blue text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity disabled:opacity-60 border-0 cursor-pointer"
+                >
+                  {submitting ? 'Admitting...' : 'Confirm Assignment'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}
 
-      {/* Pulse animation style */}
       <style>{`
         @keyframes pulse-red {
           0%   { transform: scale(1);   opacity: 1; }

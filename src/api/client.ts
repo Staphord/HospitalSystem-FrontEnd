@@ -836,6 +836,9 @@ apiClient.defaults.adapter = async (config) => {
   }
 
   const useRealBackend =
+    url.startsWith('/admin/') ||
+    url.startsWith('/ward/') ||
+    url.startsWith('/reports/') ||
     url.includes('/auth/login') ||
     url.includes('/auth/superadmin/login') ||
     url.includes('/auth/signup') ||
