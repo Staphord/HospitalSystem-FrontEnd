@@ -315,7 +315,11 @@ export function ConsultationQueuePage() {
 
       let effectiveStatus = item.queue_status
       if (item.queue_status !== 'completed' && item.queue_status !== 'skipped') {
-        if (item.visit_status === 'in_consultation' || item.visit_status === 'awaiting_results') {
+        if (
+          item.visit_status === 'in_consultation' ||
+          item.visit_status === 'awaiting_results' ||
+          item.visit_status === 'results_ready'
+        ) {
           effectiveStatus = 'in_progress'
         }
       }
@@ -503,8 +507,12 @@ export function ConsultationQueuePage() {
                   let btnColorClass = cfg.buttonClass
 
                   if (entry.status === 'in_progress') {
-                    if (entry.visitStatus === 'awaiting_results') {
-                      if (entry.pendingInvestigationsCount === 0 && (entry.completedInvestigationsCount ?? 0) > 0) {
+                    const isResultsReady =
+                      entry.visitStatus === 'results_ready' ||
+                      (entry.pendingInvestigationsCount === 0 && (entry.completedInvestigationsCount ?? 0) > 0)
+
+                    if (entry.visitStatus === 'awaiting_results' || isResultsReady) {
+                      if (isResultsReady) {
                         statusBadgeText = 'Results Ready'
                         statusBadgeClass = 'bg-success/15 text-success border-success/30 font-bold animate-pulse'
                         btnLabel = 'Review Results'

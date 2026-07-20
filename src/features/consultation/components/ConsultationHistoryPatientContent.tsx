@@ -228,19 +228,45 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
               </p>
             ) : (
               <div className="space-y-sm">
-                {c.investigation_requests.map((inv, i) => (
-                  <div key={i} className="bg-surface-container-low p-md rounded-lg">
-                    <div className="flex items-center justify-between mb-xs">
+                {c.investigation_requests.map((inv: any, i) => (
+                  <div key={i} className="bg-surface-container-low p-md rounded-lg space-y-xs">
+                    <div className="flex items-center justify-between">
                       <span className="font-body-sm text-body-sm font-semibold text-on-surface">{inv.test_name}</span>
                       <span className={`font-label-sm text-label-sm px-xs py-0.5 rounded capitalize ${
-                        inv.status === 'completed' ? 'bg-success/10 text-success'
-                        : inv.status === 'pending' ? 'bg-warning/10 text-warning'
+                        inv.status === 'completed' || inv.result ? 'bg-success/10 text-success font-bold'
+                        : inv.status === 'pending' ? 'bg-warning/10 text-warning font-bold'
                         : 'bg-surface-container text-outline'
-                      }`}>{inv.status}</span>
+                      }`}>{inv.status === 'completed' || inv.result ? 'Results Ready' : inv.status}</span>
                     </div>
                     <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
                       {inv.request_type} {inv.created_at ? `· ${fmtDate(inv.created_at)}` : ''}
                     </p>
+                    {inv.result && (
+                      <div className="mt-xs p-sm bg-surface-white rounded border border-border-subtle text-body-sm space-y-xs">
+                        {inv.result.result_value && (
+                          <div className="font-bold text-primary">
+                            Result: {inv.result.result_value} {inv.result.unit || ''}
+                            {inv.result.reference_range && (
+                              <span className="font-normal text-secondary text-xs ml-2">(Ref: {inv.result.reference_range})</span>
+                            )}
+                          </div>
+                        )}
+                        {inv.result.is_critical && (
+                          <div className="text-error font-bold text-xs flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">warning</span> Critical Result
+                          </div>
+                        )}
+                        {inv.result.impression && (
+                          <div className="font-medium text-on-surface">Impression: {inv.result.impression}</div>
+                        )}
+                        {inv.result.findings && (
+                          <div className="text-xs text-secondary">Findings: {inv.result.findings}</div>
+                        )}
+                        {inv.result.result_notes && (
+                          <div className="text-xs text-secondary italic">{inv.result.result_notes}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

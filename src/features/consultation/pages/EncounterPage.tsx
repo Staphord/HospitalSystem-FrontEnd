@@ -31,6 +31,20 @@ interface InvestigationOrder {
   time: string
   status: 'requested' | 'in-progress' | 'resulted'
   notes?: string
+  result?: {
+    result_id?: string
+    report_id?: string
+    result_value?: string
+    unit?: string
+    reference_range?: string
+    is_critical?: boolean
+    result_notes?: string
+    findings?: string
+    impression?: string
+    status?: string
+    resulted_at?: string
+    reported_at?: string
+  } | null
 }
 
 interface Prescription {
@@ -1080,6 +1094,108 @@ function DispositionContent({
   )
 }
 
+function OrderResultDetailModal({
+  order,
+  onClose,
+}: {
+  order: InvestigationOrder
+  onClose: () => void
+}) {
+  const r = order.result
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-on-background/40 backdrop-blur-sm p-md"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-white rounded-xl border border-border-subtle shadow-lg w-full max-w-[520px] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-md border-b border-border-subtle flex justify-between items-center bg-background/50">
+          <div className="flex items-center gap-sm">
+            <span className="material-symbols-outlined text-primary">biotech</span>
+            <div>
+              <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">{order.testName}</h3>
+              <p className="font-body-xs text-body-xs text-secondary m-0">
+                {order.department} · Requested at {order.time}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-secondary hover:text-on-surface border-0 bg-transparent cursor-pointer p-0"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div className="p-lg space-y-md">
+          {r?.is_critical && (
+            <div className="bg-error/10 border border-error/30 p-sm rounded-lg flex items-center gap-sm text-error font-bold text-body-sm">
+              <span className="material-symbols-outlined text-[20px]">warning</span>
+              CRITICAL RESULT ALERT
+            </div>
+          )}
+
+          {r?.result_value && (
+            <div className="bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <span className="font-label-sm text-label-sm text-secondary uppercase block mb-xs">Result Value</span>
+              <span className="font-headline-sm text-headline-sm text-primary font-bold">
+                {r.result_value} {r.unit || ''}
+              </span>
+              {r.reference_range && (
+                <span className="block font-body-xs text-body-xs text-secondary mt-xs">
+                  Reference Range: {r.reference_range}
+                </span>
+              )}
+            </div>
+          )}
+
+          {r?.impression && (
+            <div className="bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <span className="font-label-sm text-label-sm text-secondary uppercase block mb-xs">Radiology Impression</span>
+              <p className="font-body-sm text-body-sm text-on-surface m-0 font-medium">{r.impression}</p>
+            </div>
+          )}
+
+          {r?.findings && (
+            <div className="bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <span className="font-label-sm text-label-sm text-secondary uppercase block mb-xs">Findings</span>
+              <p className="font-body-sm text-body-sm text-on-surface m-0 whitespace-pre-wrap">{r.findings}</p>
+            </div>
+          )}
+
+          {r?.result_notes && (
+            <div className="bg-surface-container-low p-md rounded-lg border border-border-subtle">
+              <span className="font-label-sm text-label-sm text-secondary uppercase block mb-xs">Clinical / Lab Notes</span>
+              <p className="font-body-sm text-body-sm text-on-surface m-0 italic">{r.result_notes}</p>
+            </div>
+          )}
+
+          {!r?.result_value && !r?.findings && !r?.impression && (
+            <p className="font-body-sm text-body-sm text-secondary italic text-center py-md">
+              No detailed result parameters recorded.
+            </p>
+          )}
+        </div>
+
+        <div className="p-md bg-surface-container-low border-t border-border-subtle flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-primary text-white rounded-lg font-label-md hover:bg-primary-container border-0 cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function EncounterPage() {
@@ -1106,6 +1222,8 @@ export function EncounterPage() {
   const [showAddOrder, setShowAddOrder] = useState(false)
   const [showAddMedication, setShowAddMedication] = useState(false)
   const [isDiagnosisSaving, setIsDiagnosisSaving] = useState(false)
+  const [viewingOrderResult, setViewingOrderResult] = useState<InvestigationOrder | null>(null)
+
 
   // §6 Disposition
   const [disposition, setDisposition] = useState<DispositionType | null>(null)
@@ -1270,8 +1388,11 @@ export function EncounterPage() {
       .filter((inv) => inv.status !== 'cancelled')
       .map((inv): InvestigationOrder => {
         let uiStatus: InvestigationOrder['status'] = 'requested'
-        if (inv.status === 'in_progress') uiStatus = 'in-progress'
-        else if (inv.status === 'completed') uiStatus = 'resulted'
+        if (inv.result || inv.status === 'completed') {
+          uiStatus = 'resulted'
+        } else if (inv.status === 'in_progress' || inv.status === 'specimen_collected') {
+          uiStatus = 'in-progress'
+        }
         
         let uiPriority: InvestigationOrder['priority'] = 'routine'
         if (inv.urgency === 'urgent') uiPriority = 'urgent'
@@ -1284,7 +1405,8 @@ export function EncounterPage() {
           priority: uiPriority,
           time: inv.created_at ? new Date(inv.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
           status: uiStatus,
-          notes: inv.clinical_history || undefined
+          notes: inv.clinical_history || undefined,
+          result: inv.result,
         }
       })
   }, [encounter])
@@ -1750,20 +1872,60 @@ export function EncounterPage() {
                     <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Department</th>
                     <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Priority</th>
                     <th className="py-2 font-label-sm text-label-sm text-outline uppercase tracking-wider">Requested At</th>
-                    <th className="py-2 text-right font-label-sm text-label-sm text-outline uppercase tracking-wider">Status</th>
+                    <th className="py-2 text-right font-label-sm text-label-sm text-outline uppercase tracking-wider">Status & Results</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((o) => (
                     <tr key={o.id} className="border-b border-border-subtle hover:bg-hover-tint/30 transition-colors">
-                      <td className="py-3 font-body-sm text-body-sm font-semibold text-on-surface">{o.testName}</td>
+                      <td className="py-3 font-body-sm text-body-sm font-semibold text-on-surface">
+                        <div>{o.testName}</div>
+                        {o.result && (
+                          <div className="text-[12px] font-normal text-on-surface mt-1 p-2 rounded-lg bg-surface-container-low border border-border-subtle space-y-0.5">
+                            {o.result.result_value && (
+                              <div className="font-bold text-primary">
+                                Result: {o.result.result_value} {o.result.unit || ''}
+                                {o.result.reference_range && (
+                                  <span className="font-normal text-secondary text-[11px] ml-2">
+                                    (Ref: {o.result.reference_range})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {o.result.is_critical && (
+                              <div className="text-error font-bold text-[11px] flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[14px]">warning</span> CRITICAL RESULT
+                              </div>
+                            )}
+                            {o.result.impression && (
+                              <div className="font-medium text-on-surface">
+                                Impression: {o.result.impression}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3 font-body-sm text-body-sm text-secondary">{o.department}</td>
                       <td className="py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded font-bold text-[10px] uppercase ${ORDER_PRIORITY_BADGE[o.priority]}`}>{o.priority}</span>
                       </td>
                       <td className="py-3 font-body-sm text-body-sm text-secondary">{o.time}</td>
                       <td className="py-3 text-right">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-tighter ${STATUS_BADGE[o.status]}`}>{o.status}</span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-tighter ${STATUS_BADGE[o.status]}`}>
+                            {o.status === 'resulted' ? 'Results Ready' : o.status}
+                          </span>
+                          {o.result && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingOrderResult(o)}
+                              className="text-primary hover:underline text-[12px] font-semibold border-0 bg-transparent cursor-pointer p-0 flex items-center gap-0.5"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">visibility</span>
+                              View Details
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1893,6 +2055,12 @@ export function EncounterPage() {
         <AddMedicationModal
           onClose={() => setShowAddMedication(false)}
           onAdd={handleAddPrescription}
+        />
+      )}
+      {viewingOrderResult && (
+        <OrderResultDetailModal
+          order={viewingOrderResult}
+          onClose={() => setViewingOrderResult(null)}
         />
       )}
     </div>
