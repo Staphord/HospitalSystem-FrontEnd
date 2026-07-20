@@ -313,6 +313,13 @@ export function ConsultationQueuePage() {
           ? 'stable' 
           : 'normal'
 
+      let effectiveStatus = item.queue_status
+      if (item.queue_status !== 'completed' && item.queue_status !== 'skipped') {
+        if (item.visit_status === 'in_consultation' || item.visit_status === 'awaiting_results') {
+          effectiveStatus = 'in_progress'
+        }
+      }
+
       return {
         id: item.visit_id,
         name: item.full_name,
@@ -321,7 +328,7 @@ export function ConsultationQueuePage() {
         priority: uiPriority,
         waitTime: `${item.wait_time_minutes} min`,
         vitals: vitalsVal,
-        status: item.queue_status,
+        status: effectiveStatus,
         visitStatus: item.visit_status,
         pendingInvestigationsCount: item.pending_investigations_count,
         completedInvestigationsCount: item.completed_investigations_count,
