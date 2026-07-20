@@ -87,6 +87,24 @@ export interface LabBillCreateInput {
   description: string
 }
 
+export interface BackendTrackedSpecimenItem {
+  specimen_id: string
+  request_id: string
+  patient_id: string
+  patient_name: string
+  patient_number: string
+  test_name: string
+  urgency: 'stat' | 'urgent' | 'routine'
+  specimen_type: string
+  collection_site?: string
+  specimen_label?: string
+  collected_by_name?: string
+  collected_at: string
+  received_at?: string
+  status: 'collected' | 'received' | 'processing' | 'completed' | 'rejected'
+  rejection_reason?: string
+}
+
 export const laboratoryService = {
   getRequests: (params?: { status?: string; urgency?: string; date?: string }) =>
     apiClient
@@ -98,10 +116,16 @@ export const laboratoryService = {
       .get<BackendLabRequestDetail>(`/laboratory/requests/${requestId}`)
       .then((r) => r.data),
 
+  getAllSpecimens: () =>
+    apiClient
+      .get<{ specimens: BackendTrackedSpecimenItem[] }>('/laboratory/specimens')
+      .then((r) => r.data.specimens),
+
   collectSpecimen: (requestId: string, payload: SpecimenCreateInput) =>
     apiClient
       .post(`/laboratory/requests/${requestId}/specimen`, payload)
       .then((r) => r.data),
+
 
   updateSpecimenStatus: (requestId: string, payload: SpecimenStatusUpdateInput) =>
     apiClient

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { laboratoryService, type BackendLabRequestItem } from '@/api/services/laboratory'
+import { CollectSpecimenModal } from '@/features/laboratory/components/CollectSpecimenModal'
 import { InvestigationPriorityBadge } from '@/features/laboratory/components/InvestigationPriorityBadge'
 import type {
   LabRequestPriority,
   LabRequestStatus,
   SpecimenStatus,
 } from '@/features/laboratory/types/laboratory'
-import { getPriorityRowHighlight } from '@/features/laboratory/utils/labOrderPriority'
 
 type PriorityFilter = 'all' | LabRequestPriority
 type StatusFilter = 'all' | LabRequestStatus
@@ -21,19 +21,36 @@ const PAGE_SIZE = 10
 
 function SummaryCards({
   summary,
+  onSelectStatusFilter,
+  onSelectPriorityFilter,
 }: {
   summary: { pending: number; stat: number; urgent: number; inProgress: number; completedToday: number }
+  onSelectStatusFilter: (status: StatusFilter) => void
+  onSelectPriorityFilter: (priority: PriorityFilter) => void
 }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-md">
-      <div className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors">
+      <div
+        onClick={() => {
+          onSelectStatusFilter('pending')
+          onSelectPriorityFilter('all')
+        }}
+        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer"
+      >
         <div className="flex items-center justify-between text-on-surface-variant">
           <span className="font-label-md text-label-md">Pending</span>
           <span className="material-symbols-outlined text-[20px]">hourglass_empty</span>
         </div>
         <span className="font-headline-lg text-headline-lg text-on-surface">{summary.pending}</span>
       </div>
-      <div className="bg-error/10 border border-error/30 rounded-lg p-md flex flex-col gap-xs relative overflow-hidden">
+
+      <div
+        onClick={() => {
+          onSelectPriorityFilter('stat')
+          onSelectStatusFilter('all')
+        }}
+        className="bg-error/10 border border-error/30 rounded-lg p-md flex flex-col gap-xs relative overflow-hidden cursor-pointer hover:border-error transition-colors"
+      >
         <div className="absolute right-0 top-0 w-16 h-16 bg-error rounded-bl-full opacity-10" />
         <div className="flex items-center justify-between text-error relative z-10">
           <span className="font-label-md text-label-md">STAT</span>
@@ -41,7 +58,14 @@ function SummaryCards({
         </div>
         <span className="font-headline-lg text-headline-lg text-error relative z-10">{summary.stat}</span>
       </div>
-      <div className="bg-warning/10 border border-warning/30 rounded-lg p-md flex flex-col gap-xs relative overflow-hidden">
+
+      <div
+        onClick={() => {
+          onSelectPriorityFilter('urgent')
+          onSelectStatusFilter('all')
+        }}
+        className="bg-warning/10 border border-warning/30 rounded-lg p-md flex flex-col gap-xs relative overflow-hidden cursor-pointer hover:border-warning transition-colors"
+      >
         <div className="absolute right-0 top-0 w-16 h-16 bg-warning rounded-bl-full opacity-10" />
         <div className="flex items-center justify-between text-[#916a00] relative z-10">
           <span className="font-label-md text-label-md">Urgent</span>
@@ -51,14 +75,28 @@ function SummaryCards({
           {summary.urgent}
         </span>
       </div>
-      <div className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors">
+
+      <div
+        onClick={() => {
+          onSelectStatusFilter('in_progress')
+          onSelectPriorityFilter('all')
+        }}
+        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer"
+      >
         <div className="flex items-center justify-between text-on-surface-variant">
           <span className="font-label-md text-label-md">In Progress</span>
           <span className="material-symbols-outlined text-[20px] text-primary">sync</span>
         </div>
         <span className="font-headline-lg text-headline-lg text-on-surface">{summary.inProgress}</span>
       </div>
-      <div className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors col-span-2 lg:col-span-1">
+
+      <div
+        onClick={() => {
+          onSelectStatusFilter('completed')
+          onSelectPriorityFilter('all')
+        }}
+        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer col-span-2 lg:col-span-1"
+      >
         <div className="flex items-center justify-between text-on-surface-variant">
           <span className="font-label-md text-label-md">Completed Today</span>
           <span className="material-symbols-outlined text-[20px] text-success">check_circle</span>
@@ -182,6 +220,7 @@ export function LabRequestsContent() {
   )
   const [currentPage, setCurrentPage] = useState(1)
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null)
+  const [collectingRequest, setCollectingRequest] = useState<BackendLabRequestItem | null>(null)
 
   const fetchRequests = async () => {
     setLoading(true)
@@ -265,11 +304,12 @@ export function LabRequestsContent() {
   const handleAction = (request: BackendLabRequestItem) => {
     const details = getActionButtonDetails(request)
     if (details.action === 'collect_specimen') {
-      navigate('/laboratory/specimens', { state: { requestId: request.request_id, openModal: true } })
+      setCollectingRequest(request)
     } else {
       navigate(`/laboratory/requests/${request.request_id}`)
     }
   }
+
 
   if (loading) {
     return (
@@ -282,6 +322,14 @@ export function LabRequestsContent() {
   if (filteredRequests.length === 0) {
     return (
       <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
+        <SummaryCards
+          summary={summary}
+          onSelectStatusFilter={(s) => {
+            setStatusFilter(s)
+            setSearchParams({ status: s })
+          }}
+          onSelectPriorityFilter={(p) => setPriorityFilter(p)}
+        />
         <RequestsEmptyState onClearFilters={handleClearFilters} hasFilters={hasFilters} />
       </div>
     )
@@ -289,11 +337,24 @@ export function LabRequestsContent() {
 
   return (
     <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
-      <SummaryCards summary={summary} />
+      <SummaryCards
+        summary={summary}
+        onSelectStatusFilter={(s) => {
+          setStatusFilter(s)
+          setSearchParams({ status: s })
+        }}
+        onSelectPriorityFilter={(p) => setPriorityFilter(p)}
+      />
 
       <div className="bg-surface-white border border-border-subtle rounded-xl flex flex-col overflow-hidden">
         <div className="p-md border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-background/50">
-          <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">All Test Requests</h2>
+          <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">
+            {statusFilter === 'completed'
+              ? 'Completed Test Requests'
+              : statusFilter === 'pending'
+                ? 'Pending Test Requests'
+                : 'All Test Requests'}
+          </h2>
           <div className="flex flex-wrap items-center gap-sm">
             <div className="relative">
               <select
@@ -314,7 +375,11 @@ export function LabRequestsContent() {
             <div className="relative">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                onChange={(e) => {
+                  const val = e.target.value as StatusFilter
+                  setStatusFilter(val)
+                  setSearchParams(val === 'all' ? {} : { status: val })
+                }}
                 className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-36 cursor-pointer"
               >
                 <option value="all">All Statuses</option>
@@ -444,6 +509,17 @@ export function LabRequestsContent() {
           </div>
         </div>
       </div>
+
+      {collectingRequest && (
+        <CollectSpecimenModal
+          requestId={collectingRequest.request_id}
+          patientName={collectingRequest.patient_name}
+          testName={collectingRequest.test_name}
+          onClose={() => setCollectingRequest(null)}
+          onSuccess={fetchRequests}
+        />
+      )}
     </div>
   )
 }
+

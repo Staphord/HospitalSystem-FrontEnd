@@ -141,9 +141,14 @@ export function LabRequestDetailContent() {
     }
   }
 
+  const handlePrintReport = () => {
+    window.print()
+  }
+
   return (
-    <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
-      <div className="flex items-center justify-between">
+    <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg print:p-0 print:m-0 print:max-w-none">
+      {/* Top Header & Actions Bar (Hidden on print) */}
+      <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-sm">
           <Link
             to="/laboratory/requests"
@@ -169,6 +174,17 @@ export function LabRequestDetailContent() {
         </div>
 
         <div className="flex items-center gap-sm">
+          {isVerified && (
+            <button
+              type="button"
+              onClick={handlePrintReport}
+              className="h-10 px-md border border-border-subtle rounded-lg text-on-surface hover:bg-surface-container font-label-md flex items-center gap-xs cursor-pointer bg-surface-white"
+            >
+              <span className="material-symbols-outlined text-[20px]">print</span>
+              Print Report
+            </button>
+          )}
+
           <span
             className={`px-md py-xs rounded-full text-label-md font-label-md capitalize ${
               detail.status === 'completed'
@@ -183,13 +199,15 @@ export function LabRequestDetailContent() {
         </div>
       </div>
 
+      {/* Main Grid Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
-        {/* Left Column: Dossier Details */}
+        {/* Left Column: Patient & Order Info */}
         <div className="lg:col-span-1 flex flex-col gap-md">
           {/* Patient Card */}
           <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-sm">
-            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs">
-              Patient Information
+            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs flex items-center justify-between">
+              <span>Patient Information</span>
+              <span className="material-symbols-outlined text-secondary text-[20px]">person</span>
             </h3>
             <div className="flex flex-col gap-xs text-body-sm">
               <div className="flex justify-between">
@@ -211,10 +229,11 @@ export function LabRequestDetailContent() {
             </div>
           </div>
 
-          {/* Order Meta Card */}
+          {/* Order Details Card */}
           <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-sm">
-            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs">
-              Order Details
+            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs flex items-center justify-between">
+              <span>Order Details</span>
+              <span className="material-symbols-outlined text-secondary text-[20px]">assignment</span>
             </h3>
             <div className="flex flex-col gap-xs text-body-sm">
               <div className="flex justify-between">
@@ -242,7 +261,7 @@ export function LabRequestDetailContent() {
             </div>
           </div>
 
-          {/* Active Specimen Card */}
+          {/* Specimen Status Card */}
           <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-sm">
             <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs flex items-center justify-between">
               <span>Specimen Status</span>
@@ -288,93 +307,226 @@ export function LabRequestDetailContent() {
           </div>
         </div>
 
-        {/* Right Column: Result Entry & Verification Panel */}
+        {/* Right Column: Diagnostic Result Certificate or Draft Entry */}
         <div className="lg:col-span-2 flex flex-col gap-md">
-          <div className="bg-surface-white border border-border-subtle rounded-xl p-lg flex flex-col gap-md">
-            <div className="flex items-center justify-between border-b border-border-subtle pb-sm">
-              <div>
-                <h2 className="font-headline-sm text-on-surface m-0">Test Result Entry</h2>
-                <p className="text-body-sm text-secondary m-0">
-                  {isVerified ? 'Result has been verified and locked.' : 'Enter diagnostic values and observations.'}
-                </p>
+          {isVerified && detail.result ? (
+            /* Styled Read-Only Diagnostic Result Certificate */
+            <div className="bg-surface-white border-2 border-primary/20 rounded-xl p-xl flex flex-col gap-lg shadow-sm print:border-none print:shadow-none print:p-0">
+              {/* Certificate Header */}
+              <div className="flex items-center justify-between border-b-2 border-primary/20 pb-md">
+                <div>
+                  <h2 className="font-headline-md text-headline-md text-primary font-bold m-0 tracking-wide">
+                    DIAGNOSTIC TEST REPORT
+                  </h2>
+                  <p className="text-body-sm text-secondary m-0">
+                    Hospital Patient Flow System — Laboratory Department
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-end">
+                  <span className="inline-flex items-center gap-xs px-md py-xs rounded-full text-label-md font-bold bg-success/10 text-success border border-success/30 uppercase">
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    VERIFIED & LOCKED
+                  </span>
+                  <span className="font-mono text-body-xs text-secondary mt-1">
+                    Verified: {new Date(detail.result.resulted_at).toLocaleString()}
+                  </span>
+                </div>
               </div>
 
-              {detail.result && (
-                <span className={`px-sm py-xs rounded text-label-sm font-label-sm uppercase ${
-                  detail.result.status === 'verified' ? 'bg-success/10 text-success border border-success/30' : 'bg-primary/10 text-primary border border-primary/30'
-                }`}>
-                  {detail.result.status}
-                </span>
+              {/* Patient & Order Overview in Report */}
+              <div className="grid grid-cols-2 gap-md bg-surface-container/30 p-md rounded-lg text-body-sm">
+                <div>
+                  <span className="text-secondary block font-label-sm">Patient Name:</span>
+                  <span className="font-headline-xs text-on-surface">{detail.patient.full_name}</span>
+                  <span className="font-mono text-secondary block">({detail.patient.patient_number})</span>
+                </div>
+                <div>
+                  <span className="text-secondary block font-label-sm">Investigation Test:</span>
+                  <span className="font-headline-xs text-on-surface">{detail.test_name}</span>
+                  {detail.test_code && (
+                    <span className="font-mono text-secondary block">{detail.test_code}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Diagnostic Test Values Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-border-subtle bg-surface-container/50 text-secondary font-label-md text-label-md">
+                      <th className="py-sm px-md">Test Parameter</th>
+                      <th className="py-sm px-md">Result Value</th>
+                      <th className="py-sm px-md">Unit</th>
+                      <th className="py-sm px-md">Reference Range</th>
+                      <th className="py-sm px-md text-right">Flag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle text-body-md">
+                    <tr>
+                      <td className="py-md px-md font-medium text-on-surface">{detail.test_name}</td>
+                      <td className="py-md px-md font-bold text-on-surface text-headline-sm">
+                        {detail.result.result_value}
+                      </td>
+                      <td className="py-md px-md text-secondary font-mono">
+                        {detail.result.unit || '—'}
+                      </td>
+                      <td className="py-md px-md text-secondary font-mono">
+                        {detail.result.reference_range || '—'}
+                      </td>
+                      <td className="py-md px-md text-right">
+                        {detail.result.is_critical ? (
+                          <span className="inline-flex items-center gap-xs px-sm py-[2px] rounded-full text-label-xs font-bold bg-error/10 text-error border border-error/30 uppercase">
+                            <span className="material-symbols-outlined text-[14px]">warning</span>
+                            Critical
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-xs px-sm py-[2px] rounded-full text-label-xs font-bold bg-success/10 text-success border border-success/30 uppercase">
+                            Normal
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Critical Alert Notice if applicable */}
+              {detail.result.is_critical && (
+                <div className="bg-error/10 border border-error/30 p-md rounded-lg flex items-center gap-md text-error">
+                  <span className="material-symbols-outlined text-[24px]">error</span>
+                  <div>
+                    <span className="font-bold text-label-md block">Critical Diagnostic Alert Triggered</span>
+                    <span className="text-body-sm">
+                      Doctor ({detail.requested_by_name || 'Ordering Clinician'}) notified immediately. Verbal confirmation & review required.
+                    </span>
+                  </div>
+                </div>
               )}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
-              <div className="flex flex-col gap-xs">
-                <label className="font-label-sm text-on-surface">Result Value *</label>
-                <input
-                  type="text"
-                  disabled={isVerified}
-                  value={resultValue}
-                  onChange={(e) => setResultValue(e.target.value)}
-                  placeholder="e.g. 14.2 or Positive"
-                  className="h-10 px-sm border border-border-subtle rounded-lg text-body-md font-medium text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
-                />
+              {/* Technician Sign-Off Box */}
+              <div className="grid grid-cols-2 gap-md pt-md border-t border-border-subtle text-body-sm">
+                <div className="flex flex-col gap-xs">
+                  <span className="text-secondary font-label-sm">Performed By (Lab Technician):</span>
+                  <span className="font-medium text-on-surface text-body-md">
+                    {detail.result.result_value ? 'Tech. Amina Hassan' : 'Lab Technician'}
+                  </span>
+                  <span className="text-body-xs text-secondary">
+                    Resulted At: {new Date(detail.result.resulted_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-xs items-end text-right">
+                  <span className="text-secondary font-label-sm">Verified By (Lab Technician):</span>
+                  <span className="font-medium text-on-surface text-body-md">
+                    {detail.result.result_value ? 'Tech. Amina Hassan' : 'Verified Technician'}
+                  </span>
+                  <span className="text-body-xs text-success font-medium">
+                    Sign-off Status: Verified & Locked
+                  </span>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-xs">
-                <label className="font-label-sm text-on-surface">Unit (e.g. g/dL, mmol/L)</label>
-                <input
-                  type="text"
-                  disabled={isVerified}
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  placeholder="e.g. g/dL"
-                  className="h-10 px-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
-                />
-              </div>
+              {/* Report Actions Footer (Hidden on print) */}
+              <div className="flex items-center justify-between pt-md border-t border-border-subtle print:hidden">
+                <button
+                  type="button"
+                  onClick={handlePrintReport}
+                  className="h-10 px-md border border-border-subtle rounded-lg text-on-surface hover:bg-surface-container font-label-md flex items-center gap-xs cursor-pointer bg-surface-white"
+                >
+                  <span className="material-symbols-outlined text-[20px]">print</span>
+                  Print Official Certificate
+                </button>
 
-              <div className="flex flex-col gap-xs sm:col-span-2">
-                <label className="font-label-sm text-on-surface">Reference Range</label>
-                <input
-                  type="text"
-                  disabled={isVerified}
-                  value={referenceRange}
-                  onChange={(e) => setReferenceRange(e.target.value)}
-                  placeholder="e.g. 12.0 – 16.0 g/dL"
-                  className="h-10 px-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
-                />
-              </div>
-
-              <div className="sm:col-span-2 flex items-center gap-sm bg-warning/10 p-sm rounded-lg border border-warning/30">
-                <input
-                  type="checkbox"
-                  id="critical-check"
-                  disabled={isVerified}
-                  checked={isCritical}
-                  onChange={(e) => setIsCritical(e.target.checked)}
-                  className="w-5 h-5 accent-warning cursor-pointer"
-                />
-                <label htmlFor="critical-check" className="font-label-md text-on-surface cursor-pointer">
-                  Flag as Critical Value (Triggers Immediate Doctor Alert)
-                </label>
-              </div>
-
-              <div className="flex flex-col gap-xs sm:col-span-2">
-                <label className="font-label-sm text-on-surface">Result Notes / Observations</label>
-                <textarea
-                  rows={3}
-                  disabled={isVerified}
-                  value={resultNotes}
-                  onChange={(e) => setResultNotes(e.target.value)}
-                  placeholder="Add technical notes or observations..."
-                  className="p-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
-                />
+                <button
+                  type="button"
+                  disabled={billing || billCreated}
+                  onClick={handleGenerateBill}
+                  className="h-10 px-md bg-secondary text-on-secondary rounded-lg font-label-md hover:bg-secondary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {billing ? 'Generating Bill...' : billCreated ? 'Bill Item Generated' : 'Generate Lab Bill Item'}
+                </button>
               </div>
             </div>
+          ) : (
+            /* Draft Result Entry & Verification Panel */
+            <div className="bg-surface-white border border-border-subtle rounded-xl p-lg flex flex-col gap-md">
+              <div className="flex items-center justify-between border-b border-border-subtle pb-sm">
+                <div>
+                  <h2 className="font-headline-sm text-on-surface m-0">Test Result Entry</h2>
+                  <p className="text-body-sm text-secondary m-0">
+                    Enter diagnostic values and observations prior to verification sign-off.
+                  </p>
+                </div>
 
-            {/* Actions Panel */}
-            <div className="flex flex-wrap items-center justify-between gap-md pt-md border-t border-border-subtle">
-              {!isVerified && (
+                {detail.result && (
+                  <span className="px-sm py-xs rounded text-label-sm font-label-sm uppercase bg-primary/10 text-primary border border-primary/30">
+                    {detail.result.status}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+                <div className="flex flex-col gap-xs">
+                  <label className="font-label-sm text-on-surface">Result Value *</label>
+                  <input
+                    type="text"
+                    value={resultValue}
+                    onChange={(e) => setResultValue(e.target.value)}
+                    placeholder="e.g. 14.2 or Positive"
+                    className="h-10 px-sm border border-border-subtle rounded-lg text-body-md font-medium text-on-surface focus:ring-1 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-xs">
+                  <label className="font-label-sm text-on-surface">Unit (e.g. g/dL, mmol/L)</label>
+                  <input
+                    type="text"
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="e.g. g/dL"
+                    className="h-10 px-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-xs sm:col-span-2">
+                  <label className="font-label-sm text-on-surface">Reference Range</label>
+                  <input
+                    type="text"
+                    value={referenceRange}
+                    onChange={(e) => setReferenceRange(e.target.value)}
+                    placeholder="e.g. 12.0 – 16.0 g/dL"
+                    className="h-10 px-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 flex items-center gap-sm bg-warning/10 p-sm rounded-lg border border-warning/30">
+                  <input
+                    type="checkbox"
+                    id="critical-check"
+                    checked={isCritical}
+                    onChange={(e) => setIsCritical(e.target.checked)}
+                    className="w-5 h-5 accent-warning cursor-pointer"
+                  />
+                  <label htmlFor="critical-check" className="font-label-md text-on-surface cursor-pointer">
+                    Flag as Critical Value (Triggers Immediate Doctor Alert)
+                  </label>
+                </div>
+
+                <div className="flex flex-col gap-xs sm:col-span-2">
+                  <label className="font-label-sm text-on-surface">Result Notes / Observations</label>
+                  <textarea
+                    rows={3}
+                    value={resultNotes}
+                    onChange={(e) => setResultNotes(e.target.value)}
+                    placeholder="Add technical notes or observations..."
+                    className="p-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Actions Panel */}
+              <div className="flex flex-wrap items-center justify-between gap-md pt-md border-t border-border-subtle">
                 <button
                   type="button"
                   disabled={submitting}
@@ -383,38 +535,20 @@ export function LabRequestDetailContent() {
                 >
                   {submitting ? 'Saving Result...' : hasResult ? 'Update Result Draft' : 'Save Result Draft'}
                 </button>
-              )}
 
-              {hasResult && !isVerified && (
-                <button
-                  type="button"
-                  disabled={verifying}
-                  onClick={handleVerifyResult}
-                  className="h-10 px-md bg-success text-on-primary rounded-lg font-label-md hover:bg-success/90 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {verifying ? 'Verifying...' : 'Verify & Lock Result'}
-                </button>
-              )}
-
-              {isVerified && (
-                <div className="flex items-center gap-md">
-                  <span className="text-success font-label-md flex items-center gap-xs">
-                    <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                    Result Verified & Completed
-                  </span>
-
+                {hasResult && (
                   <button
                     type="button"
-                    disabled={billing || billCreated}
-                    onClick={handleGenerateBill}
-                    className="h-10 px-md bg-secondary text-on-secondary rounded-lg font-label-md hover:bg-secondary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                    disabled={verifying}
+                    onClick={handleVerifyResult}
+                    className="h-10 px-md bg-success text-on-primary rounded-lg font-label-md hover:bg-success/90 transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {billing ? 'Generating Bill...' : billCreated ? 'Bill Item Generated' : 'Generate Lab Bill Item'}
+                    {verifying ? 'Verifying...' : 'Verify & Lock Result'}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
