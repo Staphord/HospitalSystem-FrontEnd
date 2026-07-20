@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MOCK_ADMITTED_PATIENTS, getActiveAdmittedPatients } from '@/features/consultation/data/mockInpatientOrders'
+import { wardService } from '@/api/services/ward'
 import type { AdmittedPatient, AdmissionStatus } from '@/features/consultation/types/inpatientOrders'
 
 const PAGE_SIZE = 5
@@ -20,8 +20,6 @@ const AVATAR_BG: Record<AdmissionStatus, string> = {
   monitoring:        'bg-primary/10 text-primary',
   'discharge-ready': 'bg-success/10 text-success',
 }
-
-const UNIQUE_WARDS = ['All Wards', ...Array.from(new Set(MOCK_ADMITTED_PATIENTS.map((p) => p.ward)))]
 
 // ── Row action dropdown ────────────────────────────────────────────────────────
 
@@ -112,13 +110,34 @@ function StatCard({ icon, iconBg, iconColor, label, value, valueColor = 'text-on
 
 export function InpatientPage() {
   const navigate = useNavigate()
+  const [patients, setPatients]               = useState<AdmittedPatient[]>([])
+  const [loading, setLoading]                 = useState(true)
   const [wardFilter, setWardFilter]           = useState('All Wards')
   const [conditionFilter, setConditionFilter] = useState<'all' | AdmissionStatus>('all')
   const [currentPage, setCurrentPage]         = useState(1)
   const [openMenuId, setOpenMenuId]           = useState<string | null>(null)
 
+  const loadPatients = async () => {
+    try {
+      const res = await wardService.getAdmittedPatients()
+      setPatients(res.data)
+    } catch (err) {
+      console.error('Failed to load admitted patients:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadPatients()
+  }, [])
+
+  const uniqueWards = useMemo(() => {
+    return ['All Wards', ...Array.from(new Set(patients.map((p) => p.ward)))]
+  }, [patients])
+
   const filtered = useMemo(() => {
-    let data = [...getActiveAdmittedPatients()]
+    let data = [...patients]
     if (wardFilter !== 'All Wards') data = data.filter((p) => p.ward === wardFilter)
     if (conditionFilter !== 'all')  data = data.filter((p) => p.status === conditionFilter)
     // Critical always pinned to top
@@ -128,46 +147,22 @@ export function InpatientPage() {
       return 0
     })
     return data
-  }, [wardFilter, conditionFilter])
+  }, [patients, wardFilter, conditionFilter])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated   = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const showingFrom = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
   const showingTo   = Math.min(currentPage * PAGE_SIZE, filtered.length)
 
-  const activePatients = getActiveAdmittedPatients()
-  const criticalCount      = activePatients.filter((p) => p.status === 'critical').length
-  const dischargeReady     = activePatients.filter((p) => p.status === 'discharge-ready').length
-  const avgLOS             = activePatients.length === 0 ? '0' : (activePatients.reduce((s, p) => s + p.lengthOfStay, 0) / activePatients.length).toFixed(1)
+  const criticalCount      = patients.filter((p) => p.status === 'critical').length
+  const dischargeReady     = patients.filter((p) => p.status === 'discharge-ready').length
+  const avgLOS             = patients.length === 0 ? '0' : (patients.reduce((s, p) => s + p.lengthOfStay, 0) / patients.length).toFixed(1)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
-
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
-        <div>
-          <h1 className="font-headline-md text-headline-md text-on-surface m-0">Admitted Patients</h1>
-          <p className="font-body-sm text-body-sm text-outline mt-xs m-0">
-            Managing current inpatient assignments and critical updates.
-          </p>
-        </div>
-        <div className="flex gap-sm">
-          <button
-            type="button"
-            className="bg-surface-white border border-border-subtle px-md py-2 rounded-lg flex items-center gap-xs font-label-md text-label-md text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px] leading-none">filter_list</span>
-            Filter Views
-          </button>
-          <button
-            type="button"
-            className="bg-primary text-white px-md py-2 rounded-lg flex items-center gap-xs font-label-md text-label-md hover:opacity-90 transition-opacity border-0 cursor-pointer active:scale-95"
-          >
-            <span className="material-symbols-outlined text-[20px] leading-none">add</span>
-            Admit New Patient
-          </button>
-        </div>
-      </div>
+      <p className="font-body-sm text-body-sm text-outline m-0">
+        Managing current inpatient assignments and critical updates.
+      </p>
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-md">
@@ -176,7 +171,7 @@ export function InpatientPage() {
           iconBg="bg-primary/10"
           iconColor="text-primary"
           label="My Admitted Patients"
-          value={activePatients.length}
+          value={patients.length}
         />
         <StatCard
           icon="emergency"
@@ -204,7 +199,7 @@ export function InpatientPage() {
       </div>
 
       {/* Patient Table Card */}
-      <div className="bg-surface-white border border-border-subtle rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-surface-white border border-border-subtle rounded-xl shadow-sm overflow-visible">
 
         {/* Card header with filters */}
         <div className="px-lg py-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
@@ -215,7 +210,7 @@ export function InpatientPage() {
               onChange={(e) => { setWardFilter(e.target.value); setCurrentPage(1) }}
               className="font-label-md text-label-md border border-border-subtle rounded-lg bg-surface-container-low px-sm py-1.5 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer transition-all"
             >
-              {UNIQUE_WARDS.map((w) => <option key={w}>{w}</option>)}
+              {uniqueWards.map((w) => <option key={w}>{w}</option>)}
             </select>
             <select
               value={conditionFilter}
@@ -232,7 +227,12 @@ export function InpatientPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        {loading ? (
+          <div className="flex justify-center items-center py-xl bg-surface-white">
+            <span className="material-symbols-outlined text-primary text-[32px] animate-spin">sync</span>
+          </div>
+        ) : (
+          <div className="overflow-visible">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-border-subtle">
@@ -323,7 +323,12 @@ export function InpatientPage() {
                         <div className="relative inline-block">
                           <button
                             type="button"
-                            onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              console.log('Action button clicked:', p.id, p)
+                              setOpenMenuId(openMenuId === p.id ? null : p.id)
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${
                               openMenuId === p.id
                                 ? 'bg-surface-container text-on-surface'
@@ -354,6 +359,7 @@ export function InpatientPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Pagination footer */}
         <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between gap-md">

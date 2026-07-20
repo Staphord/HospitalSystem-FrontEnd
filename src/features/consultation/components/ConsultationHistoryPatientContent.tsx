@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPatientConsultationHistory } from '@/features/consultation/data/mockConsultationHistory'
-import type {
-  ConsultationHistorySearchResult,
-  ConsultationVisitRecord,
-  VisitOutcome,
-} from '@/features/consultation/types/consultationHistory'
+import type { PatientHistoryData } from '@/api/services/ward'
 
 const PAGE_SIZE = 5
 
-// ── Badge helpers ─────────────────────────────────────────────────────────────
+// ── Outcome helpers ───────────────────────────────────────────────────────────
 
-function outcomeBadge(outcome: VisitOutcome) {
-  switch (outcome) {
+type VisitOutcome = 'Recovered' | 'Stable' | 'Admitted' | 'Referred' | 'Pending'
+
+function deriveOutcome(visit: PatientHistoryData['previous_visits'][0]): VisitOutcome {
+  const status    = visit.status?.toLowerCase() ?? ''
+  const disp      = visit.consultation?.disposition?.toLowerCase() ?? ''
+  if (status === 'admitted' || disp === 'admit')          return 'Admitted'
+  if (disp === 'referral' || disp === 'refer')            return 'Referred'
+  if (status === 'completed' && disp === 'outpatient')    return 'Recovered'
+  if (status === 'completed')                             return 'Stable'
+  return 'Pending'
+}
+
+function outcomeBadge(o: VisitOutcome) {
+  switch (o) {
     case 'Recovered': return 'bg-success/10 text-success'
     case 'Stable':    return 'bg-primary/10 text-primary'
     case 'Admitted':  return 'bg-[#5243AA]/10 text-[#5243AA]'
@@ -21,8 +28,8 @@ function outcomeBadge(outcome: VisitOutcome) {
   }
 }
 
-function outcomeIcon(outcome: VisitOutcome) {
-  switch (outcome) {
+function outcomeIcon(o: VisitOutcome) {
+  switch (o) {
     case 'Recovered': return 'check_circle'
     case 'Stable':    return 'favorite'
     case 'Admitted':  return 'local_hospital'
@@ -31,7 +38,57 @@ function outcomeIcon(outcome: VisitOutcome) {
   }
 }
 
-// ── Visit Detail Modal ────────────────────────────────────────────────────────
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+function fmtDate(raw?: string | null) {
+  if (!raw) return '—'
+  try { return new Date(raw).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
+  catch { return raw }
+}
+
+function calcAge(dob: string) {
+  try {
+    const b = new Date(dob)
+    const today = new Date()
+    let age = today.getFullYear() - b.getFullYear()
+    if (today < new Date(today.getFullYear(), b.getMonth(), b.getDate())) age--
+    return age
+  } catch { return 0 }
+}
+
+function initials(name: string) {
+  return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'PT'
+}
+
+function buildDispositionText(c: NonNullable<PatientHistoryData['previous_visits'][0]['consultation']>) {
+  const parts: string[] = []
+  if (c.disposition)             parts.push(`Disposition: ${c.disposition}`)
+  if (c.referral_type)           parts.push(`Referral type: ${c.referral_type}`)
+  if (c.referral_notes)          parts.push(`Referral notes: ${c.referral_notes}`)
+  if (c.admission_reason)        parts.push(`Admission reason: ${c.admission_reason}`)
+  if (c.discharge_instructions)  parts.push(`Discharge instructions: ${c.discharge_instructions}`)
+  if (c.follow_up_date)          parts.push(`Follow-up date: ${fmtDate(c.follow_up_date)}`)
+  if (c.return_date)             parts.push(`Return date: ${fmtDate(c.return_date)}`)
+  if (c.return_reason)           parts.push(`Return reason: ${c.return_reason}`)
+  return parts.join('\n') || 'No disposition information recorded.'
+}
+
+// ── Read-only field ───────────────────────────────────────────────────────────
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-xs">
+      <label className="font-label-sm text-label-sm text-outline uppercase tracking-wider block">
+        {label}
+      </label>
+      <div className="bg-surface-container-low p-md rounded-lg font-body-md text-body-md text-on-surface whitespace-pre-wrap leading-relaxed">
+        {value || <span className="italic text-outline">Not recorded</span>}
+      </div>
+    </div>
+  )
+}
+
+// ── Visit detail modal ────────────────────────────────────────────────────────
 
 type ModalTab = 'notes' | 'diagnosis' | 'investigations' | 'prescriptions' | 'disposition'
 
@@ -43,57 +100,46 @@ const TABS: { id: ModalTab; label: string }[] = [
   { id: 'disposition',    label: 'Disposition'     },
 ]
 
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-xs">
-      <label className="font-label-sm text-label-sm text-outline uppercase tracking-wider block">
-        {label}
-      </label>
-      <div className="bg-surface-container-low p-md rounded-lg font-body-md text-body-md text-on-surface whitespace-pre-wrap leading-relaxed">
-        {value}
-      </div>
-    </div>
-  )
-}
-
-interface VisitDetailModalProps {
-  visit: ConsultationVisitRecord
+interface ModalProps {
+  visit: PatientHistoryData['previous_visits'][0]
   patientName: string
   onClose: () => void
 }
 
-function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps) {
+function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
   const [activeTab, setActiveTab] = useState<ModalTab>('notes')
+  const c = visit.consultation
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
   }, [onClose])
+
+  const primaryDiag = c?.diagnoses?.find(d => d.diagnosis_type === 'primary')?.diagnosis_name
+    ?? c?.diagnoses?.[0]?.diagnosis_name
+    ?? c?.clinical_impression
+    ?? '—'
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-md"
       role="dialog"
       aria-modal="true"
-      aria-label={`Visit record — ${visit.visitId}`}
+      aria-label={`Visit record — ${visit.visit_id}`}
     >
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden="true" />
 
       <div className="relative z-10 w-full max-w-[720px] bg-surface-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-lg py-md border-b border-border-subtle flex items-start justify-between">
           <div>
             <h5 className="font-headline-sm text-headline-sm text-on-surface m-0">
-              Visit Record: {visit.visitId}
+              Visit Record: {visit.visit_id}
             </h5>
             <p className="font-body-sm text-body-sm text-outline mt-xs m-0">
-              Patient: {patientName} · {visit.date}
+              Patient: {patientName} · {fmtDate(visit.visit_date)}
             </p>
           </div>
           <button
@@ -126,45 +172,101 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-lg space-y-md">
+
           {activeTab === 'notes' && (
             <>
               <div className="grid grid-cols-2 gap-md">
-                <ReadOnlyField label="Visit Type"  value={visit.clinicalNotes.visitType} />
-                <ReadOnlyField label="Attending"   value={visit.clinicalNotes.attending} />
+                <ReadOnlyField label="Visit Type"  value={visit.visit_type ?? '—'} />
+                <ReadOnlyField label="Attending"   value={c?.created_by ?? '—'} />
               </div>
-              <ReadOnlyField label="Chief Complaint"       value={visit.clinicalNotes.chiefComplaint} />
-              <ReadOnlyField label="Objective Examination" value={visit.clinicalNotes.objectiveExam} />
-              <ReadOnlyField label="Clinical Assessment"   value={visit.clinicalNotes.assessment} />
+              <ReadOnlyField
+                label="Chief Complaint"
+                value={visit.triage_summary?.chief_complaint ?? '—'}
+              />
+              <ReadOnlyField
+                label="History of Presenting Illness"
+                value={c?.history_of_presenting_illness ?? '—'}
+              />
+              <ReadOnlyField
+                label="Objective Examination"
+                value={c?.examination_findings ?? '—'}
+              />
+              <ReadOnlyField
+                label="Clinical Assessment / Impression"
+                value={c?.clinical_impression ?? '—'}
+              />
             </>
           )}
 
           {activeTab === 'diagnosis' && (
             <>
-              <ReadOnlyField label="Primary Diagnosis" value={visit.diagnosis} />
-              <ReadOnlyField label="Clinical Assessment" value={visit.clinicalNotes.assessment} />
+              <ReadOnlyField label="Primary Diagnosis" value={primaryDiag} />
+              {c?.diagnoses && c.diagnoses.length > 1 && (
+                <div className="space-y-xs">
+                  <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider">All Diagnoses</p>
+                  {c.diagnoses.map((d, i) => (
+                    <div key={i} className="bg-surface-container-low p-sm rounded-lg flex items-center justify-between">
+                      <span className="font-body-sm text-body-sm text-on-surface">{d.diagnosis_name}</span>
+                      <span className="font-label-sm text-label-sm text-outline capitalize">{d.diagnosis_type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-md mt-sm">
-                <span className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase ${outcomeBadge(visit.outcome)}`}>
-                  <span className="material-symbols-outlined text-[14px] leading-none">{outcomeIcon(visit.outcome)}</span>
-                  {visit.outcome}
+                <span className={`inline-flex items-center gap-xs px-sm py-xs rounded font-label-sm text-label-sm font-bold uppercase ${outcomeBadge(deriveOutcome(visit))}`}>
+                  <span className="material-symbols-outlined text-[14px] leading-none">{outcomeIcon(deriveOutcome(visit))}</span>
+                  {deriveOutcome(visit)}
                 </span>
               </div>
             </>
           )}
 
           {activeTab === 'investigations' && (
-            visit.investigations.length === 0 ? (
+            !c?.investigation_requests?.length ? (
               <p className="font-body-sm text-body-sm text-outline italic text-center py-xl">
                 No investigations ordered for this visit.
               </p>
             ) : (
               <div className="space-y-sm">
-                {visit.investigations.map((inv, i) => (
-                  <div key={i} className="bg-surface-container-low p-md rounded-lg">
-                    <div className="flex items-center justify-between mb-xs">
-                      <span className="font-body-sm text-body-sm font-semibold text-on-surface">{inv.test}</span>
-                      <span className="font-label-sm text-label-sm text-outline">{inv.date}</span>
+                {c.investigation_requests.map((inv: any, i) => (
+                  <div key={i} className="bg-surface-container-low p-md rounded-lg space-y-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-body-sm text-body-sm font-semibold text-on-surface">{inv.test_name}</span>
+                      <span className={`font-label-sm text-label-sm px-xs py-0.5 rounded capitalize ${
+                        inv.status === 'completed' || inv.result ? 'bg-success/10 text-success font-bold'
+                        : inv.status === 'pending' ? 'bg-warning/10 text-warning font-bold'
+                        : 'bg-surface-container text-outline'
+                      }`}>{inv.status === 'completed' || inv.result ? 'Results Ready' : inv.status}</span>
                     </div>
-                    <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{inv.result}</p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+                      {inv.request_type} {inv.created_at ? `· ${fmtDate(inv.created_at)}` : ''}
+                    </p>
+                    {inv.result && (
+                      <div className="mt-xs p-sm bg-surface-white rounded border border-border-subtle text-body-sm space-y-xs">
+                        {inv.result.result_value && (
+                          <div className="font-bold text-primary">
+                            Result: {inv.result.result_value} {inv.result.unit || ''}
+                            {inv.result.reference_range && (
+                              <span className="font-normal text-secondary text-xs ml-2">(Ref: {inv.result.reference_range})</span>
+                            )}
+                          </div>
+                        )}
+                        {inv.result.is_critical && (
+                          <div className="text-error font-bold text-xs flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">warning</span> Critical Result
+                          </div>
+                        )}
+                        {inv.result.impression && (
+                          <div className="font-medium text-on-surface">Impression: {inv.result.impression}</div>
+                        )}
+                        {inv.result.findings && (
+                          <div className="text-xs text-secondary">Findings: {inv.result.findings}</div>
+                        )}
+                        {inv.result.result_notes && (
+                          <div className="text-xs text-secondary italic">{inv.result.result_notes}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -172,21 +274,24 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
           )}
 
           {activeTab === 'prescriptions' && (
-            visit.prescriptions.length === 0 ? (
+            !c?.prescriptions?.length ? (
               <p className="font-body-sm text-body-sm text-outline italic text-center py-xl">
                 No prescriptions for this visit.
               </p>
             ) : (
               <div className="space-y-sm">
-                {visit.prescriptions.map((rx, i) => (
+                {c.prescriptions.map((rx, i) => (
                   <div key={i} className="bg-surface-container-low p-md rounded-lg flex items-center justify-between gap-md">
                     <div className="flex items-center gap-sm">
                       <span className="material-symbols-outlined text-[18px] text-primary leading-none">medication</span>
-                      <span className="font-body-sm text-body-sm font-semibold text-on-surface">{rx.drug}</span>
+                      <div>
+                        <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{rx.drug_name}</p>
+                        {rx.frequency && <p className="font-label-sm text-label-sm text-outline m-0">{rx.frequency}</p>}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{rx.dose}</p>
-                      <p className="font-label-sm text-label-sm text-outline m-0">{rx.duration}</p>
+                      {rx.dose     && <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{rx.dose}</p>}
+                      {rx.duration && <p className="font-label-sm text-label-sm text-outline m-0">{rx.duration}</p>}
                     </div>
                   </div>
                 ))}
@@ -195,7 +300,10 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
           )}
 
           {activeTab === 'disposition' && (
-            <ReadOnlyField label="Disposition / Plan" value={visit.disposition} />
+            <ReadOnlyField
+              label="Disposition / Plan"
+              value={c ? buildDispositionText(c) : 'No disposition information recorded.'}
+            />
           )}
         </div>
 
@@ -203,17 +311,10 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
         <div className="px-lg py-md border-t border-border-subtle bg-surface-container-lowest flex justify-end gap-sm">
           <button
             type="button"
-            className="px-lg h-10 border border-border-subtle rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-white transition-colors bg-transparent cursor-pointer flex items-center gap-xs"
+            onClick={onClose}
+            className="px-lg h-10 border border-border-subtle rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-white transition-colors bg-transparent cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px] leading-none">print</span>
-            Print Summary
-          </button>
-          <button
-            type="button"
-            className="px-lg h-10 bg-primary text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity border-0 cursor-pointer flex items-center gap-xs"
-          >
-            <span className="material-symbols-outlined text-[18px] leading-none">picture_as_pdf</span>
-            Export PDF
+            Close
           </button>
         </div>
       </div>
@@ -224,21 +325,38 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
-  patient: ConsultationHistorySearchResult
+  data: PatientHistoryData
 }
 
-export function ConsultationHistoryPatientContent({ patient }: Props) {
+export function ConsultationHistoryPatientContent({ data }: Props) {
   const navigate = useNavigate()
-  const visits = getPatientConsultationHistory(patient.id)
+  const { patient, previous_visits } = data
 
-  const [page, setPage]                           = useState(1)
-  const [selectedVisit, setSelectedVisit]         = useState<ConsultationVisitRecord | null>(null)
+  const [page, setPage]               = useState(1)
+  const [selectedVisit, setSelected]  = useState<PatientHistoryData['previous_visits'][0] | null>(null)
 
-  const totalPages  = Math.max(1, Math.ceil(visits.length / PAGE_SIZE))
+  const totalPages  = Math.max(1, Math.ceil(previous_visits.length / PAGE_SIZE))
   const safePage    = Math.min(page, totalPages)
-  const visible     = visits.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-  const showingFrom = visits.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
-  const showingTo   = Math.min(safePage * PAGE_SIZE, visits.length)
+  const visible     = previous_visits.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const showingFrom = previous_visits.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
+  const showingTo   = Math.min(safePage * PAGE_SIZE, previous_visits.length)
+
+  const age          = calcAge(patient.date_of_birth)
+  const avatarInit   = initials(patient.full_name)
+
+  // Allergy parsing — backend stores as a plain string or comma-separated
+  const allergyList  = patient.allergies
+    ? patient.allergies.split(/[,;]/).map(a => a.trim()).filter(Boolean)
+    : []
+
+  // Count active (non-completed, non-admitted) diagnoses across visits
+  const activeConditions = previous_visits.filter(v =>
+    v.status !== 'completed' && v.status !== 'discharged'
+  ).length
+
+  // Last visit date
+  const lastVisitRaw = previous_visits[0]?.visit_date
+  const lastVisitDate = fmtDate(lastVisitRaw)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -253,7 +371,7 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
           Patient History
         </button>
         <span className="material-symbols-outlined text-outline text-[18px] leading-none">chevron_right</span>
-        <span className="text-outline">{patient.name}</span>
+        <span className="text-outline">{patient.full_name}</span>
       </nav>
 
       {/* Patient header card */}
@@ -261,7 +379,7 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
         {/* Avatar */}
         <div className="relative shrink-0">
           <div className="w-20 h-20 rounded-2xl bg-secondary-container flex items-center justify-center font-bold text-2xl text-on-secondary-container border-2 border-primary/10">
-            {patient.avatarInitials}
+            {avatarInit}
           </div>
           <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-success border-2 border-surface-white rounded-full" />
         </div>
@@ -270,40 +388,37 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
         <div className="flex-1">
           <div className="flex flex-wrap items-start justify-between gap-md mb-md">
             <div>
-              <h4 className="font-headline-md text-headline-md text-on-surface m-0">{patient.name}</h4>
+              <h4 className="font-headline-md text-headline-md text-on-surface m-0">{patient.full_name}</h4>
               <div className="flex items-center gap-sm mt-xs">
                 <span className="bg-surface-container text-on-surface-variant px-2 py-0.5 rounded font-label-md text-label-md">
-                  {patient.patientNumber}
+                  {patient.patient_number}
                 </span>
                 <span className="font-body-sm text-body-sm text-outline">
-                  {patient.dob} ({patient.age} yrs) · {patient.gender}
+                  {fmtDate(patient.date_of_birth)} ({age} yrs) · {patient.gender}
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              className="flex items-center gap-xs text-primary font-label-md text-label-md hover:underline bg-transparent border-0 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
-              Edit Profile
-            </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-lg">
             <div>
               <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Phone Number</p>
-              <p className="font-body-md text-body-md text-on-surface m-0">{patient.phone}</p>
+              <p className="font-body-md text-body-md text-on-surface m-0">{patient.phone_primary || '—'}</p>
             </div>
-            <div>
-              <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Payment Method</p>
-              <p className="font-body-md text-body-md text-on-surface flex items-center gap-xs m-0">
-                <span className="material-symbols-outlined text-primary text-[18px] leading-none">shield</span>
-                {patient.paymentMethod}
-              </p>
-            </div>
-            <div>
-              <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Registered On</p>
-              <p className="font-body-md text-body-md text-on-surface m-0">{patient.registeredOn}</p>
-            </div>
+            {patient.blood_group && (
+              <div>
+                <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Blood Group</p>
+                <p className="font-body-md text-body-md text-on-surface m-0">{patient.blood_group}</p>
+              </div>
+            )}
+            {patient.next_of_kin_name && (
+              <div>
+                <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Next of Kin</p>
+                <p className="font-body-md text-body-md text-on-surface m-0">
+                  {patient.next_of_kin_name}
+                  {patient.next_of_kin_relationship ? ` (${patient.next_of_kin_relationship})` : ''}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -312,36 +427,33 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-md">
         <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm">
           <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Total Visits</p>
-          <p className="font-headline-md text-headline-md text-on-surface m-0">{patient.totalVisits}</p>
+          <p className="font-headline-md text-headline-md text-on-surface m-0">{previous_visits.length}</p>
         </div>
         <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm">
           <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Last Visit</p>
-          <p className="font-headline-md text-headline-md text-on-surface m-0">{patient.lastVisitDate}</p>
+          <p className="font-headline-md text-headline-md text-on-surface m-0">{lastVisitDate}</p>
         </div>
         <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm">
-          <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Active Conditions</p>
-          <p className="font-headline-md text-headline-md text-primary m-0">{patient.activeConditions}</p>
+          <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Active Encounters</p>
+          <p className="font-headline-md text-headline-md text-primary m-0">{activeConditions}</p>
         </div>
         <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm border-l-4 border-l-error">
           <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Known Allergies</p>
-          <p className="font-headline-md text-headline-md text-error m-0">{patient.allergies.length}</p>
+          <p className="font-headline-md text-headline-md text-error m-0">{allergyList.length}</p>
         </div>
       </div>
 
       {/* Allergy alert banner */}
-      {patient.allergies.length > 0 && (
+      {allergyList.length > 0 && (
         <div className="bg-error-container border border-error rounded-xl p-md flex flex-col gap-sm">
-          {patient.allergies.map((allergy, i) => (
+          {allergyList.map((allergy, i) => (
             <div key={i} className="flex items-center gap-md">
               <div className="w-10 h-10 rounded-full bg-error flex items-center justify-center text-white shrink-0">
                 <span className="material-symbols-outlined leading-none">warning</span>
               </div>
               <div>
                 <p className="font-headline-sm text-headline-sm text-on-error-container m-0">
-                  Known allergy: {allergy.substance} — {allergy.severity}
-                </p>
-                <p className="font-body-sm text-body-sm text-on-error-container/80 m-0">
-                  Last documented: {allergy.documentedOn} by {allergy.documentedBy}
+                  Known allergy: {allergy}
                 </p>
               </div>
             </div>
@@ -350,24 +462,16 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
       )}
 
       {/* Visit history table */}
-      <section className="bg-surface-white border border-border-subtle rounded-2xl overflow-hidden shadow-sm">
+      <section className="bg-surface-white border border-border-subtle rounded-2xl overflow-visible shadow-sm">
         <div className="px-lg py-md border-b border-border-subtle bg-surface-container-lowest flex items-center justify-between">
           <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Visit History</h3>
-          <div className="flex gap-sm">
-            <button type="button" className="p-xs text-outline hover:text-primary transition-colors bg-transparent border-0 cursor-pointer" title="Filter visits">
-              <span className="material-symbols-outlined">filter_list</span>
-            </button>
-            <button type="button" className="p-xs text-outline hover:text-primary transition-colors bg-transparent border-0 cursor-pointer" title="Download history">
-              <span className="material-symbols-outlined">download</span>
-            </button>
-          </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full border-collapse min-w-[800px]">
             <thead className="bg-surface-container-low">
               <tr>
-                {['Visit Date', 'Visit #', 'Attending Doctor', 'Chief Complaint', 'Diagnosis', 'Outcome', 'Actions'].map((h, i) => (
+                {['Visit Date', 'Visit #', 'Visit Type', 'Chief Complaint', 'Primary Diagnosis', 'Outcome', 'Actions'].map((h, i) => (
                   <th
                     key={h}
                     className={`px-lg py-sm font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 6 ? 'text-right' : 'text-left'}`}
@@ -385,59 +489,67 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
                   </td>
                 </tr>
               ) : (
-                visible.map((visit) => (
-                  <tr
-                    key={visit.visitId}
-                    className="hover:bg-hover-tint transition-colors cursor-pointer group"
-                    onClick={() => setSelectedVisit(visit)}
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedVisit(visit) }}
-                    role="button"
-                    aria-label={`View visit ${visit.visitId}`}
-                  >
-                    <td className="px-lg py-md font-body-sm text-body-sm font-semibold text-on-surface whitespace-nowrap">
-                      {visit.date}
-                    </td>
-                    <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
-                      {visit.visitId}
-                    </td>
-                    <td className="px-lg py-md font-body-sm text-body-sm text-on-surface">
-                      {visit.attendingDoctor}
-                    </td>
-                    <td className="px-lg py-md font-body-sm text-body-sm text-on-surface max-w-[180px] truncate" title={visit.chiefComplaint}>
-                      {visit.chiefComplaint}
-                    </td>
-                    <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant max-w-[160px] truncate" title={visit.diagnosis}>
-                      {visit.diagnosis}
-                    </td>
-                    <td className="px-lg py-md">
-                      <span className={`inline-flex items-center gap-xs px-sm py-xs rounded-full font-label-sm text-label-sm font-semibold ${outcomeBadge(visit.outcome)}`}>
-                        <span className="material-symbols-outlined text-[13px] leading-none">{outcomeIcon(visit.outcome)}</span>
-                        {visit.outcome}
-                      </span>
-                    </td>
-                    <td className="px-lg py-md text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setSelectedVisit(visit) }}
-                        className="text-primary hover:underline font-label-md text-label-md bg-transparent border-0 cursor-pointer"
-                      >
-                        View Full Record
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                visible.map((visit) => {
+                  const outcome     = deriveOutcome(visit)
+                  const chiefComp   = visit.triage_summary?.chief_complaint ?? '—'
+                  const primDiag    = visit.consultation?.diagnoses?.find(d => d.diagnosis_type === 'primary')?.diagnosis_name
+                    ?? visit.consultation?.diagnoses?.[0]?.diagnosis_name
+                    ?? visit.consultation?.clinical_impression
+                    ?? '—'
+                  return (
+                    <tr
+                      key={visit.visit_id}
+                      className="hover:bg-hover-tint transition-colors cursor-pointer group"
+                      onClick={() => setSelected(visit)}
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelected(visit) }}
+                      role="button"
+                      aria-label={`View visit ${visit.visit_id}`}
+                    >
+                      <td className="px-lg py-md font-body-sm text-body-sm font-semibold text-on-surface whitespace-nowrap">
+                        {fmtDate(visit.visit_date)}
+                      </td>
+                      <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
+                        {String(visit.visit_id).slice(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-lg py-md font-body-sm text-body-sm text-on-surface capitalize">
+                        {visit.visit_type}
+                      </td>
+                      <td className="px-lg py-md font-body-sm text-body-sm text-on-surface max-w-[180px] truncate" title={chiefComp}>
+                        {chiefComp}
+                      </td>
+                      <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant max-w-[160px] truncate" title={primDiag}>
+                        {primDiag}
+                      </td>
+                      <td className="px-lg py-md">
+                        <span className={`inline-flex items-center gap-xs px-sm py-xs rounded-full font-label-sm text-label-sm font-semibold ${outcomeBadge(outcome)}`}>
+                          <span className="material-symbols-outlined text-[13px] leading-none">{outcomeIcon(outcome)}</span>
+                          {outcome}
+                        </span>
+                      </td>
+                      <td className="px-lg py-md text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelected(visit) }}
+                          className="text-primary hover:underline font-label-md text-label-md bg-transparent border-0 cursor-pointer"
+                        >
+                          View Full Record
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination footer */}
+        {/* Pagination */}
         <div className="px-lg py-sm bg-surface-container-lowest border-t border-border-subtle flex items-center justify-between gap-md">
           <p className="font-label-sm text-label-sm text-outline m-0">
-            {visits.length === 0
+            {previous_visits.length === 0
               ? 'No visits on record'
-              : `Showing ${showingFrom}–${showingTo} of ${visits.length} visit${visits.length === 1 ? '' : 's'}`}
+              : `Showing ${showingFrom}–${showingTo} of ${previous_visits.length} visit${previous_visits.length === 1 ? '' : 's'}`}
           </p>
           <div className="flex gap-xs">
             <button
@@ -464,8 +576,8 @@ export function ConsultationHistoryPatientContent({ patient }: Props) {
       {selectedVisit && (
         <VisitDetailModal
           visit={selectedVisit}
-          patientName={patient.name}
-          onClose={() => setSelectedVisit(null)}
+          patientName={patient.full_name}
+          onClose={() => setSelected(null)}
         />
       )}
     </div>

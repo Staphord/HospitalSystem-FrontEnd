@@ -1,15 +1,46 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { NewReferralModal } from '@/features/consultation/components/NewReferralModal'
 import { ReferralDetailModal } from '@/features/consultation/components/ReferralDetailModal'
-import {
-  addReferral,
-  cancelReferral,
-  getReferrals,
-  getReferralStats,
-} from '@/features/consultation/data/mockReferrals'
+import { consultationService } from '@/api/services/consultation'
 import type { NewReferralInput, Referral, ReferralStatus, ReferralType } from '@/features/consultation/types/referrals'
+
+// ── API Mapping Helper ────────────────────────────────────────────────────────
+
+const mapReferral = (data: any): Referral => {
+  const formatDate = (raw: string | null) => {
+    if (!raw) return '—'
+    try {
+      return new Date(raw).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return raw
+    }
+  }
+
+  return {
+    id: data.id,
+    patientId: data.patient.id,
+    patientName: data.patient.full_name,
+    patientNumber: data.patient.patient_number,
+    referredTo: data.referred_to,
+    type: data.type,
+    referredAt: formatDate(data.referred_at),
+    reason: data.reason,
+    status: data.status,
+    urgency: data.urgency,
+    category: data.category,
+    department: data.department || undefined,
+    preferredDoctor: data.preferred_doctor || undefined,
+    hospitalName: data.hospital_name || undefined,
+    externalDoctor: data.external_doctor || undefined,
+    contactNumber: data.contact_number || undefined,
+    visitId: data.visit_id || undefined,
+    declineReason: data.decline_reason || undefined,
+    respondedAt: data.responded_at ? formatDate(data.responded_at) : undefined,
+  }
+}
+
 
 const PAGE_SIZE = 5
 
@@ -90,7 +121,8 @@ function CancelConfirmModal({
 
 export function MyReferralsPage() {
   const navigate = useNavigate()
-  const [referrals, setReferrals] = useState<Referral[]>(() => getReferrals())
+  const [referrals, setReferrals] = useState<Referral[]>([])
+  const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<'all' | ReferralType>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | ReferralStatus>('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -98,9 +130,32 @@ export function MyReferralsPage() {
   const [detailReferral, setDetailReferral] = useState<Referral | null>(null)
   const [cancelReferralTarget, setCancelReferralTarget] = useState<Referral | null>(null)
 
-  const refresh = () => setReferrals(getReferrals())
+  const refresh = () => {
+    setLoading(true)
+    consultationService.getReferrals()
+      .then((res) => {
+        setReferrals((res || []).map(mapReferral))
+        setLoading(false)
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || 'Failed to load referrals'
+        toast.error(msg)
+        setLoading(false)
+      })
+  }
 
-  const stats = useMemo(() => getReferralStats(), [referrals])
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  const stats = useMemo(() => {
+    return {
+      total: referrals.length,
+      pending: referrals.filter((r) => r.status === 'pending').length,
+      accepted: referrals.filter((r) => r.status === 'accepted' || r.status === 'completed').length,
+      declined: referrals.filter((r) => r.status === 'declined').length,
+    }
+  }, [referrals])
 
   const filtered = useMemo(() => {
     let data = [...referrals]
@@ -126,18 +181,30 @@ export function MyReferralsPage() {
   }
 
   const handleSubmitReferral = (input: NewReferralInput) => {
-    addReferral(input)
-    refresh()
-    setShowNewModal(false)
-    toast.success(`Referral submitted for ${input.patientName}.`)
+    consultationService.addReferral(input)
+      .then(() => {
+        refresh()
+        setShowNewModal(false)
+        toast.success(`Referral submitted successfully.`)
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || 'Failed to submit referral'
+        toast.error(msg)
+      })
   }
 
   const handleConfirmCancel = () => {
     if (!cancelReferralTarget) return
-    cancelReferral(cancelReferralTarget.id)
-    refresh()
-    setCancelReferralTarget(null)
-    toast.success('Referral cancelled.')
+    consultationService.cancelReferral(cancelReferralTarget.id)
+      .then(() => {
+        refresh()
+        setCancelReferralTarget(null)
+        toast.success('Referral cancelled successfully.')
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || 'Failed to cancel referral'
+        toast.error(msg)
+      })
   }
 
   return (
@@ -211,7 +278,16 @@ export function MyReferralsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-lg py-xl text-center">
+                    <div className="flex flex-col items-center justify-center gap-sm">
+                      <span className="material-symbols-outlined text-primary text-[36px] animate-spin">sync</span>
+                      <p className="font-body-sm text-body-sm text-outline m-0">Loading referrals from database...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-lg py-xl text-center font-body-sm text-body-sm text-outline">
                     No referrals match your filters.

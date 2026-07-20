@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { REFERRAL_DEPARTMENTS, searchReferralPatients } from '@/features/consultation/data/mockReferrals'
+import { REFERRAL_DEPARTMENTS } from '@/features/consultation/data/mockReferrals'
+import { wardService } from '@/api/services/ward'
 import type { NewReferralInput, ReferralCategory, ReferralType, ReferralUrgency } from '@/features/consultation/types/referrals'
 
 const CATEGORY_OPTIONS: { value: ReferralCategory; label: string }[] = [
@@ -18,6 +19,8 @@ export function NewReferralModal({ onClose, onSubmit }: Props) {
   const [type, setType] = useState<ReferralType>('internal')
   const [patientQuery, setPatientQuery] = useState('')
   const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [patientMatches, setPatientMatches] = useState<{ id: string; name: string; patientNumber: string }[]>([])
+  const [searchingPatients, setSearchingPatients] = useState(false)
   const [showPatientList, setShowPatientList] = useState(false)
   const [department, setDepartment] = useState('')
   const [preferredDoctor, setPreferredDoctor] = useState('')
@@ -28,9 +31,27 @@ export function NewReferralModal({ onClose, onSubmit }: Props) {
   const [category, setCategory] = useState<ReferralCategory>('general')
   const [reason, setReason] = useState('')
 
-  const patientMatches = searchReferralPatients(patientQuery)
+  // Debounced search on patients
+  useEffect(() => {
+    setSearchingPatients(true)
+    const delayDebounce = setTimeout(() => {
+      wardService.searchPatients(patientQuery, 1, 30)
+        .then((res) => {
+          setPatientMatches((res.patients || []).map((p) => ({
+            id: p.id,
+            name: p.full_name,
+            patientNumber: p.patient_number,
+          })))
+          setSearchingPatients(false)
+        })
+        .catch(() => setSearchingPatients(false))
+    }, 250)
+
+    return () => clearTimeout(delayDebounce)
+  }, [patientQuery])
+
   const selectedPatient = patientMatches.find((p) => p.id === selectedPatientId)
-    ?? searchReferralPatients('').find((p) => p.id === selectedPatientId)
+
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -131,23 +152,34 @@ export function NewReferralModal({ onClose, onSubmit }: Props) {
                 className="w-full border border-border-subtle rounded-lg py-sm pl-10 pr-md font-body-sm text-body-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-surface-white"
               />
             </div>
-            {showPatientList && patientMatches.length > 0 && (
-              <ul className="absolute z-20 left-0 right-0 mt-xs bg-surface-white border border-border-subtle rounded-lg shadow-lg max-h-40 overflow-y-auto list-none m-0 p-0">
-                {patientMatches.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedPatientId(p.id)
-                        setPatientQuery('')
-                        setShowPatientList(false)
-                      }}
-                      className="w-full text-left px-md py-sm font-body-sm text-body-sm hover:bg-hover-tint transition-colors bg-transparent border-0 cursor-pointer"
-                    >
-                      {p.name} <span className="text-outline">({p.patientNumber})</span>
-                    </button>
+            {showPatientList && (searchingPatients || patientMatches.length > 0 || (patientQuery.trim() && !searchingPatients)) && (
+              <ul className="absolute z-20 left-0 right-0 mt-xs bg-surface-white border border-border-subtle rounded-lg shadow-lg max-h-40 overflow-y-auto list-none m-0 p-0 divide-y divide-border-subtle">
+                {searchingPatients ? (
+                  <li className="px-md py-sm font-body-sm text-body-sm text-outline italic flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                    Searching patients...
                   </li>
-                ))}
+                ) : patientMatches.length === 0 ? (
+                  <li className="px-md py-sm font-body-sm text-body-sm text-outline italic">
+                    No patients found
+                  </li>
+                ) : (
+                  patientMatches.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPatientId(p.id)
+                          setPatientQuery('')
+                          setShowPatientList(false)
+                        }}
+                        className="w-full text-left px-md py-sm font-body-sm text-body-sm hover:bg-hover-tint transition-colors bg-transparent border-0 cursor-pointer"
+                      >
+                        {p.name} <span className="text-outline">({p.patientNumber})</span>
+                      </button>
+                    </li>
+                  ))
+                )}
               </ul>
             )}
           </div>

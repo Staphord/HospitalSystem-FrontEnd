@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
+import { laboratoryService, type BackendTrackedSpecimenItem } from '@/api/services/laboratory'
 import { UpdateSpecimenStatusModal } from '@/features/laboratory/components/UpdateSpecimenStatusModal'
 import type { SpecimenSummary, SpecimenTrackingStatus, TrackedSpecimen } from '@/features/laboratory/types/laboratory'
 import {
   computeSpecimenSummary,
-  deriveRequestSpecimenStatus,
   isSpecimenRejected,
   SPECIMEN_STATUS_PILL_CLASS,
   SPECIMEN_TRACKING_STATUS_LABEL,
 } from '@/features/laboratory/utils/specimenStatus'
-import { getAllSpecimens, updateSpecimenStatus } from '@/features/laboratory/utils/specimenStore'
-import { patchLabRequest } from '@/features/laboratory/utils/labRequestStore'
 
 type StatusFilter = 'all' | SpecimenTrackingStatus
 
@@ -21,6 +19,31 @@ interface SpecimensLocationState {
 }
 
 const PAGE_SIZE = 10
+
+function mapBackendToTrackedSpecimen(item: BackendTrackedSpecimenItem): TrackedSpecimen {
+  let trackingStatus: SpecimenTrackingStatus = 'collected'
+  if (item.status === 'received') trackingStatus = 'in_lab'
+  else if (item.status === 'processing') trackingStatus = 'processing'
+  else if (item.status === 'completed') trackingStatus = 'complete'
+  else if (item.status === 'rejected') trackingStatus = 'rejected'
+  else trackingStatus = 'collected'
+
+  return {
+    id: item.specimen_label || item.specimen_id.slice(0, 8).toUpperCase(),
+    requestId: item.request_id,
+    patientName: item.patient_name,
+    patientNumber: item.patient_number,
+    testName: item.test_name,
+    collectedBy: item.collected_by_name || 'Lab Staff',
+    collectedAt: item.collected_at
+      ? new Date(item.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : undefined,
+    status: trackingStatus,
+    location: item.collection_site || 'Main Lab',
+    notes: item.rejection_reason ? `Rejection: ${item.rejection_reason}` : undefined,
+    rejectionReason: item.rejection_reason as any,
+  }
+}
 
 function SummaryCards({ summary }: { summary: SpecimenSummary }) {
   const cards = [
@@ -107,19 +130,33 @@ export function LabSpecimensContent() {
   const locationState = location.state as SpecimensLocationState | null
 
   const [loading, setLoading] = useState(true)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [specimens, setSpecimens] = useState<TrackedSpecimen[]>([])
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [activeSpecimenId, setActiveSpecimenId] = useState<string | null>(null)
   const [modalSpecimen, setModalSpecimen] = useState<TrackedSpecimen | null>(null)
 
-  const allSpecimens = useMemo(() => getAllSpecimens(), [refreshKey])
+  const fetchSpecimens = async () => {
+    setLoading(true)
+    try {
+      const items = await laboratoryService.getAllSpecimens()
+      setSpecimens(items.map(mapBackendToTrackedSpecimen))
+    } catch (err: any) {
+      toast.error('Failed to load specimens from server')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const summary = useMemo(() => computeSpecimenSummary(allSpecimens), [allSpecimens])
+  useEffect(() => {
+    fetchSpecimens()
+  }, [])
+
+  const summary = useMemo(() => computeSpecimenSummary(specimens), [specimens])
 
   const filteredSpecimens = useMemo(() => {
-    return allSpecimens.filter((specimen) => matchesStatusFilter(specimen.status, statusFilter))
-  }, [allSpecimens, statusFilter])
+    return specimens.filter((specimen) => matchesStatusFilter(specimen.status, statusFilter))
+  }, [specimens, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredSpecimens.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -129,14 +166,8 @@ export function LabSpecimensContent() {
   const showingTo = Math.min(pageStart + PAGE_SIZE, filteredSpecimens.length)
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setLoading(false), 500)
-    return () => window.clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
     if (!locationState?.requestId) return
 
-    const specimens = getAllSpecimens()
     const match = specimens.find((s) => s.requestId === locationState.requestId)
     if (!match) return
 
@@ -145,7 +176,7 @@ export function LabSpecimensContent() {
     if (locationState.openModal) {
       setModalSpecimen(match)
     }
-  }, [locationState?.requestId, locationState?.openModal])
+  }, [locationState?.requestId, locationState?.openModal, specimens])
 
   useEffect(() => {
     if (!activeSpecimenId) return
@@ -165,24 +196,33 @@ export function LabSpecimensContent() {
     setCurrentPage(1)
   }, [statusFilter])
 
-  const handleSaveStatus = (
+  const handleSaveStatus = async (
     status: SpecimenTrackingStatus,
-    extras: { notes?: string; rejectionReason?: TrackedSpecimen['rejectionReason']; location?: string },
+    extras: { notes?: string; rejectionReason?: any; location?: string },
   ) => {
     if (!modalSpecimen) return
 
-    const updated = updateSpecimenStatus(modalSpecimen.id, status, extras as any)
-    if (updated) {
-      patchLabRequest(updated.requestId, {
-        specimenStatus: deriveRequestSpecimenStatus(updated.status),
-        specimenId: updated.id,
-        collectedAt: updated.collectedAt,
+    let apiStatus: 'received' | 'processing' | 'completed' | 'rejected' = 'received'
+    if (status === 'in_lab') apiStatus = 'received'
+    else if (status === 'processing') apiStatus = 'processing'
+    else if (status === 'complete') apiStatus = 'completed'
+    else if (status === 'rejected') apiStatus = 'rejected'
+    else apiStatus = 'received'
+
+    try {
+      await laboratoryService.updateSpecimenStatus(modalSpecimen.requestId, {
+        status: apiStatus,
+        rejection_reason: status === 'rejected' ? (extras.rejectionReason || 'Sample rejected') : undefined,
       })
+      toast.success(`Specimen status updated to ${SPECIMEN_TRACKING_STATUS_LABEL[status]}.`)
+      setModalSpecimen(null)
+      fetchSpecimens()
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err.message || 'Failed to update specimen status'
+      toast.error(detail)
     }
-    setRefreshKey((k) => k + 1)
-    setModalSpecimen(null)
-    toast.success(`Specimen status updated to ${SPECIMEN_TRACKING_STATUS_LABEL[status]}.`)
   }
+
 
   const handleClearFilters = () => setStatusFilter('all')
 

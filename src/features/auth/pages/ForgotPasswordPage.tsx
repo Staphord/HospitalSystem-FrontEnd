@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { authService } from '@/api/services/auth'
 
 function getApiErrorMessage(err: any): string {
-  let detail = err?.response?.data?.detail
+  const detail = err?.response?.data?.detail
   if (typeof detail === 'string') {
     if (detail.includes('Keycloak error') && detail.includes('{')) {
       try {

@@ -860,7 +860,7 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/monitoring') ||
     url.includes('/incidents') ||
     url.includes('/announcements') ||
-    url === '/stats'
+    url.includes('/laboratory')
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url === '/subscription' || url.startsWith('/subscription/')) {
@@ -1807,7 +1807,7 @@ apiClient.defaults.adapter = async (config) => {
   }
 
   // Hospital Admin: Dashboard Stats
-  if (url.endsWith('/dashboard/stats') && method === 'get') {
+  if (url.endsWith('/dashboard/stats') && !url.includes('/consultation/') && method === 'get') {
     const stats = JSON.parse(localStorage.getItem('hf_mock_dashboard_stats') || '{}')
     return respond(200, stats)
   }

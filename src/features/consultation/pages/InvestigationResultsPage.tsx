@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { consultationService } from '@/api/services/consultation'
+import type { InvestigationResultData } from '@/api/services/consultation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +25,55 @@ interface InvestigationResult {
   labNotes?: string
   visitId?: string
 }
+
+// ── API Mapping Helper ────────────────────────────────────────────────────────
+
+const mapInvestigationResult = (data: InvestigationResultData): InvestigationResult => {
+  const name = data.patient.full_name
+  const initials = name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'PT'
+
+  const formatDate = (raw: string | null) => {
+    if (!raw) return null
+    try {
+      return new Date(raw).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    } catch {
+      return raw
+    }
+  }
+
+  let mappedStatus: ResultStatus = 'pending'
+  if (
+    data.status === 'critical' ||
+    data.status === 'ready' ||
+    data.status === 'pending' ||
+    data.status === 'acknowledged'
+  ) {
+    mappedStatus = data.status
+  }
+
+  return {
+    id: data.id,
+    patientName: name,
+    patientNumber: data.patient.patient_number,
+    patientId: data.patient.id,
+    initials,
+    test: data.test_name,
+    dept: data.request_type.toLowerCase() === 'radiology' ? 'radiology' : 'lab',
+    orderedAt: formatDate(data.ordered_at) || '—',
+    completedAt: formatDate(data.completed_at),
+    status: mappedStatus,
+    resultValues: data.result_values || undefined,
+    referenceRange: data.reference_range || undefined,
+    labNotes: data.lab_notes || undefined,
+    visitId: data.visit_id,
+  }
+}
+
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -402,7 +454,8 @@ function ActionMenu({ result, onViewResult, onAcknowledge, onOpenEncounter, onVi
 export function InvestigationResultsPage() {
   const navigate = useNavigate()
 
-  const [results, setResults]           = useState<InvestigationResult[]>(INITIAL_RESULTS)
+  const [results, setResults]           = useState<InvestigationResult[]>([])
+  const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
   const [deptFilter, setDeptFilter]     = useState<'all' | ResultDept>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | ResultStatus>('all')
@@ -411,15 +464,37 @@ export function InvestigationResultsPage() {
   const [openMenuId, setOpenMenuId]     = useState<string | null>(null)
   const [viewingResult, setViewingResult] = useState<InvestigationResult | null>(null)
 
+  useEffect(() => {
+    setLoading(true)
+    consultationService.getInvestigationResults()
+      .then((res) => {
+        setResults((res || []).map(mapInvestigationResult))
+        setLoading(false)
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || 'Failed to fetch investigation results'
+        toast.error(msg)
+        setLoading(false)
+      })
+  }, [])
+
   const applyFilters = () => {
     setApplied({ search: search.trim().toLowerCase(), dept: deptFilter, status: statusFilter })
     setCurrentPage(1)
   }
 
   const acknowledgeResult = (id: string) => {
-    setResults((prev) =>
-      prev.map((r) => r.id === id ? { ...r, status: 'acknowledged' as ResultStatus } : r)
-    )
+    consultationService.acknowledgeInvestigation(id)
+      .then(() => {
+        setResults((prev) =>
+          prev.map((r) => r.id === id ? { ...r, status: 'acknowledged' as ResultStatus } : r)
+        )
+        toast.success('Result acknowledged successfully')
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || 'Failed to acknowledge result'
+        toast.error(msg)
+      })
   }
 
   const filtered = useMemo(() => {
@@ -452,15 +527,15 @@ export function InvestigationResultsPage() {
         {/* Search */}
         <div className="flex-1 min-w-[220px]">
           <label className="block font-label-md text-label-md text-on-surface-variant mb-xs">Search Patients</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px] leading-none pointer-events-none select-none">person_search</span>
+          <div className="flex items-center gap-sm border border-border-subtle rounded-lg px-3 py-2 bg-surface-white focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+            <span className="material-symbols-outlined text-outline text-[20px] leading-none pointer-events-none select-none shrink-0">person_search</span>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
               placeholder="Name or Patient #"
-              className="w-full pl-10 pr-sm py-2 border border-border-subtle rounded-lg focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm bg-surface-white outline-none transition-all"
+              className="flex-1 bg-transparent border-0 outline-none p-0 m-0 font-body-sm text-body-sm text-on-surface placeholder:text-outline"
             />
           </div>
         </div>
@@ -498,13 +573,13 @@ export function InvestigationResultsPage() {
         {/* Date range */}
         <div className="w-60">
           <label className="block font-label-md text-label-md text-on-surface-variant mb-xs">Date Range</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px] leading-none pointer-events-none select-none">calendar_today</span>
+          <div className="flex items-center gap-sm border border-border-subtle rounded-lg px-3 py-2 bg-surface-white cursor-pointer outline-none">
+            <span className="material-symbols-outlined text-outline text-[20px] leading-none pointer-events-none select-none shrink-0">calendar_today</span>
             <input
               type="text"
               readOnly
-              value="Oct 20, 2024 – Oct 25, 2024"
-              className="w-full pl-10 pr-sm py-2 border border-border-subtle rounded-lg font-body-sm text-body-sm bg-surface-white cursor-pointer outline-none"
+              value="Jul 10, 2026 – Jul 20, 2026"
+              className="flex-1 bg-transparent border-0 outline-none p-0 m-0 font-body-sm text-body-sm text-on-surface cursor-pointer"
             />
           </div>
         </div>
@@ -525,16 +600,6 @@ export function InvestigationResultsPage() {
         {/* Card header */}
         <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center">
           <h3 className="font-headline-md text-headline-md text-on-surface">My Investigation Results</h3>
-          <div className="flex gap-sm">
-            <button type="button" className="text-secondary hover:bg-surface-container px-sm py-1 rounded font-label-md text-label-md flex items-center gap-xs transition-colors cursor-pointer border-0 bg-transparent">
-              <span className="material-symbols-outlined text-[18px] leading-none">download</span>
-              Export CSV
-            </button>
-            <button type="button" className="text-secondary hover:bg-surface-container px-sm py-1 rounded font-label-md text-label-md flex items-center gap-xs transition-colors cursor-pointer border-0 bg-transparent">
-              <span className="material-symbols-outlined text-[18px] leading-none">print</span>
-              Print
-            </button>
-          </div>
         </div>
 
         {/* Table */}
@@ -549,8 +614,17 @@ export function InvestigationResultsPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {paginated.length === 0 ? (
+             <tbody className="divide-y divide-border-subtle">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-lg py-xl text-center">
+                    <div className="flex flex-col items-center justify-center gap-sm">
+                      <span className="material-symbols-outlined text-primary text-[36px] animate-spin">sync</span>
+                      <p className="font-body-sm text-body-sm text-outline m-0">Loading results from database...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-lg py-xl text-center font-body-sm text-body-sm text-secondary italic">
                     No results match the selected filters.
@@ -558,9 +632,9 @@ export function InvestigationResultsPage() {
                 </tr>
               ) : (
                 paginated.map((r) => {
-                  const sCfg   = STATUS_CONFIG[r.status]
+                  const sCfg   = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending
                   const dCfg   = DEPT_CONFIG[r.dept]
-                  const avatar = AVATAR_BG[r.status]
+                  const avatar = AVATAR_BG[r.status] || AVATAR_BG.pending
 
                   return (
                     <tr key={r.id} className={`transition-colors hover:bg-hover-tint ${sCfg.rowBg}`}>
