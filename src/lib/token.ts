@@ -38,9 +38,14 @@ export function getTenantIdFromToken(token: string): string | null {
 }
 
 export function isTokenExpired(token: string): boolean {
-  const payload = decodeToken(token)
-  if (!payload.exp) return true
-  return Date.now() >= payload.exp * 1000
+  try {
+    const payload = decodeToken(token)
+    if (!payload.exp) return false
+    return Date.now() >= payload.exp * 1000
+  } catch {
+    // Non-JWT token (e.g. opaque refresh token): cannot determine expiry
+    return false
+  }
 }
 
 export function isReadOnlyToken(token: string): boolean {

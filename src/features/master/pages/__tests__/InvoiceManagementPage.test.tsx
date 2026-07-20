@@ -100,7 +100,7 @@ describe('InvoiceManagementPage', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByPlaceholderText(/search by hospital name, invoice ID/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/search by hospital name, invoice number/i)).toBeInTheDocument()
 
     // Wait for the invoice list to load
     await waitFor(() => {

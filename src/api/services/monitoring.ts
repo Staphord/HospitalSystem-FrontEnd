@@ -66,6 +66,7 @@ export interface AuditLog {
   id: string
   timestamp: string
   actor: string
+  actor_name?: string
   action: string
   details: string
   ip_address: string
@@ -97,6 +98,7 @@ export interface TenantUsageTelemetry {
   db_size_bytes?: number
   db_size_mb?: number
   user_count?: number
+  active_user_count?: number
   error?: string
 }
 
@@ -138,8 +140,8 @@ export const monitoringService = {
 
     return {
       telemetry: {
-        uptime: '99.98%',
-        active_users: dbConnections,
+        uptime: t.uptime ?? '99.99%',
+        active_users: t.active_users_count ?? dbConnections,
         cpu_usage: cpuPct,
         ram_usage: ramPct,
         disk_usage: diskPct,
@@ -187,7 +189,20 @@ export const monitoringService = {
     apiClient.delete(`/announcements/${announcementId}`).then(() => {}),
 
   getAuditLogs: () =>
-    apiClient.get<AuditLog[]>('/superadmin/audit-log').then((r) => r.data),
+    apiClient.get<any[]>('/superadmin/audit-log').then((r) => {
+      const data = Array.isArray(r.data) ? r.data : []
+      return data.map((l) => ({
+        id: String(l.log_id || l.id || ''),
+        timestamp: String(l.created_at || l.timestamp || ''),
+        actor: String(l.super_admin_id || l.actor || 'System'),
+        actor_name: String(l.actor_name || ''),
+        action: String(l.action || ''),
+        details: typeof l.action_detail === 'object' && l.action_detail
+          ? String(l.action_detail.message || JSON.stringify(l.action_detail))
+          : String(l.detail || l.details || ''),
+        ip_address: String(l.ip_address || '')
+      }))
+    }),
 
   // Per-tenant detailed stats — real counts from tenant DB
   getTenantStats: async (tenantId: string): Promise<TenantStats> => {

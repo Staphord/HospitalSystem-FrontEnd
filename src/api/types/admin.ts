@@ -75,12 +75,22 @@ export interface AuditLogRow {
   timestamp: string
   staffName: string
   staffRole: string
-  action: 'DIAGNOSIS' | 'PATIENT_REGISTER' | 'LOGIN' | 'LAB_RESULT' | 'PAYMENT' | 'DELETE' | 'TENANT_ONBOARD' | 'SUBSCRIPTION_UPDATE' | 'TENANT_SUSPEND' | 'TENANT_REACTIVATE' | 'TENANT_TERMINATE' | 'USER_CREATE' | 'USER_UPDATE' | 'USER_DELETE' | 'INCIDENT_CREATE' | 'INCIDENT_RESOLVE' | 'ANNOUNCEMENT_CREATE' | 'PAYMENT_RECORD' | 'INVOICE_GENERATE' | 'ADMIN_CREATE' | 'ADMIN_DELETE' | 'SECURITY_FORCE_LOGOUT' | 'IMPERSONATE_START'
+  action: string
   department: string
   recordId: string
   ipAddress: string
   details: string
   signature: string
+}
+
+export interface BackupItem {
+  id: string
+  filename: string
+  size: string
+  status: 'Successful' | 'Failed'
+  createdAt: string
+  initiatedBy: string
+  tableCounts?: Record<string, number>
 }
 
 export interface WardItem {

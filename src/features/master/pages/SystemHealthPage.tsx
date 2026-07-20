@@ -211,7 +211,7 @@ export function SystemHealthPage() {
     const areaD = `${pathD} L ${points[points.length - 1].x},${height - 20} L ${points[0].x},${height - 20} Z`
 
     return (
-      <svg width="100%" height={height} style={{ overflow: 'visible' }}>
+      <svg viewBox="0 0 450 150" width="100%" height={height} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
         <defs>
           <linearGradient id="uptimeGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#36b37e" stopOpacity="0.15" />
@@ -234,14 +234,24 @@ export function SystemHealthPage() {
           </g>
         ))}
 
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, idx) => {
-          const x = 30 + (idx / 6) * (width - 60)
-          return (
-            <text key={idx} x={x} y={height} fontSize="9" fill="#888" textAnchor="middle">
-              {d}
-            </text>
-          )
-        })}
+        {(() => {
+          const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          const today = new Date();
+          const labels = [];
+          for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(today.getDate() - i);
+            labels.push(days[d.getDay()]);
+          }
+          return labels.map((d, idx) => {
+            const x = 30 + (idx / 6) * (width - 60);
+            return (
+              <text key={idx} x={x} y={height} fontSize="9" fill="#888" textAnchor="middle">
+                {d}
+              </text>
+            );
+          });
+        })()}
       </svg>
     )
   }
@@ -256,7 +266,7 @@ export function SystemHealthPage() {
     const spacing = (width - 60) / (trend.length - 1)
 
     return (
-      <svg width="100%" height={height} style={{ overflow: 'visible' }}>
+      <svg viewBox="0 0 450 150" width="100%" height={height} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
         {trend.map((val, idx) => {
           const x = 30 + idx * spacing - barWidth * 0.5
           const barHeight = (val / max) * (height - 30)
@@ -270,14 +280,22 @@ export function SystemHealthPage() {
             </g>
           )
         })}
-        {['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'].map((time, idx) => {
-          const x = 30 + idx * spacing
-          return (
-            <text key={idx} x={x} y={height} fontSize="9" fill="#888" textAnchor="middle">
-              {time}
-            </text>
-          )
-        })}
+        {(() => {
+          const now = new Date();
+          const labels = [];
+          for (let i = 6; i >= 0; i--) {
+            const h = new Date(now.getTime() - i * 2 * 60 * 60 * 1000);
+            labels.push(h.getHours().toString().padStart(2, '0') + ':00');
+          }
+          return labels.map((time, idx) => {
+            const x = 30 + idx * spacing;
+            return (
+              <text key={idx} x={x} y={height} fontSize="9" fill="#888" textAnchor="middle">
+                {time}
+              </text>
+            );
+          });
+        })()}
       </svg>
     )
   }
@@ -298,15 +316,15 @@ export function SystemHealthPage() {
     const pathD = `M ${points.map((p) => `${p.x},${p.y}`).join(' L ')}`
     const areaD = `${pathD} L ${points[points.length - 1].x},${height - 20} L ${points[0].x},${height - 20} Z`
 
-    const formatStorageValue = (valInGb: number) => {
-      if (valInGb < 0.1) {
-        return `${(valInGb * 1024).toFixed(1)}MB`
+    const formatStorageValue = (valInMb: number) => {
+      if (valInMb >= 1024) {
+        return `${(valInMb / 1024).toFixed(2)}GB`
       }
-      return `${valInGb.toFixed(2)}GB`
+      return `${valInMb.toFixed(1)}MB`
     }
 
     return (
-      <svg width="100%" height={height} style={{ overflow: 'visible' }}>
+      <svg viewBox="0 0 450 150" width="100%" height={height} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
         <defs>
           <linearGradient id="storageGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#00b8d9" stopOpacity="0.2" />
@@ -316,7 +334,7 @@ export function SystemHealthPage() {
         <path d={areaD} fill="url(#storageGrad)" stroke="none" />
         <path d={pathD} fill="none" stroke="#00b8d9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 
-        <text x="20" y={height} fontSize="9" fill="#888">1 Day ago</text>
+        <text x="20" y={height} fontSize="9" fill="#888">30 Days ago</text>
         <text x={width * 0.5} y={height} fontSize="9" fill="#888" textAnchor="middle">15 Days ago</text>
         <text x={width - 20} y={height} fontSize="9" fill="#888" textAnchor="end">Today</text>
 
@@ -435,9 +453,17 @@ export function SystemHealthPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                 {/* Auto Refresh Toolbar */}
                 <div className="card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span className="badge badge-success" style={{ height: '8px', width: '8px', borderRadius: '50%', padding: 0 }} />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Live System Feeds Connected</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span className="badge badge-success" style={{ height: '8px', width: '8px', borderRadius: '50%', padding: 0 }} />
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Live System Feeds Connected</span>
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                      System Uptime: <strong style={{ color: 'var(--color-primary)' }}>{healthData.telemetry.uptime}</strong>
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                      Total Active Sessions: <strong style={{ color: 'var(--color-primary)' }}>{healthData.telemetry.active_users}</strong>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <label style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -784,8 +810,8 @@ export function SystemHealthPage() {
                                     <span style={{
                                       display: 'inline-block', padding: '0.2rem 0.5rem',
                                       borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600,
-                                      backgroundColor: plan.toLowerCase() === 'enterprise' ? '#deebff' : plan.toLowerCase() === 'premium' ? '#e3fcef' : '#f4f5f7',
-                                      color: plan.toLowerCase() === 'enterprise' ? '#0052cc' : plan.toLowerCase() === 'premium' ? '#006644' : '#42526e'
+                                      backgroundColor: plan.toLowerCase() === 'premium' ? '#e3fcef' : plan.toLowerCase() === 'standard' ? '#deebff' : '#f4f5f7',
+                                      color: plan.toLowerCase() === 'premium' ? '#006644' : plan.toLowerCase() === 'standard' ? '#0052cc' : '#42526e'
                                     }}>
                                       {plan}
                                     </span>

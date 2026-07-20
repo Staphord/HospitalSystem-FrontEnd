@@ -98,6 +98,13 @@ export function LoginPage() {
         getDefaultRoute(getRolesFromToken(tokens.access_token), user?.role),
       )
     } catch (err: any) {
+      const apiMessage = getApiErrorMessage(err)
+      if (apiMessage.toLowerCase().includes('not fully set up') || apiMessage.toLowerCase().includes('setup')) {
+        toast.info('First-time login: Redirecting to establish your secure password.')
+        navigate('/first-login-change-password', { state: { username, tempPassword: password } })
+        return
+      }
+
       console.error('[DEBUG LOGIN ERROR] Full error:', err)
       if (err?.response) {
         console.error('[DEBUG LOGIN ERROR] Response status:', err.response.status)

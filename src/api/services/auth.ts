@@ -12,9 +12,11 @@ import type {
   SignupRequest,
   SignupResponse,
   TokenResponse,
+  FirstLoginChangePasswordRequest,
 } from '@/api/types/auth'
 
 export const authService = {
+
   login: (data: LoginRequest) =>
     apiClient.post<LoginResponse>('/auth/login', data).then((r) => r.data),
 
@@ -57,4 +59,10 @@ export const authService = {
 
   impersonate: (data: ImpersonateRequest) =>
     apiClient.post<ImpersonateResponse>('/auth/impersonate', data).then((r) => r.data),
+
+  exitImpersonation: () =>
+    apiClient.post<{ detail: string }>('/auth/impersonate/exit').then((r) => r.data),
+
+  firstLoginChangePassword: (data: FirstLoginChangePasswordRequest) =>
+    apiClient.post<TokenResponse>('/auth/first-login/change-password', data).then((r) => r.data),
 }

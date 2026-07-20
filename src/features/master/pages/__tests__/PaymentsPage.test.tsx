@@ -194,7 +194,7 @@ describe('PaymentsPage', () => {
       expect(screen.getAllByText('Aga Khan Hospital').length).toBeGreaterThan(0)
     })
 
-    const searchInput = screen.getByPlaceholderText(/Search by Hospital, Invoice ID, Reference/i)
+    const searchInput = screen.getByPlaceholderText(/Search by Hospital, Invoice Number, Reference/i)
     
     // Filter by reference code
     await act(async () => {

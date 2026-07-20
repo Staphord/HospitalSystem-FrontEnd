@@ -23,7 +23,10 @@ export interface Tenant {
   contact_phone?: string
   billing_email?: string
   tax_id?: string
+  date_format?: string
+  logo_url?: string
   grace_days?: number
+  grace_period_days?: number
   nas_backup_path?: string
   secondary_contact_name?: string
   secondary_contact_phone?: string
@@ -36,7 +39,7 @@ export interface Tenant {
 export interface TenantCreate {
   hospital_name: string
   admin_username: string
-  admin_password: string
+  admin_password?: string
   admin_email: string
   admin_full_name?: string
   country?: string
@@ -89,6 +92,7 @@ export interface Subscription {
   grace_period_days?: number
   auto_renew?: boolean
   pending_plan_name?: string | null
+  billing_cycle?: string
 }
 
 export interface Invoice {

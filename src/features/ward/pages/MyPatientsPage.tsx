@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
+import { wardService } from '@/api/services/ward'
 
 interface Patient {
   id: string
@@ -276,36 +278,66 @@ function conditionBadge(condition: Patient['condition']) {
   )
 }
 
+const isTestEnv =
+  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+  import.meta.env.MODE === 'test'
+
+function loadMockPatients(): Patient[] {
+  const existing = localStorage.getItem('hf_mock_admitted_patients')
+  if (existing) {
+    const parsed = JSON.parse(existing)
+    if (parsed.length === DEFAULT_PATIENTS.length) {
+      return parsed
+    }
+  }
+  localStorage.setItem('hf_mock_admitted_patients', JSON.stringify(DEFAULT_PATIENTS))
+  return DEFAULT_PATIENTS
+}
+
 export function MyPatientsPage() {
   const [isLoading, setIsLoading] = useState(() => {
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
-      return false
-    }
+    if (isTestEnv) return false
     return true
   })
 
-  const [patients] = useState<Patient[]>(() => {
-    const existing = localStorage.getItem('hf_mock_admitted_patients')
-    if (existing) {
-      const parsed = JSON.parse(existing)
-      if (parsed.length === DEFAULT_PATIENTS.length) {
-        return parsed
-      }
-    }
-    localStorage.setItem('hf_mock_admitted_patients', JSON.stringify(DEFAULT_PATIENTS))
-    return DEFAULT_PATIENTS
-  })
+  const [patients, setPatients] = useState<Patient[]>(() => (isTestEnv ? loadMockPatients() : []))
 
   const [filterCondition, setFilterCondition] = useState<string>('All Conditions')
   const [searchQuery, setSearchQuery] = useState<string>('')
 
   useEffect(() => {
-    if (!isLoading) return
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 600)
-    return () => clearTimeout(timer)
-  }, [isLoading])
+    if (isTestEnv) return
+
+    wardService
+      .listAdmissions({ status: 'active', limit: 200 })
+      .then((admissions) => {
+        setPatients(
+          admissions.map((a) => ({
+            id: a.admissionId,
+            name: `Patient ${a.patientId.slice(0, 8)}`,
+            patientNo: a.patientId.slice(0, 8).toUpperCase(),
+            bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+            admissionDate: new Date(a.admissionDate).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            }),
+            lengthOfStay:
+              a.lengthOfStayDays != null ? `${a.lengthOfStayDays} day(s)` : '—',
+            admittingDoctor: a.admittingDoctorId || '—',
+            condition: 'Stable' as const,
+            lastNoteTime: '—',
+            activeVisitors: 0,
+            diagnosis: a.admittingDiagnosis,
+          })),
+        )
+      })
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.response?.data?.detail || 'Failed to load patients.')
+      })
+      .finally(() => setIsLoading(false))
+  }, [])
 
   const totalAdmitted = patients.length
   const stableCount = patients.filter((p) => p.condition === 'Stable').length

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type ReactNode } from 'react'
+import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
@@ -8,13 +8,21 @@ import { authService } from '@/api/services/auth'
 
 export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const { isAuthenticated, clearAuth, refreshToken } = useAuth()
-  
+  const { isAuthenticated, isImpersonating, clearAuth, refreshToken } = useAuth()
+
   const [showModal, setShowModal] = useState(false)
   const [countdown, setCountdown] = useState(60)
-  
+
+  // Ref mirrors showModal so interval/event-handler closures always see the
+  // latest value without pulling showModal into useEffect dependency arrays.
+  const showModalRef = useRef(false)
   const timerRef = useRef<any>(null)
   const countdownRef = useRef<any>(null)
+
+  // Sync ref on every state change
+  useEffect(() => {
+    showModalRef.current = showModal
+  }, [showModal])
 
   // Configurations (Default: 14 mins warning, 15 mins total. Test mode: 10s warning, 15s total)
   const getDurations = () => {
@@ -31,7 +39,24 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
   }
 
-  const resetTimer = (isFromActivity = true) => {
+  const handleTimeout = useCallback(async () => {
+    setShowModal(false)
+    showModalRef.current = false
+    try {
+      if (refreshToken) {
+        await authService.logout(refreshToken)
+      }
+    } catch (err) {
+      console.warn('Inactivity logout API failed:', err)
+    } finally {
+      clearAuth()
+      localStorage.removeItem('hf_last_activity')
+      toast.error('Session expired due to inactivity.')
+      navigate('/login')
+    }
+  }, [refreshToken, clearAuth, navigate])
+
+  const resetTimer = useCallback((isFromActivity = true) => {
     if (timerRef.current) clearTimeout(timerRef.current)
 
     const now = Date.now()
@@ -43,29 +68,40 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     const { warningMs, totalMs } = getDurations()
     const timeElapsed = now - lastActivity
 
+    // Session has exceeded its maximum idle lifetime.
+    // Show the warning modal so the user always gets at least one visible
+    // frame before logout — never call handleTimeout() silently.
     if (timeElapsed >= totalMs) {
-      handleTimeout()
+      if (!showModalRef.current) {
+        setShowModal(true)
+        showModalRef.current = true
+        setCountdown(0)
+      }
       return
     }
 
     if (timeElapsed >= warningMs) {
-      // Calculate remaining countdown seconds
       const initialCountdown = Math.max(1, Math.ceil((totalMs - timeElapsed) / 1000))
-      setShowModal(true)
+      if (!showModalRef.current) {
+        setShowModal(true)
+        showModalRef.current = true
+      }
       setCountdown(initialCountdown)
       return
     }
 
     setShowModal(false)
+    showModalRef.current = false
     const remainingMs = warningMs - timeElapsed
     timerRef.current = setTimeout(() => {
-      setShowModal(true)
       const freshLastActivity = parseInt(localStorage.getItem('hf_last_activity') || '0', 10)
       const freshTimeElapsed = Date.now() - freshLastActivity
       const freshCountdown = Math.max(1, Math.ceil((totalMs - freshTimeElapsed) / 1000))
+      setShowModal(true)
+      showModalRef.current = true
       setCountdown(freshCountdown)
     }, remainingMs)
-  }
+  }, [handleTimeout])
 
   // Handle countdown when modal is visible
   useEffect(() => {
@@ -91,32 +127,18 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     return () => {
       if (countdownRef.current) clearInterval(countdownRef.current)
     }
-  }, [showModal])
-
-  const handleTimeout = async () => {
-    setShowModal(false)
-    try {
-      if (refreshToken) {
-        await authService.logout(refreshToken)
-      }
-    } catch (err) {
-      console.warn('Inactivity logout API failed:', err)
-    } finally {
-      clearAuth()
-      localStorage.removeItem('hf_last_activity')
-      toast.error('Session expired due to inactivity.')
-      navigate('/login')
-    }
-  }
+  }, [showModal, handleTimeout])
 
   const handleKeepAlive = () => {
     setShowModal(false)
+    showModalRef.current = false
     resetTimer(true)
     toast.success('Session extended.')
   }
 
   const handleLogout = async () => {
     setShowModal(false)
+    showModalRef.current = false
     try {
       if (refreshToken) {
         await authService.logout(refreshToken)
@@ -130,15 +152,12 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
   }
 
-  const handleActivity = () => {
-    // Mouse movement or keys shouldn't reset time when the warning modal is active
-    if (showModal) return
-    resetTimer(true)
-  }
-
-  // Set up event listeners for tracking activity
+  // Set up activity listeners and inactivity polling.
+  // showModal is intentionally excluded from deps — use showModalRef.current
+  // in callbacks so the effect is not torn down and rebuilt every time the
+  // modal opens or closes (which was causing resetTimer to fire on stale data).
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isImpersonating) {
       if (timerRef.current) clearTimeout(timerRef.current)
       localStorage.removeItem('hf_last_activity')
       return
@@ -148,33 +167,33 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
       localStorage.setItem('hf_last_activity', Date.now().toString())
     }
 
+    const handleActivity = () => {
+      // Use ref so we never read a stale showModal value
+      if (showModalRef.current) return
+      resetTimer(true)
+    }
+
     const events = ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart']
-    const handler = () => handleActivity()
+    events.forEach((event) => window.addEventListener(event, handleActivity))
 
-    events.forEach((event) => {
-      window.addEventListener(event, handler)
-    })
-
-    // Initial setup (run checks without forcing update of last activity)
+    // Initial check without updating last-activity timestamp
     resetTimer(false)
 
-    // Check periodically in case tab is in background
+    // Periodic background check (handles tabs that have been inactive)
     const syncInterval = setInterval(() => {
-      if (!showModal) {
+      if (!showModalRef.current) {
         resetTimer(false)
       }
     }, 5000)
 
     return () => {
-      events.forEach((event) => {
-        window.removeEventListener(event, handler)
-      })
+      events.forEach((event) => window.removeEventListener(event, handleActivity))
       if (timerRef.current) clearTimeout(timerRef.current)
       clearInterval(syncInterval)
     }
-  }, [isAuthenticated, showModal])
+  }, [isAuthenticated, isImpersonating, resetTimer])
 
-  // Synchronize inactivity timer across browser tabs via storage events
+  // Cross-tab activity synchronisation via storage events
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'hf_last_activity' && isAuthenticated) {
@@ -183,13 +202,12 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
-  }, [isAuthenticated])
+  }, [isAuthenticated, resetTimer])
 
-  // Synchronize inactivity session warning with token expiration
+  // Periodic refresh-token expiry check
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || isImpersonating) return
 
-    // Every 5 seconds, check if the refresh token is expired
     const interval = setInterval(() => {
       const token = useAuthStore.getState().refreshToken
       if (token && isTokenExpired(token)) {
@@ -198,7 +216,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [isAuthenticated])
+  }, [isAuthenticated, isImpersonating, handleTimeout])
 
   return (
     <>
@@ -264,27 +282,34 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
                 lineHeight: '1.4',
                 margin: 0
               }}>
-                You have been inactive for a while. Your administrative session will expire in{' '}
-                <strong style={{ color: 'var(--color-error)' }}>{countdown} seconds</strong>.
+                {countdown <= 0
+                  ? 'Your session has expired due to inactivity. Signing you out…'
+                  : <>
+                      You have been inactive for a while. Your administrative session will expire in{' '}
+                      <strong style={{ color: 'var(--color-error)' }}>{countdown} seconds</strong>.
+                    </>
+                }
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-              <button
-                onClick={handleLogout}
-                className="btn btn-secondary"
-                style={{ flex: 1, padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
-              >
-                Sign out
-              </button>
-              <button
-                onClick={handleKeepAlive}
-                className="btn btn-primary"
-                style={{ flex: 1, padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
-              >
-                Keep me signed in
-              </button>
-            </div>
+            {countdown > 0 && (
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  onClick={handleLogout}
+                  className="btn btn-secondary"
+                  style={{ flex: 1, padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
+                >
+                  Sign out
+                </button>
+                <button
+                  onClick={handleKeepAlive}
+                  className="btn btn-primary"
+                  style={{ flex: 1, padding: '0.625rem', fontSize: '0.875rem', fontWeight: 600 }}
+                >
+                  Keep me signed in
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

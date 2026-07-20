@@ -183,5 +183,27 @@ export const getSubscriptionBanners = (
     });
   }
 
+  // 7. Rejected Request Banner
+  const history = _tenant?.subscription_metadata?.requests_history || [];
+  const rejectedRequests = history.filter((r: any) => r.status === 'rejected');
+  if (rejectedRequests.length > 0) {
+    const latestRejected = rejectedRequests[rejectedRequests.length - 1];
+    const targetPlan = latestRejected.requested_plan ? latestRejected.requested_plan.toUpperCase() : 'plan change';
+    const notes = latestRejected.review_notes || 'No reason provided.';
+    banners.push({
+      id: 'banner-rejected-request',
+      type: 'warning',
+      title: 'Plan Request Rejected',
+      message: `Your request to change to ${targetPlan} was rejected. Reason: "${notes}"`,
+      icon: 'cancel',
+      styles: {
+        background: '#FFEBE6',
+        border: '1px solid #FF5630',
+        color: '#BF2600',
+        iconColor: '#FF5630',
+      },
+    });
+  }
+
   return banners;
 };

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { useApp } from '@/features/admin/context/AppContext';
 import { useAuth } from '@/hooks/useAuth';
+import { adminService } from '@/api/services/admin';
 
 interface ContactInfo {
   name: string;
@@ -31,15 +33,9 @@ interface SettingsState {
 // Renders settings control panel, regional restrictions, and contact details
 export const SettingsPage: React.FC = () => {
   const { setActiveView } = useApp();
-  const { tenantId, user } = useAuth();
+  const { user } = useAuth();
 
-  // Retrieve dynamic hospital name based on the active tenant ID
-  const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]');
-  const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId);
-  const hospitalName =
-    user?.hospital_name ||
-    (currentTenant ? currentTenant.hospital_name : null) ||
-    'Muhimbili National Hospital';
+  const hospitalName = user?.hospital_name || 'Hospital'
 
   const [settings, setSettings] = useState<SettingsState>({
     hospitalName,
@@ -74,26 +70,93 @@ export const SettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Load persisted hospital settings from admin-service on mount
+  useEffect(() => {
+    adminService.getSettings()
+      .then((stored) => {
+        setSettings((prev) => ({
+          ...prev,
+          hospitalName: stored.hospital_name ?? prev.hospitalName,
+          address: stored.address ?? prev.address,
+          city: stored.city ?? prev.city,
+          country: stored.country ?? prev.country,
+          phone: stored.phone ?? prev.phone,
+          email: stored.email ?? prev.email,
+          sessionTimeout: stored.session_timeout ?? prev.sessionTimeout,
+          passwordExpiry: stored.password_expiry ?? prev.passwordExpiry,
+          mfaDoctors: stored.mfa_doctors != null ? stored.mfa_doctors === 'true' : prev.mfaDoctors,
+          primaryContact: {
+            name: stored.primary_contact_name ?? prev.primaryContact.name,
+            occupation: stored.primary_contact_occupation ?? prev.primaryContact.occupation,
+            email: stored.primary_contact_email ?? prev.primaryContact.email,
+            phone: stored.primary_contact_phone ?? prev.primaryContact.phone,
+          },
+          secondaryContact: {
+            name: stored.secondary_contact_name ?? prev.secondaryContact.name,
+            occupation: stored.secondary_contact_occupation ?? prev.secondaryContact.occupation,
+            email: stored.secondary_contact_email ?? prev.secondaryContact.email,
+            phone: stored.secondary_contact_phone ?? prev.secondaryContact.phone,
+          },
+          criticalLabAlerts: stored.critical_lab_alerts != null ? stored.critical_lab_alerts === 'true' : prev.criticalLabAlerts,
+          lowStockAlerts: stored.low_stock_alerts != null ? stored.low_stock_alerts === 'true' : prev.lowStockAlerts,
+          overduePatientAlerts: stored.overdue_patient_alerts != null ? stored.overdue_patient_alerts === 'true' : prev.overduePatientAlerts,
+          maintenanceNotices: stored.maintenance_notices != null ? stored.maintenance_notices === 'true' : prev.maintenanceNotices,
+          renewalReminders: stored.renewal_reminders != null ? stored.renewal_reminders === 'true' : prev.renewalReminders,
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to load hospital settings:', err);
+      });
+  }, []);
+
   // Update specific setting values
   const handleChange = (updater: (prev: SettingsState) => SettingsState) => {
     setSettings(prev => updater(prev));
     setIsDirty(true);
   };
 
-  // Submit changes to backend mock simulation
+  // Persist settings to admin-service (key-value store, FR-55)
   const handleSaveChanges = () => {
     if (!isDirty || isSaving) return;
     setIsSaving(true);
 
-    setTimeout(() => {
-      setIsSaving(false);
-      setSaveSuccess(true);
-      setIsDirty(false);
-
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 2000);
-    }, 1000);
+    adminService.updateSettings({
+      hospital_name: settings.hospitalName,
+      address: settings.address,
+      city: settings.city,
+      country: settings.country,
+      phone: settings.phone,
+      email: settings.email,
+      session_timeout: settings.sessionTimeout,
+      password_expiry: settings.passwordExpiry,
+      mfa_doctors: String(settings.mfaDoctors),
+      primary_contact_name: settings.primaryContact.name,
+      primary_contact_occupation: settings.primaryContact.occupation,
+      primary_contact_email: settings.primaryContact.email,
+      primary_contact_phone: settings.primaryContact.phone,
+      secondary_contact_name: settings.secondaryContact.name,
+      secondary_contact_occupation: settings.secondaryContact.occupation,
+      secondary_contact_email: settings.secondaryContact.email,
+      secondary_contact_phone: settings.secondaryContact.phone,
+      critical_lab_alerts: String(settings.criticalLabAlerts),
+      low_stock_alerts: String(settings.lowStockAlerts),
+      overdue_patient_alerts: String(settings.overduePatientAlerts),
+      maintenance_notices: String(settings.maintenanceNotices),
+      renewal_reminders: String(settings.renewalReminders),
+    })
+      .then(() => {
+        setSaveSuccess(true);
+        setIsDirty(false);
+        setTimeout(() => {
+          setSaveSuccess(false);
+        }, 2000);
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to save settings.');
+      })
+      .finally(() => {
+        setIsSaving(false);
+      });
   };
 
   return (
