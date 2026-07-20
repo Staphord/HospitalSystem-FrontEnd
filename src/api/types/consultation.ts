@@ -64,8 +64,8 @@ export interface InvestigationRequestResponse {
   clinical_history?: string | null
   status: string
   urgency: string
-  requested_by?: string | null
-  requested_at?: string | null
+  created_by?: string | null     // alias for requested_by in backend schema
+  created_at?: string | null     // alias for requested_at in backend schema
   result?: Record<string, any> | null
 }
 

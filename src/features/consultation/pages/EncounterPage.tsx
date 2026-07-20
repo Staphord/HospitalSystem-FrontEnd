@@ -1105,6 +1105,7 @@ export function EncounterPage() {
 
   const [showAddOrder, setShowAddOrder] = useState(false)
   const [showAddMedication, setShowAddMedication] = useState(false)
+  const [isDiagnosisSaving, setIsDiagnosisSaving] = useState(false)
 
   // §6 Disposition
   const [disposition, setDisposition] = useState<DispositionType | null>(null)
@@ -1257,6 +1258,12 @@ export function EncounterPage() {
     }
   }, [encounter])
 
+  // Derived: does the current loaded encounter have at least one diagnosis recorded?
+  // The backend gate accepts provisional, differential, or final — any clinical opinion.
+  const hasDiagnosis = useMemo(() => {
+    return (encounter?.consultation?.diagnoses ?? []).length > 0
+  }, [encounter])
+
   const orders = useMemo((): InvestigationOrder[] => {
     if (!encounter?.consultation?.investigation_requests) return []
     return encounter.consultation.investigation_requests
@@ -1275,7 +1282,7 @@ export function EncounterPage() {
           testName: inv.test_name,
           department: inv.request_type === 'radiology' ? 'Radiology' : 'Laboratory',
           priority: uiPriority,
-          time: inv.requested_at ? new Date(inv.requested_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+          time: inv.created_at ? new Date(inv.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
           status: uiStatus,
           notes: inv.clinical_history || undefined
         }
@@ -1314,6 +1321,7 @@ export function EncounterPage() {
 
   const handleAddDiagnosis = async () => {
     if (!encounter?.consultation?.id || !diagDesc.trim()) return
+    setIsDiagnosisSaving(true)
     try {
       await consultationService.addDiagnosis(
         encounter.consultation.id,
@@ -1328,6 +1336,8 @@ export function EncounterPage() {
     } catch (err: any) {
       console.error(err)
       toast.error(err.response?.data?.detail || "Failed to add diagnosis.")
+    } finally {
+      setIsDiagnosisSaving(false)
     }
   }
 
@@ -1665,11 +1675,20 @@ export function EncounterPage() {
                   <button
                     type="button"
                     onClick={handleAddDiagnosis}
-                    disabled={!diagDesc.trim()}
+                    disabled={!diagDesc.trim() || isDiagnosisSaving}
                     className="h-9 px-md rounded-lg font-label-md text-label-md text-white bg-primary hover:bg-primary-container border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-xs"
                   >
-                    <span className="material-symbols-outlined text-[16px]">add</span>
-                    Record Diagnosis
+                    {isDiagnosisSaving ? (
+                      <>
+                        <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                        Saving…
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[16px]">add</span>
+                        Record Diagnosis
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1682,8 +1701,29 @@ export function EncounterPage() {
           number={4}
           title="Investigations"
           actionLabel={isReadOnly ? undefined : "Add Order"}
-          onAction={isReadOnly ? undefined : () => setShowAddOrder(true)}
+          onAction={isReadOnly ? undefined : () => {
+            if (isDiagnosisSaving) {
+              toast.info('Saving diagnosis, please wait a moment…')
+              return
+            }
+            if (!hasDiagnosis) {
+              toast.warning('Record a diagnosis in Section 3 (provisional, differential, or final) before adding an investigation order.')
+              return
+            }
+            setShowAddOrder(true)
+          }}
         >
+          {/* Gate banner — shown when no diagnosis exists yet */}
+          {!isReadOnly && !hasDiagnosis && (
+            <div className="flex items-start gap-sm p-sm rounded-lg bg-warning/10 border border-warning/30 mb-md">
+              <span className="material-symbols-outlined text-warning shrink-0 text-[20px] mt-0.5">info</span>
+              <p className="font-body-sm text-body-sm text-on-surface m-0">
+                <strong>Diagnosis required.</strong> Record any diagnosis (provisional, differential, or final) in{' '}
+                <strong>Section 3 — Diagnosis</strong> before adding investigation orders.
+              </p>
+            </div>
+          )}
+
           {/* Chips */}
           <div className="flex flex-wrap gap-2 mb-md">
             {orders.map((o) => (
@@ -1696,7 +1736,9 @@ export function EncounterPage() {
                 )}
               </span>
             ))}
-            {orders.length === 0 && <span className="font-body-sm text-body-sm text-secondary italic">No active orders.</span>}
+            {orders.length === 0 && hasDiagnosis && (
+              <span className="font-body-sm text-body-sm text-secondary italic">No active orders.</span>
+            )}
           </div>
           {/* Table */}
           {orders.length > 0 && (
