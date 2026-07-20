@@ -1,313 +1,422 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import type {
-  LabRequestStatus,
-  LabTestRequest,
-  ResultFlag,
-} from '@/features/laboratory/types/laboratory'
-import {
-  getLabRequestById,
-  patchLabRequest,
-} from '@/features/laboratory/utils/labRequestStore'
-import { getSpecimenByRequestId } from '@/features/laboratory/utils/specimenStore'
-import {
-  SPECIMEN_TRACKING_STATUS_LABEL,
-} from '@/features/laboratory/utils/specimenStatus'
-import { evaluateResultFlag, getWorstFlag } from '@/features/laboratory/utils/labResultFlags'
-
-function FlagPill({ flag }: { flag: ResultFlag }) {
-  if (!flag || flag === 'normal') return null
-
-  if (flag === 'critical') {
-    return (
-      <span className="px-sm py-[2px] rounded-full text-[10px] font-bold uppercase bg-error/10 text-error border border-error/20">
-        Critical
-      </span>
-    )
-  }
-
-  return (
-    <span className="px-sm py-[2px] rounded-full text-[10px] font-bold uppercase bg-warning/10 text-warning border border-warning/20">
-      Abnormal
-    </span>
-  )
-}
+import { laboratoryService, type BackendLabRequestDetail } from '@/api/services/laboratory'
 
 export function LabRequestDetailContent() {
   const { requestId } = useParams<{ requestId: string }>()
   const navigate = useNavigate()
-  const initial = requestId ? getLabRequestById(requestId) : undefined
 
-  const defaultResults = (): Record<string, string> => {
-    if (initial?.resultValues && Object.keys(initial.resultValues).length > 0) {
-      return initial.resultValues
+  const [loading, setLoading] = useState(true)
+  const [detail, setDetail] = useState<BackendLabRequestDetail | null>(null)
+
+  // Result entry state
+  const [resultValue, setResultValue] = useState('')
+  const [unit, setUnit] = useState('')
+  const [referenceRange, setReferenceRange] = useState('')
+  const [isCritical, setIsCritical] = useState(false)
+  const [resultNotes, setResultNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [billing, setBilling] = useState(false)
+  const [billCreated, setBillCreated] = useState(false)
+
+  const loadDetail = async () => {
+    if (!requestId) return
+    setLoading(true)
+    try {
+      const data = await laboratoryService.getRequestDetail(requestId)
+      setDetail(data)
+      if (data.result) {
+        setResultValue(data.result.result_value || '')
+        setUnit(data.result.unit || '')
+        setReferenceRange(data.result.reference_range || '')
+        setIsCritical(data.result.is_critical || false)
+      }
+    } catch (err: any) {
+      toast.error('Failed to load lab request detail')
+    } finally {
+      setLoading(false)
     }
-    if (initial?.testName.toLowerCase().includes('troponin')) {
-      return { 'trop-i': '2.8' }
-    }
-    return {}
   }
 
-  const [request, setRequest] = useState<LabTestRequest | null>(initial ?? null)
-  const [resultValues, setResultValues] = useState<Record<string, string>>(defaultResults)
-  const [observations, setObservations] = useState(initial?.observations ?? '')
-  const [isDirty, setIsDirty] = useState(false)
-
   useEffect(() => {
-    if (!requestId) return
-    const loaded = getLabRequestById(requestId)
-    if (loaded) {
-      setRequest(loaded)
-      const values =
-        loaded.resultValues && Object.keys(loaded.resultValues).length > 0
-          ? loaded.resultValues
-          : loaded.testName.toLowerCase().includes('troponin')
-            ? { 'trop-i': '2.8' }
-            : {}
-      setResultValues(values)
-      setObservations(loaded.observations ?? '')
-    }
+    loadDetail()
   }, [requestId])
 
-  const parameters = request?.parameters ?? []
-  const isReadOnly = request?.status === 'completed'
-
-  const parameterFlags = useMemo(() => {
-    return parameters.map((param) => evaluateResultFlag(resultValues[param.id] ?? '', param))
-  }, [parameters, resultValues])
-
-  const worstFlag = useMemo(() => getWorstFlag(parameterFlags), [parameterFlags])
-  const isCritical = worstFlag === 'critical'
-
-  if (!requestId || !request) {
+  if (!requestId) {
     return <Navigate to="/laboratory/requests" replace />
   }
 
-  const persistRequest = (patch: Partial<LabTestRequest>) => {
-    patchLabRequest(request.id, patch)
-    const updated = { ...request, ...patch }
-    setRequest(updated)
-    setIsDirty(false)
+  if (loading) {
+    return (
+      <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg animate-pulse">
+        <div className="h-10 bg-surface-container rounded w-1/4" />
+        <div className="h-64 bg-surface-white border border-border-subtle rounded-xl" />
+      </div>
+    )
   }
 
-  const handleStatusChange = (status: LabRequestStatus) => {
-    persistRequest({ status })
-    toast.success(`Status updated to ${status.replace('_', ' ')}.`)
+  if (!detail) {
+    return (
+      <div className="max-w-container-max mx-auto w-full p-xl text-center">
+        <h3 className="font-headline-sm text-on-surface mb-sm">Lab Request Not Found</h3>
+        <Link to="/laboratory/requests" className="text-primary hover:underline font-label-md">
+          Return to requests list
+        </Link>
+      </div>
+    )
   }
 
-  const trackedSpecimen = getSpecimenByRequestId(request.id)
+  const isVerified = detail.result?.status === 'verified' || detail.status === 'completed'
+  const hasResult = !!detail.result
 
-  const handleSaveDraft = () => {
-    persistRequest({ resultValues, observations })
-    toast.success('Draft saved.')
-  }
-
-  const handleSubmit = () => {
-    persistRequest({
-      resultValues,
-      observations,
-      status: 'completed',
-    })
-    if (isCritical) {
-      toast.success('Results submitted. Doctor notified of critical value.')
-    } else {
-      toast.success('Results submitted successfully.')
+  const handleSaveResult = async () => {
+    if (!resultValue.trim()) {
+      toast.error('Please enter a result value')
+      return
     }
-    navigate('/laboratory/requests')
+
+    setSubmitting(true)
+    try {
+      if (hasResult) {
+        await laboratoryService.updateResult(detail.request_id, {
+          result_value: resultValue,
+          unit,
+          reference_range: referenceRange,
+          is_critical: isCritical,
+          result_notes: resultNotes,
+        })
+        toast.success('Result updated successfully')
+      } else {
+        await laboratoryService.createResult(detail.request_id, {
+          result_value: resultValue,
+          unit,
+          reference_range: referenceRange,
+          is_critical: isCritical,
+          result_notes: resultNotes,
+          specimen_type: detail.specimen?.specimen_type || 'blood',
+        })
+        toast.success('Result created successfully')
+      }
+      await loadDetail()
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to save result')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleResultChange = (paramId: string, value: string) => {
-    setResultValues((prev) => ({ ...prev, [paramId]: value }))
-    setIsDirty(true)
+  const handleVerifyResult = async () => {
+    if (!detail.result?.result_id) {
+      toast.error('Result must be saved before verification')
+      return
+    }
+
+    setVerifying(true)
+    try {
+      await laboratoryService.verifyResult(detail.result.result_id)
+      toast.success('Result verified and locked successfully')
+      await loadDetail()
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to verify result')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  const handleGenerateBill = async () => {
+    setBilling(true)
+    try {
+      await laboratoryService.createBill(detail.request_id, {
+        unit_price: 15000,
+        description: `Lab Charge: ${detail.test_name}`,
+      })
+      toast.success('Billing item generated successfully')
+      setBillCreated(true)
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to generate bill item')
+    } finally {
+      setBilling(false)
+    }
   }
 
   return (
-    <div className="max-w-container-max mx-auto w-full pb-28">
-      <nav className="mb-sm" aria-label="Breadcrumb">
-        <p className="font-label-md text-label-md text-secondary m-0">
-          <Link to="/laboratory/requests" className="text-primary hover:underline no-underline">
-            Test Requests
+    <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-sm">
+          <Link
+            to="/laboratory/requests"
+            className="p-xs hover:bg-surface-container rounded-md text-secondary transition-colors"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
           </Link>
-          {' '}
-          &gt; Results Entry —{' '}
-          <span className="text-on-surface">
-            {request.patientNumber} {request.patientName} — {request.testName}
-          </span>
-        </p>
-      </nav>
-
-      <div className="flex flex-col sm:flex-row sm:items-center gap-md mb-lg">
-        <div className="flex flex-wrap items-center gap-md">
-          <label className="flex items-center gap-sm font-label-md text-label-md text-secondary">
-            Request status
-            <select
-              value={request.status}
-              disabled={isReadOnly}
-              onChange={(e) => handleStatusChange(e.target.value as LabRequestStatus)}
-              className="h-9 px-sm border border-border-subtle rounded-lg font-body-sm bg-surface-white focus:ring-1 focus:ring-primary outline-none"
-            >
-              <option value="pending">Pending</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-            </select>
-          </label>
-          <div className="flex items-center gap-sm font-label-md text-label-md text-secondary">
-            <span>Specimen</span>
-            <span
-              className={`h-9 px-sm border border-border-subtle rounded-lg font-body-sm inline-flex items-center ${
-                request.specimenStatus === 'collected'
-                  ? 'bg-[#00B8D9]/10 text-[#008DA6]'
-                  : 'bg-warning/10 text-[#CC8900]'
-              }`}
-            >
-              {request.specimenStatus === 'collected' ? 'Collected' : 'Not Collected'}
-            </span>
-            {trackedSpecimen && (
-              <span className="font-label-sm text-label-sm text-secondary">
-                ({SPECIMEN_TRACKING_STATUS_LABEL[trackedSpecimen.status]} in tracking)
-              </span>
-            )}
-            <Link
-              to="/laboratory/specimens"
-              state={{ requestId: request.id }}
-              className="font-label-sm text-label-sm text-primary hover:underline no-underline"
-            >
-              Manage in Specimen Tracking
-            </Link>
-          </div>
-        </div>
-        {isDirty && !isReadOnly && (
-          <span className="font-label-sm text-label-sm text-warning">Unsaved changes</span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 gap-lg">
-        <section className="bg-surface-white border border-border-subtle p-lg rounded-lg flex flex-wrap gap-xl">
-          {[
-            { label: 'Patient', value: request.patientName },
-            { label: 'ID', value: request.patientNumber },
-            { label: 'Test', value: request.testName },
-            { label: 'Requested By', value: request.requestedBy },
-            { label: 'Specimen ID', value: request.specimenId ?? '—' },
-            { label: 'Collected At', value: request.collectedAt ?? '—' },
-          ].map((field) => (
-            <div key={field.label} className="flex-1 min-w-[150px]">
-              <p className="text-label-sm font-label-sm text-secondary uppercase tracking-wider mb-xs m-0">
-                {field.label}
-              </p>
-              <p className="text-body-md font-body-md font-semibold m-0">{field.value}</p>
+          <div>
+            <div className="flex items-center gap-sm">
+              <h1 className="font-headline-md text-headline-md text-on-surface m-0">
+                {detail.test_name}
+              </h1>
+              {detail.test_code && (
+                <span className="font-mono text-body-sm text-secondary bg-surface-container px-xs py-0.5 rounded">
+                  {detail.test_code}
+                </span>
+              )}
             </div>
-          ))}
-        </section>
-
-        {isCritical && !isReadOnly && (
-          <div className="w-full bg-error/10 border border-error/20 p-md rounded-lg flex items-center gap-md">
-            <span
-              className="material-symbols-outlined text-error"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              warning
-            </span>
-            <p className="text-error font-body-sm font-semibold m-0">
-              Critical value detected. Doctor will be automatically notified on submission.
+            <p className="font-body-sm text-body-sm text-secondary m-0">
+              Request ID: <span className="font-mono text-on-surface">{detail.request_id}</span>
             </p>
           </div>
-        )}
+        </div>
 
-        <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden">
-          <header className="px-lg py-md border-b border-border-subtle">
-            <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">
-              Results — {request.testName}
+        <div className="flex items-center gap-sm">
+          <span
+            className={`px-md py-xs rounded-full text-label-md font-label-md capitalize ${
+              detail.status === 'completed'
+                ? 'bg-success/10 text-success border border-success/30'
+                : detail.status === 'in_progress' || detail.status === 'specimen_collected'
+                  ? 'bg-primary/10 text-primary border border-primary/30'
+                  : 'bg-warning/10 text-warning border border-warning/30'
+            }`}
+          >
+            Status: {detail.status.replace('_', ' ')}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+        {/* Left Column: Dossier Details */}
+        <div className="lg:col-span-1 flex flex-col gap-md">
+          {/* Patient Card */}
+          <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-sm">
+            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs">
+              Patient Information
             </h3>
-          </header>
-          <div className="p-lg">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="text-label-md font-label-md text-secondary bg-surface-container-low">
-                    <th className="px-md py-sm border-b border-border-subtle">Parameter</th>
-                    <th className="px-md py-sm border-b border-border-subtle w-48">Result Input</th>
-                    <th className="px-md py-sm border-b border-border-subtle">Unit</th>
-                    <th className="px-md py-sm border-b border-border-subtle">Reference Range</th>
-                    <th className="px-md py-sm border-b border-border-subtle">Flag</th>
-                  </tr>
-                </thead>
-                <tbody className="text-body-sm font-body-sm">
-                  {parameters.map((param, index) => (
-                    <tr key={param.id} className="hover:bg-surface-container-low/50 transition-colors">
-                      <td className="px-md py-md border-b border-border-subtle font-medium">
-                        {param.name}
-                      </td>
-                      <td className="px-md py-md border-b border-border-subtle">
-                        <input
-                          type="text"
-                          value={resultValues[param.id] ?? ''}
-                          disabled={isReadOnly}
-                          onChange={(e) => handleResultChange(param.id, e.target.value)}
-                          className="w-full h-8 px-2 border border-border-subtle rounded focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all disabled:bg-surface-container-low"
-                        />
-                      </td>
-                      <td className="px-md py-md border-b border-border-subtle text-secondary">
-                        {param.unit}
-                      </td>
-                      <td className="px-md py-md border-b border-border-subtle">
-                        <span className="px-sm py-xs bg-background rounded text-secondary">
-                          {param.refRange}
-                        </span>
-                      </td>
-                      <td className="px-md py-md border-b border-border-subtle">
-                        <FlagPill flag={parameterFlags[index]} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex flex-col gap-xs text-body-sm">
+              <div className="flex justify-between">
+                <span className="text-secondary">Full Name:</span>
+                <span className="font-medium text-on-surface">{detail.patient.full_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-secondary">Patient No:</span>
+                <span className="font-mono font-medium text-on-surface">{detail.patient.patient_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-secondary">Gender:</span>
+                <span className="capitalize text-on-surface">{detail.patient.gender}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-secondary">Date of Birth:</span>
+                <span className="text-on-surface">{detail.patient.date_of_birth}</span>
+              </div>
             </div>
-            <div className="mt-lg">
-              <label
-                htmlFor="lab-observations"
-                className="block text-label-md font-label-md text-secondary mb-xs"
-              >
-                Additional observations
-              </label>
-              <textarea
-                id="lab-observations"
-                value={observations}
-                disabled={isReadOnly}
-                onChange={(e) => {
-                  setObservations(e.target.value)
-                  setIsDirty(true)
-                }}
-                className="w-full p-md border border-border-subtle rounded-lg focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all disabled:bg-surface-container-low"
-                placeholder="Enter any notable findings..."
-                rows={3}
-              />
+          </div>
+
+          {/* Order Meta Card */}
+          <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-sm">
+            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs">
+              Order Details
+            </h3>
+            <div className="flex flex-col gap-xs text-body-sm">
+              <div className="flex justify-between">
+                <span className="text-secondary">Urgency:</span>
+                <span className="capitalize font-bold text-error">{detail.urgency}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-secondary">Requested By:</span>
+                <span className="font-medium text-on-surface">{detail.requested_by_name || 'Doctor'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-secondary">Requested At:</span>
+                <span className="text-on-surface">
+                  {detail.requested_at ? new Date(detail.requested_at).toLocaleString() : 'N/A'}
+                </span>
+              </div>
+              {detail.clinical_indication && (
+                <div className="mt-xs pt-xs border-t border-border-subtle">
+                  <span className="text-secondary block mb-1">Clinical Indication:</span>
+                  <p className="text-on-surface bg-surface-container/50 p-xs rounded m-0 text-body-xs italic">
+                    "{detail.clinical_indication}"
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Active Specimen Card */}
+          <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-sm">
+            <h3 className="font-headline-xs text-on-surface m-0 border-b border-border-subtle pb-xs flex items-center justify-between">
+              <span>Specimen Status</span>
+              {detail.specimen && (
+                <span className="text-body-xs font-mono text-primary bg-primary/10 px-xs py-0.5 rounded">
+                  {detail.specimen.specimen_type}
+                </span>
+              )}
+            </h3>
+            {detail.specimen ? (
+              <div className="flex flex-col gap-xs text-body-sm">
+                <div className="flex justify-between">
+                  <span className="text-secondary">Status:</span>
+                  <span className="capitalize font-medium text-primary">{detail.specimen.status}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-secondary">Collected At:</span>
+                  <span className="text-on-surface">
+                    {new Date(detail.specimen.collected_at).toLocaleString()}
+                  </span>
+                </div>
+                {detail.specimen.received_at && (
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Received At:</span>
+                    <span className="text-on-surface">
+                      {new Date(detail.specimen.received_at).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-body-sm text-secondary italic">
+                No active specimen collected yet.
+                <button
+                  type="button"
+                  onClick={() => navigate('/laboratory/specimens', { state: { requestId: detail.request_id, openModal: true } })}
+                  className="mt-xs text-primary font-label-md hover:underline block cursor-pointer"
+                >
+                  + Collect Specimen Now
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Result Entry & Verification Panel */}
+        <div className="lg:col-span-2 flex flex-col gap-md">
+          <div className="bg-surface-white border border-border-subtle rounded-xl p-lg flex flex-col gap-md">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-sm">
+              <div>
+                <h2 className="font-headline-sm text-on-surface m-0">Test Result Entry</h2>
+                <p className="text-body-sm text-secondary m-0">
+                  {isVerified ? 'Result has been verified and locked.' : 'Enter diagnostic values and observations.'}
+                </p>
+              </div>
+
+              {detail.result && (
+                <span className={`px-sm py-xs rounded text-label-sm font-label-sm uppercase ${
+                  detail.result.status === 'verified' ? 'bg-success/10 text-success border border-success/30' : 'bg-primary/10 text-primary border border-primary/30'
+                }`}>
+                  {detail.result.status}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+              <div className="flex flex-col gap-xs">
+                <label className="font-label-sm text-on-surface">Result Value *</label>
+                <input
+                  type="text"
+                  disabled={isVerified}
+                  value={resultValue}
+                  onChange={(e) => setResultValue(e.target.value)}
+                  placeholder="e.g. 14.2 or Positive"
+                  className="h-10 px-sm border border-border-subtle rounded-lg text-body-md font-medium text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
+                />
+              </div>
+
+              <div className="flex flex-col gap-xs">
+                <label className="font-label-sm text-on-surface">Unit (e.g. g/dL, mmol/L)</label>
+                <input
+                  type="text"
+                  disabled={isVerified}
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  placeholder="e.g. g/dL"
+                  className="h-10 px-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
+                />
+              </div>
+
+              <div className="flex flex-col gap-xs sm:col-span-2">
+                <label className="font-label-sm text-on-surface">Reference Range</label>
+                <input
+                  type="text"
+                  disabled={isVerified}
+                  value={referenceRange}
+                  onChange={(e) => setReferenceRange(e.target.value)}
+                  placeholder="e.g. 12.0 – 16.0 g/dL"
+                  className="h-10 px-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
+                />
+              </div>
+
+              <div className="sm:col-span-2 flex items-center gap-sm bg-warning/10 p-sm rounded-lg border border-warning/30">
+                <input
+                  type="checkbox"
+                  id="critical-check"
+                  disabled={isVerified}
+                  checked={isCritical}
+                  onChange={(e) => setIsCritical(e.target.checked)}
+                  className="w-5 h-5 accent-warning cursor-pointer"
+                />
+                <label htmlFor="critical-check" className="font-label-md text-on-surface cursor-pointer">
+                  Flag as Critical Value (Triggers Immediate Doctor Alert)
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-xs sm:col-span-2">
+                <label className="font-label-sm text-on-surface">Result Notes / Observations</label>
+                <textarea
+                  rows={3}
+                  disabled={isVerified}
+                  value={resultNotes}
+                  onChange={(e) => setResultNotes(e.target.value)}
+                  placeholder="Add technical notes or observations..."
+                  className="p-sm border border-border-subtle rounded-lg text-body-md text-on-surface focus:ring-1 focus:ring-primary focus:border-primary disabled:bg-surface-container"
+                />
+              </div>
+            </div>
+
+            {/* Actions Panel */}
+            <div className="flex flex-wrap items-center justify-between gap-md pt-md border-t border-border-subtle">
+              {!isVerified && (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={handleSaveResult}
+                  className="h-10 px-md bg-primary text-on-primary rounded-lg font-label-md hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {submitting ? 'Saving Result...' : hasResult ? 'Update Result Draft' : 'Save Result Draft'}
+                </button>
+              )}
+
+              {hasResult && !isVerified && (
+                <button
+                  type="button"
+                  disabled={verifying}
+                  onClick={handleVerifyResult}
+                  className="h-10 px-md bg-success text-on-primary rounded-lg font-label-md hover:bg-success/90 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {verifying ? 'Verifying...' : 'Verify & Lock Result'}
+                </button>
+              )}
+
+              {isVerified && (
+                <div className="flex items-center gap-md">
+                  <span className="text-success font-label-md flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                    Result Verified & Completed
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={billing || billCreated}
+                    onClick={handleGenerateBill}
+                    className="h-10 px-md bg-secondary text-on-secondary rounded-lg font-label-md hover:bg-secondary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {billing ? 'Generating Bill...' : billCreated ? 'Bill Item Generated' : 'Generate Lab Bill Item'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-
-      {!isReadOnly && (
-        <footer className="fixed bottom-16 lg:bottom-0 left-0 lg:left-[240px] right-0 bg-surface-white border-t border-border-subtle p-md px-lg flex justify-end gap-md z-40">
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            className="px-lg h-10 border border-border-subtle rounded-lg text-secondary font-label-md hover:bg-surface-container-high transition-all bg-transparent cursor-pointer"
-          >
-            Save Draft
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className={`px-lg h-10 rounded-lg font-label-md text-white border-0 cursor-pointer transition-all hover:opacity-90 active:scale-[0.98] ${
-              isCritical ? 'bg-error' : 'bg-primary'
-            }`}
-          >
-            {isCritical ? 'Submit & Notify Doctor' : 'Submit Results'}
-          </button>
-        </footer>
-      )}
     </div>
   )
 }

@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { LAB_REQUEST_SUMMARY } from '@/features/laboratory/data/mockLabRequests'
+import { toast } from 'sonner'
+import { laboratoryService, type BackendLabRequestItem } from '@/api/services/laboratory'
 import { InvestigationPriorityBadge } from '@/features/laboratory/components/InvestigationPriorityBadge'
 import type {
   LabRequestPriority,
   LabRequestStatus,
-  LabTestRequest,
   SpecimenStatus,
 } from '@/features/laboratory/types/laboratory'
-import {
-  getRowAction,
-  getRowActionButtonClass,
-  getRowActionLabel,
-} from '@/features/laboratory/utils/labRequestActions'
 import { getPriorityRowHighlight } from '@/features/laboratory/utils/labOrderPriority'
-import { getAllLabRequests } from '@/features/laboratory/utils/labRequestStore'
 
 type PriorityFilter = 'all' | LabRequestPriority
 type StatusFilter = 'all' | LabRequestStatus
@@ -25,7 +19,11 @@ interface LabRequestsLocationState {
 
 const PAGE_SIZE = 10
 
-function SummaryCards({ summary }: { summary: typeof LAB_REQUEST_SUMMARY }) {
+function SummaryCards({
+  summary,
+}: {
+  summary: { pending: number; stat: number; urgent: number; inProgress: number; completedToday: number }
+}) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-md">
       <div className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors">
@@ -150,44 +148,26 @@ function RequestsEmptyState({ onClearFilters, hasFilters }: { onClearFilters: ()
   )
 }
 
-function RequestActionsCell({
-  request,
-  onAction,
-}: {
-  request: LabTestRequest
-  onAction: (request: LabTestRequest) => void
-}) {
-  const action = getRowAction(request)
-
-  return (
-    <div className="flex items-center justify-end">
-      <button
-        type="button"
-        onClick={() => onAction(request)}
-        className={`h-8 px-4 rounded font-label-md text-label-md cursor-pointer whitespace-nowrap transition-colors ${getRowActionButtonClass(request)}`}
-      >
-        {getRowActionLabel(action)}
-      </button>
-    </div>
-  )
-}
-
-function matchesPriorityFilter(priority: LabRequestPriority, filter: PriorityFilter): boolean {
-  if (filter === 'all') return true
-  return priority === filter
-}
-
-function matchesStatusFilter(status: LabRequestStatus, filter: StatusFilter): boolean {
-  if (filter === 'all') return true
-  return status === filter
-}
-
-function getRowClass(request: LabTestRequest, isHighlighted: boolean): string {
-  const base = 'border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors'
-  if (isHighlighted) return `${base} bg-[#DEEBFF] ring-1 ring-inset ring-primary/30`
-  const highlight = getPriorityRowHighlight(request.priority)
-  if (highlight) return `${base} ${highlight}`
-  return `${base} bg-surface-white`
+function getActionButtonDetails(req: BackendLabRequestItem) {
+  if (req.status === 'pending') {
+    return {
+      label: 'Collect Specimen',
+      btnClass: 'bg-primary text-on-primary hover:bg-primary-hover',
+      action: 'collect_specimen',
+    }
+  }
+  if (req.status === 'specimen_collected' || req.status === 'in_progress') {
+    return {
+      label: 'Enter Results',
+      btnClass: 'bg-secondary-container text-on-secondary-container hover:bg-surface-container-high border border-border-subtle',
+      action: 'enter_results',
+    }
+  }
+  return {
+    label: 'View Results',
+    btnClass: 'bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle',
+    action: 'view_results',
+  }
 }
 
 export function LabRequestsContent() {
@@ -195,7 +175,7 @@ export function LabRequestsContent() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [requests, setRequests] = useState<BackendLabRequestItem[]>([])
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
     () => (searchParams.get('status') as StatusFilter) || 'all',
@@ -203,30 +183,53 @@ export function LabRequestsContent() {
   const [currentPage, setCurrentPage] = useState(1)
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null)
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setLoading(false), 500)
-    return () => window.clearTimeout(timer)
-  }, [])
+  const fetchRequests = async () => {
+    setLoading(true)
+    try {
+      const data = await laboratoryService.getRequests()
+      setRequests(data)
+    } catch (err: any) {
+      toast.error('Failed to load lab requests from server')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    setRefreshKey((k) => k + 1)
+    fetchRequests()
   }, [location.pathname])
 
-  const allRequests = useMemo(() => getAllLabRequests(), [refreshKey])
+  const summary = useMemo(() => {
+    let pending = 0
+    let stat = 0
+    let urgent = 0
+    let inProgress = 0
+    let completedToday = 0
+
+    requests.forEach((r) => {
+      if (r.status === 'pending') pending++
+      if (r.urgency === 'stat') stat++
+      if (r.urgency === 'urgent') urgent++
+      if (r.status === 'in_progress' || r.status === 'specimen_collected') inProgress++
+      if (r.status === 'completed') completedToday++
+    })
+
+    return { pending, stat, urgent, inProgress, completedToday }
+  }, [requests])
 
   const filteredRequests = useMemo(() => {
-    return allRequests.filter((request) => {
-      const priorityMatch = matchesPriorityFilter(request.priority, priorityFilter)
-      const statusMatch = matchesStatusFilter(request.status, statusFilter)
+    return requests.filter((r) => {
+      const priorityMatch = priorityFilter === 'all' || r.urgency === priorityFilter
+      const statusMatch = statusFilter === 'all' || r.status === statusFilter
       return priorityMatch && statusMatch
     })
-  }, [allRequests, priorityFilter, statusFilter])
+  }, [requests, priorityFilter, statusFilter])
 
   useEffect(() => {
     const highlight = (location.state as LabRequestsLocationState | null)?.highlightRequestId
     if (!highlight) return
 
-    const index = filteredRequests.findIndex((request) => request.id === highlight)
+    const index = filteredRequests.findIndex((r) => r.request_id === highlight)
     if (index >= 0) {
       setCurrentPage(Math.floor(index / PAGE_SIZE) + 1)
       setActiveRequestId(highlight)
@@ -259,12 +262,12 @@ export function LabRequestsContent() {
     setSearchParams({})
   }
 
-  const handleAction = (request: LabTestRequest) => {
-    const action = getRowAction(request)
-    if (action === 'collect_specimen') {
-      navigate('/laboratory/specimens', { state: { requestId: request.id, openModal: true } })
+  const handleAction = (request: BackendLabRequestItem) => {
+    const details = getActionButtonDetails(request)
+    if (details.action === 'collect_specimen') {
+      navigate('/laboratory/specimens', { state: { requestId: request.request_id, openModal: true } })
     } else {
-      navigate(`/laboratory/requests/${request.id}`)
+      navigate(`/laboratory/requests/${request.request_id}`)
     }
   }
 
@@ -286,7 +289,7 @@ export function LabRequestsContent() {
 
   return (
     <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
-      <SummaryCards summary={LAB_REQUEST_SUMMARY} />
+      <SummaryCards summary={summary} />
 
       <div className="bg-surface-white border border-border-subtle rounded-xl flex flex-col overflow-hidden">
         <div className="p-md border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-background/50">
@@ -299,124 +302,144 @@ export function LabRequestsContent() {
                 className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-32 cursor-pointer"
               >
                 <option value="all">All Priorities</option>
-                <option value="routine">Routine</option>
+                <option value="stat">STAT Only</option>
                 <option value="urgent">Urgent</option>
-                <option value="stat">STAT</option>
+                <option value="routine">Routine</option>
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-[18px]">
+              <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px]">
                 expand_more
               </span>
             </div>
+
             <div className="relative">
               <select
                 value={statusFilter}
-                onChange={(e) => {
-                  const value = e.target.value as StatusFilter
-                  setStatusFilter(value)
-                  if (value === 'all') {
-                    setSearchParams({})
-                  } else {
-                    setSearchParams({ status: value })
-                  }
-                }}
-                className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-32 cursor-pointer"
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-36 cursor-pointer"
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
+                <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-[18px]">
+              <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px]">
                 expand_more
               </span>
             </div>
-            <button
-              type="button"
-              className="bg-surface-white border border-border-subtle rounded-lg h-10 px-sm flex items-center gap-sm font-body-sm text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px] text-secondary">calendar_today</span>
-              Today
-            </button>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
-              <tr className="bg-surface-container-low border-b border-border-subtle text-secondary font-label-md text-label-md uppercase tracking-wider">
-                <th className="py-sm px-md font-semibold">Patient Name</th>
-                <th className="py-sm px-md font-semibold">Patient #</th>
-                <th className="py-sm px-md font-semibold">Test Name</th>
-                <th className="py-sm px-md font-semibold">Requested By</th>
-                <th className="py-sm px-md font-semibold">Requested At</th>
-                <th className="py-sm px-md font-semibold">Priority</th>
-                <th className="py-sm px-md font-semibold">Specimen Status</th>
-                <th className="py-sm px-md font-semibold text-right">Actions</th>
+              <tr className="border-b border-border-subtle bg-surface-container/30 text-secondary font-label-md text-label-md">
+                <th className="py-md px-md w-28">Urgency</th>
+                <th className="py-md px-md">Patient</th>
+                <th className="py-md px-md">Investigation Test</th>
+                <th className="py-md px-md">Requested By</th>
+                <th className="py-md px-md">Specimen</th>
+                <th className="py-md px-md">Status</th>
+                <th className="py-md px-md text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="font-body-sm text-on-surface">
-              {visibleRequests.map((request) => (
-                <tr
-                  key={request.id}
-                  className={getRowClass(request, activeRequestId === request.id)}
-                >
-                  <td className="py-sm px-md font-medium text-on-surface">{request.patientName}</td>
-                  <td className="py-sm px-md text-secondary">{request.patientNumber}</td>
-                  <td className="py-sm px-md font-medium">{request.testName}</td>
-                  <td className="py-sm px-md">{request.requestedBy}</td>
-                  <td className="py-sm px-md text-secondary">{request.requestedAt}</td>
-                  <td className="py-sm px-md">
-                    <InvestigationPriorityBadge priority={request.priority} />
-                  </td>
-                  <td className="py-sm px-md">
-                    <SpecimenStatusCell status={request.specimenStatus} />
-                  </td>
-                  <td className="py-sm px-md text-right">
-                    <RequestActionsCell request={request} onAction={handleAction} />
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-border-subtle text-body-md font-body-md text-on-surface">
+              {visibleRequests.map((req) => {
+                const isHighlighted = req.request_id === activeRequestId
+                const rowClass = `border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${
+                  isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : 'bg-surface-white'
+                }`
+                const specimenStatus: SpecimenStatus = req.status === 'pending' ? 'not_collected' : 'collected'
+                const actionDetails = getActionButtonDetails(req)
+
+                return (
+                  <tr key={req.request_id} className={rowClass}>
+                    <td className="py-md px-md">
+                      <InvestigationPriorityBadge priority={req.urgency as any} />
+                    </td>
+                    <td className="py-md px-md">
+                      <div className="flex flex-col">
+                        <span className="font-headline-sm text-headline-sm text-on-surface">
+                          {req.patient_name}
+                        </span>
+                        <span className="font-body-xs text-body-xs text-secondary">
+                          {req.patient_number}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-md px-md font-medium text-on-surface">
+                      <div>{req.test_name}</div>
+                      {req.test_code && (
+                        <div className="text-body-xs text-secondary font-mono">{req.test_code}</div>
+                      )}
+                    </td>
+                    <td className="py-md px-md text-secondary">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-on-surface">{req.requested_by_name || 'Doctor'}</span>
+                        <span className="text-body-xs">
+                          {req.requested_at ? new Date(req.requested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-md px-md">
+                      <SpecimenStatusCell status={specimenStatus} />
+                    </td>
+                    <td className="py-md px-md">
+                      <span
+                        className={`inline-flex items-center px-sm py-[2px] rounded-full text-label-sm font-label-sm capitalize ${
+                          req.status === 'completed'
+                            ? 'bg-success/10 text-success border border-success/30'
+                            : req.status === 'in_progress' || req.status === 'specimen_collected'
+                              ? 'bg-primary/10 text-primary border border-primary/30'
+                              : 'bg-warning/10 text-warning border border-warning/30'
+                        }`}
+                      >
+                        {req.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-md px-md text-right">
+                      <div className="flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleAction(req)}
+                          className={`h-8 px-4 rounded font-label-md text-label-md cursor-pointer whitespace-nowrap transition-colors ${actionDetails.btnClass}`}
+                        >
+                          {actionDetails.label}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
 
-        <div className="p-sm px-md border-t border-border-subtle bg-surface-white flex flex-col sm:flex-row items-center justify-between gap-sm text-body-sm text-secondary">
-          <span>
-            Showing {showingFrom} to {showingTo} of {filteredRequests.length} entries
-          </span>
+        <div className="p-md border-t border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-background/50 font-body-sm text-secondary">
+          <div>
+            Showing <span className="font-medium text-on-surface">{showingFrom}</span> to{' '}
+            <span className="font-medium text-on-surface">{showingTo}</span> of{' '}
+            <span className="font-medium text-on-surface">{filteredRequests.length}</span> requests
+          </div>
+
           <div className="flex items-center gap-xs">
             <button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
-              className="p-1 rounded hover:bg-surface-variant disabled:opacity-50 border-0 bg-transparent cursor-pointer disabled:cursor-not-allowed"
-              aria-label="Previous page"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="h-8 px-sm border border-border-subtle rounded-md text-secondary hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed bg-surface-white cursor-pointer font-label-sm"
             >
-              <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+              Previous
             </button>
-            {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 rounded font-medium border-0 cursor-pointer ${
-                  page === safePage
-                    ? 'bg-primary-container text-white'
-                    : 'hover:bg-surface-variant text-on-surface bg-transparent'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            {totalPages > 3 && <span className="px-1 text-secondary">…</span>}
+            <span className="px-sm font-label-sm">
+              Page {safePage} of {totalPages}
+            </span>
             <button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
-              className="p-1 rounded hover:bg-surface-variant disabled:opacity-50 border-0 bg-transparent cursor-pointer disabled:cursor-not-allowed"
-              aria-label="Next page"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="h-8 px-sm border border-border-subtle rounded-md text-secondary hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed bg-surface-white cursor-pointer font-label-sm"
             >
-              <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+              Next
             </button>
           </div>
         </div>
