@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { formatShortDateTime } from '@/lib/localization'
+import { formatShortDateTime, formatDoctorName } from '@/lib/localization'
 import { laboratoryService, type BackendLabRequestItem } from '@/api/services/laboratory'
 import { CollectSpecimenModal } from '@/features/laboratory/components/CollectSpecimenModal'
 import { InvestigationPriorityBadge } from '@/features/laboratory/components/InvestigationPriorityBadge'
@@ -440,7 +440,7 @@ export function LabRequestsContent() {
                     </td>
                     <td className="py-md px-md text-secondary">
                       <div className="flex flex-col">
-                        <span className="font-medium text-on-surface">{req.requested_by_name || 'Doctor'}</span>
+                        <span className="font-medium text-on-surface">{formatDoctorName(req.requested_by_name)}</span>
                         <span className="text-body-xs">
                           {formatShortDateTime(req.requested_at)}
                         </span>

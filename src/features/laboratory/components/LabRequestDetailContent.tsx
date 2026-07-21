@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { formatDoctorName } from '@/lib/localization'
 import { laboratoryService, type BackendLabRequestDetail } from '@/api/services/laboratory'
 
 export function LabRequestDetailContent() {
@@ -242,7 +243,7 @@ export function LabRequestDetailContent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-secondary">Requested By:</span>
-                <span className="font-medium text-on-surface">{detail.requested_by_name || 'Doctor'}</span>
+                <span className="font-medium text-on-surface">{formatDoctorName(detail.requested_by_name)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-secondary">Requested At:</span>

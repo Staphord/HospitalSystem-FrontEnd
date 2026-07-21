@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { formatDoctorName } from '@/lib/localization'
 import { getRowAction, getRowActionButtonClass, getRowActionLabel } from '@/features/laboratory/utils/labRequestActions'
 import { getLabRequestById } from '@/features/laboratory/utils/labRequestStore'
 import { InvestigationPriorityBadge } from '@/features/laboratory/components/InvestigationPriorityBadge'
@@ -93,7 +94,7 @@ function StatRequestsCard({
                   <span className="font-body-sm text-body-sm text-secondary">{item.testName}</span>
                 </div>
                 <div className="flex flex-col sm:items-end">
-                  <span className="font-body-sm text-body-sm text-secondary">Req by: {item.requestedBy}</span>
+                  <span className="font-body-sm text-body-sm text-secondary">Req by: {formatDoctorName(item.requestedBy)}</span>
                   <span className="font-label-sm text-label-sm text-secondary mt-1 flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">schedule</span>
                     {item.requestedAgo}

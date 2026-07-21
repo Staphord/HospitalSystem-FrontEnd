@@ -75,3 +75,21 @@ export function formatShortDateTime(dateInput: string | Date | null | undefined)
   return `${dateStr}, ${timeStr}`
 }
 
+export function formatDoctorName(rawName?: string | null): string {
+  if (!rawName || !rawName.trim()) return 'Doctor'
+  const trimmed = rawName.trim()
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+    return 'Doctor'
+  }
+
+  if (!trimmed.includes(' ') && (trimmed.includes('_') || trimmed.includes('.'))) {
+    const formatted = trimmed.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    return formatted.toLowerCase().startsWith('dr') ? formatted : `Dr. ${formatted}`
+  }
+
+  return trimmed
+}
+
+
+
