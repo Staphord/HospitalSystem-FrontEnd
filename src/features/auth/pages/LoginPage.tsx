@@ -8,8 +8,16 @@ import { getDefaultRoute } from '@/lib/roles'
 import { getRolesFromToken } from '@/lib/token'
 
 function getApiErrorMessage(err: any): string {
+  const status = err?.response?.status
+  if (status && status >= 500) {
+    return 'An internal server error occurred during login. Please try again later.'
+  }
+
   const detail = err?.response?.data?.detail
   if (typeof detail === 'string') {
+    if (detail.includes('psycopg2') || detail.includes('UndefinedColumn') || detail.includes('SQL:')) {
+      return 'An internal server error occurred during login. Please try again later.'
+    }
     if (detail.includes('Keycloak error') && detail.includes('{')) {
       try {
         const jsonStr = detail.substring(detail.indexOf('{'))
@@ -37,6 +45,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isServerError, setIsServerError] = useState(false)
   const [failedAttempts, setFailedAttempts] = useState(0)
 
   const isMasterLogin = location.pathname.startsWith('/master')
@@ -55,6 +64,7 @@ export function LoginPage() {
     setLoading(true)
     setError(false)
     setErrorMessage('')
+    setIsServerError(false)
 
     try {
       const tokens = isMasterLogin 
@@ -98,10 +108,22 @@ export function LoginPage() {
         getDefaultRoute(getRolesFromToken(tokens.access_token), user?.role),
       )
     } catch (err: any) {
+      const status = err?.response?.status
+      const isServerErr = status !== undefined && status >= 500
       const apiMessage = getApiErrorMessage(err)
+
       if (apiMessage.toLowerCase().includes('not fully set up') || apiMessage.toLowerCase().includes('setup')) {
         toast.info('First-time login: Redirecting to establish your secure password.')
         navigate('/first-login-change-password', { state: { username, tempPassword: password } })
+        return
+      }
+
+      if (isServerErr) {
+        const message = apiMessage || 'An internal server error occurred during login. Please try again later.'
+        setError(true)
+        setIsServerError(true)
+        setErrorMessage(message)
+        toast.error(message)
         return
       }
 
@@ -145,8 +167,8 @@ export function LoginPage() {
         toast.error('Too many login attempts. Account locked.')
         navigate('/account-locked')
       } else {
-        const apiMessage = typeof detail === 'object' && detail !== null ? detail.message : getApiErrorMessage(err)
-        const message = apiMessage || 'Invalid username or password. Please try again.'
+        const rawMsg = typeof detail === 'object' && detail !== null ? detail.message : apiMessage
+        const message = rawMsg || 'Invalid username or password. Please try again.'
         setErrorMessage(message)
         toast.error(message)
       }
@@ -212,7 +234,11 @@ export function LoginPage() {
             error
           </span>
           <div>
-            <strong>Access Denied:</strong> {errorMessage || 'Invalid credentials.'} {5 - failedAttempts} attempts remaining before account lock.
+            {isServerError ? (
+              <><strong>Server Error:</strong> {errorMessage}</>
+            ) : (
+              <><strong>Access Denied:</strong> {errorMessage || 'Invalid credentials.'} {Math.max(0, 5 - failedAttempts)} attempts remaining before account lock.</>
+            )}
           </div>
         </div>
       )}
