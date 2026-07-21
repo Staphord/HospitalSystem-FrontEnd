@@ -92,6 +92,8 @@ import { NotificationsPage } from '@/features/notifications/pages/NotificationsP
 import { ProfilePage } from '@/features/profile/pages/ProfilePage'
 import { EmptyState } from '@/components/ui/EmptyState'
 
+import { RootErrorBoundary } from '@/app/router/RootErrorBoundary'
+
 function UnauthorizedPage() {
   return (
     <EmptyState
@@ -105,9 +107,11 @@ export const routes = [
   {
     path: '/',
     element: <Navigate to="/login" replace />,
+    errorElement: <RootErrorBoundary />,
   },
   {
     element: <AuthLayout />,
+    errorElement: <RootErrorBoundary />,
     children: [
       { path: '/login', element: <HospitalLoginPage /> },
       { path: '/master/login', element: <LoginPage /> },
@@ -124,6 +128,7 @@ export const routes = [
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RootErrorBoundary />,
     children: [
       { path: '/impersonation/switching', element: <ImpersonationSwitchPage /> },
       {
@@ -131,6 +136,7 @@ export const routes = [
         children: [
           {
             element: <MasterLayout />,
+            errorElement: <RootErrorBoundary />,
             children: [
               { path: '/master/dashboard', element: <MasterDashboardPage /> },
               { path: '/master/tenants', element: <TenantManagementPage /> },
@@ -154,6 +160,7 @@ export const routes = [
       },
       {
         element: <HospitalLayout />,
+        errorElement: <RootErrorBoundary />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           {
