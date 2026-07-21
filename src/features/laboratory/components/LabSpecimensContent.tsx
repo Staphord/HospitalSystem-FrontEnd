@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
+import { formatShortDateTime } from '@/lib/localization'
 import { laboratoryService, type BackendTrackedSpecimenItem } from '@/api/services/laboratory'
 import { UpdateSpecimenStatusModal } from '@/features/laboratory/components/UpdateSpecimenStatusModal'
 import type { SpecimenSummary, SpecimenTrackingStatus, TrackedSpecimen } from '@/features/laboratory/types/laboratory'
@@ -35,9 +36,7 @@ function mapBackendToTrackedSpecimen(item: BackendTrackedSpecimenItem): TrackedS
     patientNumber: item.patient_number,
     testName: item.test_name,
     collectedBy: item.collected_by_name || 'Lab Staff',
-    collectedAt: item.collected_at
-      ? new Date(item.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : undefined,
+    collectedAt: formatShortDateTime(item.collected_at),
     status: trackingStatus,
     location: item.collection_site || 'Main Lab',
     notes: item.rejection_reason ? `Rejection: ${item.rejection_reason}` : undefined,

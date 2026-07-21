@@ -64,3 +64,14 @@ export function formatTenantDateTime(dateInput: string | Date | null | undefined
     return `${dateStr} ${timeStr}`
   }
 }
+
+export function formatShortDateTime(dateInput: string | Date | null | undefined): string {
+  if (!dateInput) return '—'
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+  if (isNaN(date.getTime())) return '—'
+
+  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return `${dateStr}, ${timeStr}`
+}
+

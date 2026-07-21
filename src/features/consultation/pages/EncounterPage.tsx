@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { formatShortDateTime } from '@/lib/localization'
 import { consultationService } from '@/api/services/consultation'
 import type { EncounterViewResponse } from '@/api/types/consultation'
 
@@ -1403,7 +1404,7 @@ export function EncounterPage() {
           testName: inv.test_name,
           department: inv.request_type === 'radiology' ? 'Radiology' : 'Laboratory',
           priority: uiPriority,
-          time: inv.created_at ? new Date(inv.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+          time: formatShortDateTime(inv.created_at),
           status: uiStatus,
           notes: inv.clinical_history || undefined,
           result: inv.result,

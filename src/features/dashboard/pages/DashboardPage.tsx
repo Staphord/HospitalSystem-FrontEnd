@@ -11,6 +11,8 @@ import { LabDashboardContent } from '@/features/laboratory/components/LabDashboa
 import { PharmacyDashboardContent } from '@/features/pharmacy/components/PharmacyDashboardContent'
 import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
+import { toast } from 'sonner'
+import { formatShortDateTime } from '@/lib/localization'
 import { useNavigate } from 'react-router-dom'
 import { receptionService } from '@/api/services/reception'
 import type { BackendPatient } from '@/api/types/reception'
@@ -266,7 +268,7 @@ export function DashboardPage() {
           ticketNumber: entry.queue_number,
           name: entry.patient.full_name,
           patientNumber: entry.patient.patient_number,
-          registeredAt: new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          registeredAt: formatShortDateTime(entry.created_at),
           wait: mins <= 0 ? '--' : `${mins} min`,
           waitColor: mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success',
           payment: entry.visit?.payment_type
@@ -578,8 +580,7 @@ export function DashboardPage() {
                       .join('')
                       .substring(0, 2)
                       .toUpperCase()
-                    const regTime = new Date(patient.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    const regDate = new Date(patient.created_at).toLocaleDateString()
+                    const regTime = formatShortDateTime(patient.created_at)
                     return (
                       <div
                         key={patient.id}
