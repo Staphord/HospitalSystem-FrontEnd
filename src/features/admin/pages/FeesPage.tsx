@@ -30,11 +30,11 @@ export function FeesPage() {
   const [currencyFilter, setCurrencyFilter] = useState<string>('TZS');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Toggle insurance covered state value
+  // Toggle insurance covered state value (amount passed so backend can set insurance price)
   const toggleInsuranceCovered = (id: string) => {
     const item = feeItems.find(f => f.id === id);
     if (!item) return;
-    adminService.updateFeeSchedule(id, { insuranceCovered: !item.insuranceCovered })
+    adminService.updateFeeSchedule(id, { insuranceCovered: !item.insuranceCovered, amount: item.amount })
       .then(() => {
         fetchFees();
       });

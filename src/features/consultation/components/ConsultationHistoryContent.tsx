@@ -1,26 +1,63 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  RECENT_CONSULTATION_PATIENTS,
-  searchConsultationHistory,
-} from '@/features/consultation/data/mockConsultationHistory'
-import type {
-  ConsultationHistoryPatient,
-  ConsultationHistorySearchResult,
-} from '@/features/consultation/types/consultationHistory'
+import { wardService } from '@/api/services/ward'
+import type { PatientListItem } from '@/api/services/ward'
+
+// ── Formatting/calculation helpers ───────────────────────────────────────────
+
+function calcAge(dob: string) {
+  try {
+    const b = new Date(dob)
+    const today = new Date()
+    let age = today.getFullYear() - b.getFullYear()
+    if (today < new Date(today.getFullYear(), b.getMonth(), b.getDate())) age--
+    return age
+  } catch { return 0 }
+}
+
+function initials(name: string) {
+  return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'PT'
+}
 
 // ── Recent patients quick-access grid ─────────────────────────────────────────
 
+interface RecentSectionProps {
+  patients: PatientListItem[]
+  loading: boolean
+  onSelect: (p: PatientListItem) => void
+  className?: string
+}
+
 function RecentPatientsSection({
   patients,
+  loading,
   onSelect,
   className = '',
-}: {
-  patients: ConsultationHistoryPatient[]
-  onSelect: (p: ConsultationHistoryPatient) => void
-  className?: string
-}) {
+}: RecentSectionProps) {
+  if (loading) {
+    return (
+      <div className={`w-full ${className}`}>
+        <div className="flex items-center gap-sm mb-md px-md">
+          <span className="material-symbols-outlined text-[18px] text-outline">history</span>
+          <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
+            Loading Recent Patients...
+          </span>
+          <div className="h-px flex-1 bg-border-subtle" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-md px-md animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-surface-container-low border border-border-subtle rounded-lg" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (patients.length === 0) {
+    return null
+  }
+
   return (
     <div className={className}>
       <div className="flex items-center gap-sm mb-md px-md">
@@ -31,26 +68,34 @@ function RecentPatientsSection({
         <div className="h-px flex-1 bg-border-subtle" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-md px-md">
-        {patients.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onSelect(p)}
-            className="flex items-center gap-md p-sm border border-border-subtle rounded-lg hover:bg-hover-tint transition-colors cursor-pointer bg-transparent text-left w-full"
-          >
-            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shrink-0 font-bold text-xs text-on-secondary-container">
-              {p.avatarInitials}
-            </div>
-            <div className="min-w-0">
-              <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0 truncate">
-                {p.name}
-              </p>
-              <p className="font-label-sm text-label-sm text-outline m-0">
-                {p.patientNumber} · {p.lastVisitDate}
-              </p>
-            </div>
-          </button>
-        ))}
+        {patients.map((p) => {
+          const name = p.full_name
+          const num = p.patient_number
+          const age = calcAge(p.date_of_birth)
+          const gen = p.gender
+          const init = initials(name)
+
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onSelect(p)}
+              className="flex items-center gap-md p-sm border border-border-subtle rounded-lg hover:bg-hover-tint transition-colors cursor-pointer bg-transparent text-left w-full"
+            >
+              <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shrink-0 font-bold text-xs text-on-secondary-container">
+                {init}
+              </div>
+              <div className="min-w-0">
+                <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0 truncate">
+                  {name}
+                </p>
+                <p className="font-label-sm text-label-sm text-outline m-0">
+                  {num} · {gen} ({age}y)
+                </p>
+              </div>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -58,15 +103,17 @@ function RecentPatientsSection({
 
 // ── Search results table ───────────────────────────────────────────────────────
 
+interface ResultsPanelProps {
+  results: PatientListItem[]
+  query: string
+  onViewPatient: (id: string) => void
+}
+
 function HistoryResultsPanel({
   results,
   query,
   onViewPatient,
-}: {
-  results: ConsultationHistorySearchResult[]
-  query: string
-  onViewPatient: (id: string) => void
-}) {
+}: ResultsPanelProps) {
   if (results.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[320px] bg-surface-container-lowest border border-dashed border-border-subtle rounded-xl p-xl text-center">
@@ -100,7 +147,7 @@ function HistoryResultsPanel({
         <table className="w-full text-left min-w-[640px]">
           <thead>
             <tr className="bg-surface-container-low border-b border-border-subtle">
-              {['Patient', 'Patient #', 'Age / Gender', 'Last Visit', 'Last Diagnosis', 'Actions'].map((h, i) => (
+              {['Patient', 'Patient #', 'Age / Gender', 'Phone Number', 'Known Allergies', 'Actions'].map((h, i) => (
                 <th
                   key={h}
                   className={`px-lg py-sm font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 5 ? 'text-right' : ''}`}
@@ -111,43 +158,51 @@ function HistoryResultsPanel({
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
-            {results.map((p) => (
-              <tr
-                key={p.id}
-                className="hover:bg-hover-tint transition-colors cursor-pointer group"
-                onClick={() => onViewPatient(p.id)}
-              >
-                <td className="px-lg py-md">
-                  <div className="flex items-center gap-sm">
-                    <div className="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center font-bold text-xs text-on-secondary-container shrink-0">
-                      {p.avatarInitials}
+            {results.map((p) => {
+              const age = calcAge(p.date_of_birth)
+              const init = initials(p.full_name)
+              const allergyText = p.allergies || 'None'
+
+              return (
+                <tr
+                  key={p.id}
+                  className="hover:bg-hover-tint transition-colors cursor-pointer group"
+                  onClick={() => onViewPatient(p.id)}
+                >
+                  <td className="px-lg py-md">
+                    <div className="flex items-center gap-sm">
+                      <div className="w-9 h-9 rounded-full bg-secondary-container flex items-center justify-center font-bold text-xs text-on-secondary-container shrink-0">
+                        {init}
+                      </div>
+                      <span className="font-body-sm text-body-sm font-semibold text-on-surface">{p.full_name}</span>
                     </div>
-                    <span className="font-body-sm text-body-sm font-semibold text-on-surface">{p.name}</span>
-                  </div>
-                </td>
-                <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant">
-                  {p.patientNumber}
-                </td>
-                <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant">
-                  {p.age}y / {p.gender}
-                </td>
-                <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant whitespace-nowrap">
-                  {p.lastVisitDate}
-                </td>
-                <td className="px-lg py-md">
-                  <span className="font-body-sm text-body-sm text-on-surface">{p.lastDiagnosis}</span>
-                </td>
-                <td className="px-lg py-md text-right">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onViewPatient(p.id) }}
-                    className="text-on-secondary-container hover:text-primary border border-border-subtle px-sm py-xs rounded font-label-sm text-label-sm font-semibold transition-colors hover:bg-surface-white bg-transparent cursor-pointer"
-                  >
-                    View Profile
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant">
+                    {p.patient_number}
+                  </td>
+                  <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant">
+                    {age}y / {p.gender}
+                  </td>
+                  <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant whitespace-nowrap">
+                    {p.phone_primary || '—'}
+                  </td>
+                  <td className="px-lg py-md">
+                    <span className={`font-body-sm text-body-sm ${p.allergies ? 'text-error font-semibold' : 'text-on-surface-variant'}`}>
+                      {allergyText}
+                    </span>
+                  </td>
+                  <td className="px-lg py-md text-right">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onViewPatient(p.id) }}
+                      className="text-on-secondary-container hover:text-primary border border-border-subtle px-sm py-xs rounded font-label-sm text-label-sm font-semibold transition-colors hover:bg-surface-white bg-transparent cursor-pointer"
+                    >
+                      View Profile
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -159,10 +214,22 @@ function HistoryResultsPanel({
 
 export function ConsultationHistoryContent() {
   const navigate = useNavigate()
-  const [query, setQuery]               = useState('')
+  const [query, setQuery]                 = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
-  const [hasSearched, setHasSearched]   = useState(false)
-  const [results, setResults]           = useState<ConsultationHistorySearchResult[]>([])
+  const [hasSearched, setHasSearched]     = useState(false)
+  const [searching, setSearching]         = useState(false)
+  const [results, setResults]             = useState<PatientListItem[]>([])
+
+  const [recent, setRecent]               = useState<PatientListItem[]>([])
+  const [loadingRecent, setLoadingRecent] = useState(true)
+
+  // Load recent patients on mount
+  useEffect(() => {
+    setLoadingRecent(true)
+    wardService.getRecentPatients(6)
+      .then((res) => { setRecent(res); setLoadingRecent(false) })
+      .catch(() => setLoadingRecent(false))
+  }, [])
 
   const runSearch = (term: string) => {
     const trimmed = term.trim()
@@ -171,8 +238,19 @@ export function ConsultationHistoryContent() {
       return
     }
     setQuery(trimmed)
+    setSearching(true)
     setHasSearched(true)
-    setResults(searchConsultationHistory(trimmed))
+    
+    wardService.searchPatients(trimmed, 1, 50)
+      .then((res) => {
+        setResults(res.patients || [])
+        setSearching(false)
+      })
+      .catch((err) => {
+        const msg = err?.response?.data?.detail || err?.message || 'Search failed'
+        toast.error(msg)
+        setSearching(false)
+      })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -222,10 +300,13 @@ export function ConsultationHistoryContent() {
           </div>
           <button
             type="submit"
-            className="bg-primary text-white px-xl py-sm rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-xs border-0 cursor-pointer shrink-0 h-10 sm:h-auto active:scale-95"
+            disabled={searching}
+            className="bg-primary text-white px-xl py-sm rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-xs border-0 cursor-pointer shrink-0 h-10 sm:h-auto active:scale-95 disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[18px] leading-none">search</span>
-            Search
+            <span className="material-symbols-outlined text-[18px] leading-none">
+              {searching ? 'sync' : 'search'}
+            </span>
+            {searching ? 'Searching...' : 'Search'}
           </button>
         </form>
       </section>
@@ -269,10 +350,16 @@ export function ConsultationHistoryContent() {
             </div>
 
             <RecentPatientsSection
-              patients={RECENT_CONSULTATION_PATIENTS}
+              patients={recent}
+              loading={loadingRecent}
               onSelect={(p) => handleViewPatient(p.id)}
             />
           </div>
+        </div>
+      ) : searching ? (
+        <div className="flex flex-col items-center justify-center min-h-[320px] bg-surface-container-lowest border border-dashed border-border-subtle rounded-xl p-xl text-center">
+          <span className="material-symbols-outlined text-[48px] text-primary animate-spin mb-md">sync</span>
+          <p className="font-body-md text-body-md text-outline m-0">Searching database...</p>
         </div>
       ) : (
         <HistoryResultsPanel results={results} query={query} onViewPatient={handleViewPatient} />

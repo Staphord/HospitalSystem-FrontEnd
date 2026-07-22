@@ -20,6 +20,8 @@ interface IssueOrderModalProps {
     dueTime: string
     overdue: boolean
   }) => void
+  /** When provided (live API mode), replaces the hardcoded demo patients list. */
+  patients?: Patient[]
 }
 
 const WARD_PATIENTS: Patient[] = [
@@ -30,7 +32,8 @@ const WARD_PATIENTS: Patient[] = [
   { id: 'p-test3', name: 'Neema Kessy', bed: 'Bed 05', condition: 'Stable', diagnosis: 'Gastritis' }
 ]
 
-export function IssueOrderModal({ isOpen, onClose, onAddOrder }: IssueOrderModalProps) {
+export function IssueOrderModal({ isOpen, onClose, onAddOrder, patients }: IssueOrderModalProps) {
+  const patientOptions = patients && patients.length > 0 ? patients : WARD_PATIENTS
   const [activeTab, setActiveTab] = useState<'Medication' | 'Nursing' | 'Diet' | 'Investigation'>('Medication')
   const [selectedPatientId, setSelectedPatientId] = useState('')
 
@@ -90,7 +93,7 @@ export function IssueOrderModal({ isOpen, onClose, onAddOrder }: IssueOrderModal
 
   if (!isOpen) return null
 
-  const selectedPatient = WARD_PATIENTS.find((p) => p.id === selectedPatientId)
+  const selectedPatient = patientOptions.find((p) => p.id === selectedPatientId)
 
   // Validate form submission
   const isFormValid = () => {
@@ -118,7 +121,7 @@ export function IssueOrderModal({ isOpen, onClose, onAddOrder }: IssueOrderModal
 
     let detail = ''
     let dueTime = 'Due now'
-    let overdue = false
+    const overdue = false
 
     if (activeTab === 'Medication') {
       // Build detail string for Medication
@@ -306,7 +309,7 @@ export function IssueOrderModal({ isOpen, onClose, onAddOrder }: IssueOrderModal
                 className="w-full pl-9 pr-9 py-2.5 border border-border-default rounded-lg text-body-sm bg-white focus:ring-1 focus:ring-clinical-blue focus:border-clinical-blue outline-none cursor-pointer appearance-none text-on-surface"
               >
                 <option value="">Search by patient name or bed number</option>
-                {WARD_PATIENTS.map((p) => (
+                {patientOptions.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} ({p.bed})
                   </option>

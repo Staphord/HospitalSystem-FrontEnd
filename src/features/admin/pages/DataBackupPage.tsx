@@ -1,36 +1,55 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { useApp } from '@/features/admin/context/AppContext';
-
-interface BackupHistoryRow {
-  timestamp: string;
-  size: string;
-  status: 'Successful' | 'Failed';
-  duration: string;
-}
+import { adminService } from '@/api/services/admin';
+import type { BackupItem } from '@/api/types/admin';
 
 export const DataBackupPage: React.FC = () => {
   const { setActiveView } = useApp();
   const [isBackupRunning, setIsBackupRunning] = useState(false);
   const [backupTriggered, setBackupTriggered] = useState(false);
+  const [backups, setBackups] = useState<BackupItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const backupHistory: BackupHistoryRow[] = [
-    { timestamp: 'Oct 24, 2023 06:00 EAT', size: '2.4 GB', status: 'Successful', duration: '4m 12s' },
-    { timestamp: 'Oct 24, 2023 00:00 EAT', size: '2.4 GB', status: 'Successful', duration: '4m 08s' },
-    { timestamp: 'Oct 23, 2023 18:00 EAT', size: '2.3 GB', status: 'Successful', duration: '3m 55s' },
-    { timestamp: 'Oct 23, 2023 12:00 EAT', size: '2.3 GB', status: 'Successful', duration: '4m 02s' },
-    { timestamp: 'Oct 23, 2023 06:00 EAT', size: '2.3 GB', status: 'Successful', duration: '3m 48s' },
-  ];
+  const fetchBackups = () => {
+    adminService.listBackups()
+      .then((data) => setBackups(data))
+      .catch((err) => {
+        console.error('Failed to load backups:', err);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchBackups();
+  }, []);
+
+  const lastBackup = backups[0] ?? null;
 
   const handleTriggerBackup = () => {
     setIsBackupRunning(true);
     setBackupTriggered(false);
-    setTimeout(() => {
-      setIsBackupRunning(false);
-      setBackupTriggered(true);
-      setTimeout(() => {
-        setBackupTriggered(false);
-      }, 3000);
-    }, 2000);
+    adminService.triggerBackup()
+      .then(() => {
+        setBackupTriggered(true);
+        toast.success('Backup completed successfully.');
+        fetchBackups();
+        setTimeout(() => setBackupTriggered(false), 3000);
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Backup failed.');
+      })
+      .finally(() => {
+        setIsBackupRunning(false);
+      });
+  };
+
+  const handleDownload = (backup: BackupItem) => {
+    adminService.downloadBackup(backup.id, backup.filename)
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Download failed.');
+      });
   };
 
   return (
@@ -63,25 +82,49 @@ export const DataBackupPage: React.FC = () => {
             <span className="text-label-sm font-label-md text-secondary uppercase tracking-wider">System Status</span>
           </div>
           <div className="p-lg flex flex-col gap-md bg-surface-white">
-            <div className="flex items-center gap-md">
-              <div className="w-12 h-12 bg-success/10 rounded-full flex items-center justify-center text-success">
-                <span className="material-symbols-outlined text-headline-md" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  check_circle
-                </span>
+            {lastBackup ? (
+              <div className="flex items-center gap-md">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  lastBackup.status === 'Successful' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
+                }`}>
+                  <span className="material-symbols-outlined text-headline-md" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {lastBackup.status === 'Successful' ? 'check_circle' : 'error'}
+                  </span>
+                </div>
+                <div>
+                  <p className={`font-headline-sm text-headline-sm ${lastBackup.status === 'Successful' ? 'text-success' : 'text-error'}`}>
+                    {lastBackup.status}
+                  </p>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">
+                    {lastBackup.status === 'Successful'
+                      ? 'All clinical databases synced correctly'
+                      : 'Last backup run reported an error'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-headline-sm text-headline-sm text-success">Successful</p>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">All clinical databases synced correctly</p>
+            ) : (
+              <div className="flex items-center gap-md">
+                <div className="w-12 h-12 bg-surface-container rounded-full flex items-center justify-center text-secondary">
+                  <span className="material-symbols-outlined text-headline-md">cloud_off</span>
+                </div>
+                <div>
+                  <p className="font-headline-sm text-headline-sm text-on-surface">No backups yet</p>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">Run your first manual backup below</p>
+                </div>
               </div>
-            </div>
+            )}
             <div className="grid grid-cols-2 gap-md py-md bg-surface-container-low rounded-lg px-md">
               <div>
                 <p className="font-label-md text-label-md text-secondary uppercase">Timestamp</p>
-                <p className="font-body-md text-body-md text-on-surface font-semibold">Today 06:00 EAT</p>
+                <p className="font-body-md text-body-md text-on-surface font-semibold">
+                  {lastBackup ? lastBackup.createdAt : '—'}
+                </p>
               </div>
               <div>
                 <p className="font-label-md text-label-md text-secondary uppercase">Size</p>
-                <p className="font-body-md text-body-md text-on-surface font-semibold">2.4 GB</p>
+                <p className="font-body-md text-body-md text-on-surface font-semibold">
+                  {lastBackup ? lastBackup.size : '—'}
+                </p>
               </div>
             </div>
             <button
@@ -96,12 +139,12 @@ export const DataBackupPage: React.FC = () => {
               {isBackupRunning ? (
                 <>
                   <span className="material-symbols-outlined animate-spin text-[20px]">sync</span>
-                  Initializing...
+                  Backing up...
                 </>
               ) : backupTriggered ? (
                 <>
                   <span className="material-symbols-outlined text-[20px]">check</span>
-                  Backup Triggered
+                  Backup Completed
                 </>
               ) : (
                 <>
@@ -155,60 +198,60 @@ export const DataBackupPage: React.FC = () => {
             <h3 className="font-headline-sm text-headline-sm text-on-surface">Backup History</h3>
             <p className="font-body-sm text-label-sm text-secondary">Complete log of all automated and manual snapshots</p>
           </div>
-          <div className="flex items-center gap-sm">
-            <button className="px-md py-sm bg-surface-white border border-border-subtle rounded text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors flex items-center gap-sm">
-              <span className="material-symbols-outlined text-[18px]">filter_list</span>
-              Filter
-            </button>
-            <button className="px-md py-sm bg-surface-white border border-border-subtle rounded text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors flex items-center gap-sm">
-              <span className="material-symbols-outlined text-[18px]">download</span>
-              Export CSV
-            </button>
-          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-border-subtle">
                 <th className="px-lg py-md font-label-md text-label-md text-secondary border-b border-border-subtle">TIMESTAMP</th>
+                <th className="px-lg py-md font-label-md text-label-md text-secondary border-b border-border-subtle">FILENAME</th>
                 <th className="px-lg py-md font-label-md text-label-md text-secondary border-b border-border-subtle">SIZE</th>
                 <th className="px-lg py-md font-label-md text-label-md text-secondary border-b border-border-subtle">STATUS</th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary border-b border-border-subtle">DURATION</th>
                 <th className="px-lg py-md font-label-md text-label-md text-secondary border-b border-border-subtle">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle bg-surface-white">
-              {backupHistory.map((row, idx) => (
-                <tr key={idx} className="hover:bg-row-hover transition-colors">
-                  <td className="px-lg py-md font-body-md text-body-md text-on-surface">{row.timestamp}</td>
-                  <td className="px-lg py-md font-body-md text-body-md text-on-surface">{row.size}</td>
-                  <td className="px-lg py-md">
-                    <span className="px-sm py-1 bg-success/15 text-success rounded-full text-label-sm font-label-md inline-block font-semibold">
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="px-lg py-md font-body-md text-body-md text-on-surface-variant">{row.duration}</td>
-                  <td className="px-lg py-md">
-                    <a className="text-primary font-label-md text-label-md hover:underline flex items-center gap-xs" href="#" onClick={e => e.preventDefault()}>
-                      <span className="material-symbols-outlined text-[18px]">download</span> Download
-                    </a>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-lg py-lg text-center text-secondary font-body-sm">
+                    Loading backup history...
                   </td>
                 </tr>
-              ))}
+              ) : backups.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-lg py-lg text-center text-secondary font-body-sm">
+                    No backups recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                backups.map((row) => (
+                  <tr key={row.id} className="hover:bg-row-hover transition-colors">
+                    <td className="px-lg py-md font-body-md text-body-md text-on-surface">{row.createdAt}</td>
+                    <td className="px-lg py-md font-body-md text-body-md text-on-surface font-mono text-[12px]">{row.filename}</td>
+                    <td className="px-lg py-md font-body-md text-body-md text-on-surface">{row.size}</td>
+                    <td className="px-lg py-md">
+                      <span className={`px-sm py-1 rounded-full text-label-sm font-label-md inline-block font-semibold ${
+                        row.status === 'Successful' ? 'bg-success/15 text-success' : 'bg-error/15 text-error'
+                      }`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="px-lg py-md">
+                      <button
+                        onClick={() => handleDownload(row)}
+                        className="text-primary font-label-md text-label-md hover:underline flex items-center gap-xs bg-transparent border-0 cursor-pointer p-0"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">download</span> Download
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
         <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between">
-          <p className="font-body-sm text-label-sm text-secondary">Showing 5 of 120 backup records</p>
-          <div className="flex items-center gap-sm">
-            <button className="p-1 hover:bg-surface-variant rounded disabled:opacity-30" disabled>
-              <span className="material-symbols-outlined">chevron_left</span>
-            </button>
-            <span className="font-label-md text-label-md text-on-surface">Page 1 of 24</span>
-            <button className="p-1 hover:bg-surface-variant rounded">
-              <span className="material-symbols-outlined">chevron_right</span>
-            </button>
-          </div>
+          <p className="font-body-sm text-label-sm text-secondary">Showing {backups.length} backup record{backups.length === 1 ? '' : 's'}</p>
         </div>
       </div>
     </div>

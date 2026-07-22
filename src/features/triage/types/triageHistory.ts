@@ -16,7 +16,7 @@ export interface TriageHistorySearchResult extends TriageHistoryPatient {
   assessmentCount: number
 }
 
-export type VisitOutcome = 'Discharged' | 'Admitted' | 'Referred' | 'Pending'
+export type VisitOutcome = 'Active' | 'Completed' | 'Cancelled'
 
 export interface TriageVisitRecord {
   visitId: string
@@ -28,4 +28,7 @@ export interface TriageVisitRecord {
   outcome: VisitOutcome
   vitals?: string
   doctorNotes?: string
+  rawStatus?: string
+  vitalsRaw?: any
+  triageNurse?: any
 }

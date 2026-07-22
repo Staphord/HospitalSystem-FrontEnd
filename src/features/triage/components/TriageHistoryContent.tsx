@@ -1,25 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  RECENT_TRIAGE_PATIENTS,
-  searchTriageHistory,
-} from '@/features/triage/data/mockTriageHistory'
-import type { TriageHistoryPatient, TriageHistorySearchResult } from '@/features/triage/types/triageHistory'
+import { triageService } from '@/api/services/triage'
+import type { TriageHistoryPatientItem } from '@/api/types/triage'
 
-function categoryBadgeClass(category: string): string {
-  switch (category) {
-    case 'Emergency':
-      return 'bg-error/10 text-error'
-    case 'Urgent':
-      return 'bg-warning/10 text-warning'
-    case 'Semi-Urgent':
-      return 'bg-primary-fixed text-primary'
-    case 'Non-Urgent':
-      return 'bg-success/10 text-success'
-    default:
-      return 'bg-surface-container-high text-on-surface-variant'
-  }
+function categoryBadgeClass(category: string | null): string {
+  if (!category) return 'bg-surface-container-high text-outline'
+  const norm = category.toLowerCase()
+  if (norm.includes('emergency')) return 'bg-error/10 text-error'
+  if (norm.includes('urgent') && !norm.includes('semi')) return 'bg-warning/10 text-warning'
+  if (norm.includes('semi-urgent')) return 'bg-primary-fixed text-primary'
+  if (norm.includes('non-urgent')) return 'bg-success/10 text-success'
+  return 'bg-surface-container-high text-on-surface-variant'
 }
 
 function RecentPatientsSection({
@@ -27,8 +19,8 @@ function RecentPatientsSection({
   onSelect,
   className = '',
 }: {
-  patients: TriageHistoryPatient[]
-  onSelect: (patient: TriageHistoryPatient) => void
+  patients: TriageHistoryPatientItem[]
+  onSelect: (patient: TriageHistoryPatientItem) => void
   className?: string
 }) {
   return (
@@ -56,7 +48,7 @@ function RecentPatientsSection({
                 {patient.name}
               </p>
               <p className="font-label-sm text-label-sm text-outline m-0">
-                {patient.patientNumber} • {patient.lastVisitDate}
+                {patient.patientNumber} • {patient.lastAssessedAt ? patient.lastAssessedAt.split(' ')[0] : 'No triage'}
               </p>
             </div>
           </button>
@@ -70,11 +62,22 @@ function HistoryResultsPanel({
   results,
   query,
   onViewPatient,
+  loading,
 }: {
-  results: TriageHistorySearchResult[]
+  results: TriageHistoryPatientItem[]
   query: string
   onViewPatient: (id: string) => void
+  loading: boolean
 }) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 min-h-[320px] bg-surface-container-lowest border border-border-subtle rounded-xl p-xl text-center">
+        <span className="material-symbols-outlined text-primary text-4xl animate-spin">progress_activity</span>
+        <p className="font-label-md text-secondary mt-sm m-0">Searching patient database...</p>
+      </div>
+    )
+  }
+
   if (results.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 min-h-[320px] bg-surface-container-lowest border border-dashed border-border-subtle rounded-xl p-xl text-center">
@@ -137,11 +140,11 @@ function HistoryResultsPanel({
                   <span
                     className={`inline-flex px-sm py-xs rounded-full font-label-sm text-label-sm font-semibold ${categoryBadgeClass(patient.lastTriageCategory)}`}
                   >
-                    {patient.lastTriageCategory}
+                    {patient.lastTriageCategory ?? 'None'}
                   </span>
                 </td>
                 <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant">
-                  {patient.lastAssessedAt}
+                  {patient.lastAssessedAt ?? 'Never'}
                 </td>
                 <td className="px-lg py-md text-right">
                   <button
@@ -166,9 +169,27 @@ export function TriageHistoryContent() {
   const [query, setQuery] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
-  const [results, setResults] = useState<TriageHistorySearchResult[]>([])
+  const [results, setResults] = useState<TriageHistoryPatientItem[]>([])
+  const [recentPatients, setRecentPatients] = useState<TriageHistoryPatientItem[]>([])
+  const [loadingRecent, setLoadingRecent] = useState(true)
+  const [loadingSearch, setLoadingSearch] = useState(false)
 
-  const runSearch = (term: string) => {
+  // Load recent patients on component mount
+  useEffect(() => {
+    const fetchRecent = async () => {
+      try {
+        const response = await triageService.searchHistory()
+        setRecentPatients(response.patients.slice(0, 4))
+      } catch (err) {
+        console.error('Failed to load recent triaged patients:', err)
+      } finally {
+        setLoadingRecent(false)
+      }
+    }
+    void fetchRecent()
+  }, [])
+
+  const runSearch = async (term: string) => {
     const trimmed = term.trim()
     if (!trimmed) {
       toast.error('Enter a patient name or patient number to search.')
@@ -176,15 +197,24 @@ export function TriageHistoryContent() {
     }
     setQuery(trimmed)
     setHasSearched(true)
-    setResults(searchTriageHistory(trimmed))
+    setLoadingSearch(true)
+    try {
+      const response = await triageService.searchHistory(trimmed)
+      setResults(response.patients)
+    } catch (err) {
+      console.error('Triage history search failed:', err)
+      toast.error('Search failed. Please try again.')
+    } finally {
+      setLoadingSearch(false)
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    runSearch(query)
+    void runSearch(query)
   }
 
-  const handleRecentSelect = (patient: TriageHistoryPatient) => {
+  const handleRecentSelect = (patient: TriageHistoryPatientItem) => {
     navigate(`/triage/history/${patient.id}`)
   }
 
@@ -269,15 +299,17 @@ export function TriageHistoryContent() {
               </p>
             </div>
 
-            <RecentPatientsSection
-              className="mt-xl w-full max-w-2xl"
-              patients={RECENT_TRIAGE_PATIENTS.slice(0, 2)}
-              onSelect={handleRecentSelect}
-            />
+            {!loadingRecent && recentPatients.length > 0 && (
+              <RecentPatientsSection
+                className="mt-xl w-full max-w-2xl"
+                patients={recentPatients}
+                onSelect={handleRecentSelect}
+              />
+            )}
           </div>
         </div>
       ) : (
-        <HistoryResultsPanel results={results} query={query} onViewPatient={handleViewPatient} />
+        <HistoryResultsPanel results={results} query={query} onViewPatient={handleViewPatient} loading={loadingSearch} />
       )}
     </div>
   )

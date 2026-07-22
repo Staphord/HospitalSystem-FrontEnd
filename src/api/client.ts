@@ -836,6 +836,9 @@ apiClient.defaults.adapter = async (config) => {
   }
 
   const useRealBackend =
+    url.startsWith('/admin/') ||
+    url.startsWith('/ward/') ||
+    url.startsWith('/reports/') ||
     url.includes('/auth/login') ||
     url.includes('/auth/superadmin/login') ||
     url.includes('/auth/signup') ||
@@ -858,6 +861,7 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/incidents') ||
     url.includes('/announcements') ||
     url.includes('/pharmacy') ||
+    url.includes('/laboratory') ||
     url === '/stats'
 
   if (!MOCK_ENABLED || useRealBackend) {
@@ -1805,7 +1809,7 @@ apiClient.defaults.adapter = async (config) => {
   }
 
   // Hospital Admin: Dashboard Stats
-  if (url.endsWith('/dashboard/stats') && method === 'get') {
+  if (url.endsWith('/dashboard/stats') && !url.includes('/consultation/') && method === 'get') {
     const stats = JSON.parse(localStorage.getItem('hf_mock_dashboard_stats') || '{}')
     return respond(200, stats)
   }

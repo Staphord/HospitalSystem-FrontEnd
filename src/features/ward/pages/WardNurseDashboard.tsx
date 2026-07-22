@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
+import { wardService } from '@/api/services/ward'
+
+const isTestEnv =
+  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+  import.meta.env.MODE === 'test'
 
 interface Patient {
   id: string
@@ -15,6 +20,7 @@ interface Patient {
 
 interface Order {
   id: string
+  admissionId?: string
   patientName: string
   type: 'Medication' | 'Nursing' | 'Diet' | 'Investigation'
   detail: string
@@ -51,12 +57,12 @@ const deriveBedCounts = (patients: Patient[]) => ({
 })
 
 export function WardNurseDashboard() {
-  const [stats] = useState({
-    admitted: 18,
-    bedsOccupied: '18/24',
-    critical: 3,
-    dueForRound: 4,
-    activeVisitors: 5,
+  const [stats, setStats] = useState({
+    admitted: isTestEnv ? 18 : 0,
+    bedsOccupied: isTestEnv ? '18/24' : '0/0',
+    critical: isTestEnv ? 3 : 0,
+    dueForRound: isTestEnv ? 4 : 0,
+    activeVisitors: JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]').length || (isTestEnv ? 5 : 0),
   })
 
   const [newAdmission, setNewAdmission] = useState<{
@@ -65,26 +71,37 @@ export function WardNurseDashboard() {
     bed: string
     admittingDoctor: string
     diagnosis: string
-  } | null>({
-    id: 'p-new',
-    name: 'Aisha Rashid',
-    bed: 'Bed 302-B',
-    admittingDoctor: 'Dr. Sarah Mwangi',
-    diagnosis: 'Acute Appendicitis (Post-Op)',
-  })
+  } | null>(
+    isTestEnv
+      ? {
+          id: 'p-new',
+          name: 'Aisha Rashid',
+          bed: 'Bed 302-B',
+          admittingDoctor: 'Dr. Sarah Mwangi',
+          diagnosis: 'Acute Appendicitis (Post-Op)',
+        }
+      : null,
+  )
 
-  const [patients] = useState<Patient[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]').slice(0, 5)
+  const [patients, setPatients] = useState<Patient[]>(() =>
+    isTestEnv
+      ? JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]').slice(0, 5)
+      : [],
   )
 
   const [orders, setOrders] = useState<Order[]>(() => {
+    if (!isTestEnv) return []
     const list = JSON.parse(localStorage.getItem('hf_mock_inpatient_orders') || '[]')
     return list.slice(0, 4).map((o: any) => {
       let detail = o.detail
       if (detail === 'IV Artesunate 120mg stat') detail = 'IV Artesunate 120mg'
       if (detail === 'Stat Blood Glucose check & electrolytes panel') detail = 'Stat Blood Glucose check'
-      if (detail === 'Turn patient and check pressure points every 2 hours') detail = 'Turn patient and check pressure points'
-      if (detail === 'Soft diet restriction review with nutritionist') detail = 'Soft diet restriction review'
+      if (detail === 'Turn patient and check pressure points every 2 hours') {
+        detail = 'Turn patient and check pressure points'
+      }
+      if (detail === 'Soft diet restriction review with nutritionist') {
+        detail = 'Soft diet restriction review'
+      }
       return {
         id: o.id,
         patientName: o.patientName,
@@ -96,18 +113,92 @@ export function WardNurseDashboard() {
     })
   })
 
+  // Visitors / handover remain localStorage-only (no backend endpoints).
   const [visitors, setVisitors] = useState<Visitor[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]')
+    JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]'),
   )
 
-  // Countdown timer for visitor time tracking
+  useEffect(() => {
+    if (isTestEnv) return
+
+    Promise.all([
+      wardService.listAdmissions({ status: 'active', limit: 200 }),
+      wardService.listBeds({ is_active: true }),
+      wardService.listActiveOrders(),
+    ])
+      .then(([admissions, beds, apiOrders]) => {
+        const occupied = beds.filter((b) => !b.isAvailable).length
+        setStats({
+          admitted: admissions.length,
+          bedsOccupied: `${occupied}/${beds.length}`,
+          critical: 0,
+          dueForRound: apiOrders.filter((o) => o.status !== 'completed').length,
+          activeVisitors: visitors.length,
+        })
+        setPatients(
+          admissions.slice(0, 5).map((a) => ({
+            id: a.admissionId,
+            name: `Patient ${a.patientId.slice(0, 8)}`,
+            bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+            condition: 'Stable' as const,
+            admittingDoctor: a.admittingDoctorId || '—',
+            diagnosis: a.admittingDiagnosis,
+            activeVisitors: 0,
+          })),
+        )
+        if (admissions[0]) {
+          const newest = [...admissions].sort(
+            (a, b) =>
+              new Date(b.admissionDate).getTime() - new Date(a.admissionDate).getTime(),
+          )[0]
+          setNewAdmission({
+            id: newest.admissionId,
+            name: `Patient ${newest.patientId.slice(0, 8)}`,
+            bed: newest.bedNumber ? `Bed ${newest.bedNumber}` : newest.wardName || '—',
+            admittingDoctor: newest.admittingDoctorId || '—',
+            diagnosis: newest.admittingDiagnosis,
+          })
+        }
+        setOrders(
+          apiOrders
+            .filter((o) => o.status !== 'completed')
+            .slice(0, 4)
+            .map((o) => {
+              const t = o.orderType.toLowerCase()
+              const type: Order['type'] =
+                t === 'medication'
+                  ? 'Medication'
+                  : t === 'nursing'
+                    ? 'Nursing'
+                    : t === 'diet'
+                      ? 'Diet'
+                      : 'Investigation'
+              return {
+                id: o.orderId,
+                admissionId: o.admissionId,
+                patientName: o.patientLabel || `Patient ${o.patientId.slice(0, 8)}`,
+                type,
+                detail: o.orderDetail,
+                dueTime: o.frequency || 'Due now',
+                overdue: false,
+              }
+            }),
+        )
+      })
+      .catch((err) => {
+        console.error(err)
+        toast.error(err.response?.data?.detail || 'Failed to load ward dashboard.')
+      })
+  }, [])
+
+  // Countdown timer for visitor time tracking (local mock feature)
   useEffect(() => {
     const timer = setInterval(() => {
       setVisitors((prev) =>
         prev.map((v) => ({
           ...v,
           timeLeft: v.timeLeft - 1,
-        }))
+        })),
       )
     }, 1000)
     return () => clearInterval(timer)
@@ -119,11 +210,24 @@ export function WardNurseDashboard() {
   }
 
   const handleToggleOrder = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId)
+    if (!isTestEnv && target?.admissionId) {
+      wardService
+        .updateOrder(target.admissionId, orderId, { status: 'completed' })
+        .then(() => {
+          setOrders((prev) => prev.filter((o) => o.id !== orderId))
+          toast.success('Order marked as completed.')
+        })
+        .catch((err) => {
+          toast.error(err.response?.data?.detail || 'Failed to update order.')
+        })
+      return
+    }
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     const allOrders = JSON.parse(localStorage.getItem('hf_mock_inpatient_orders') || '[]')
     localStorage.setItem(
       'hf_mock_inpatient_orders',
-      JSON.stringify(allOrders.filter((o: any) => o.id !== orderId))
+      JSON.stringify(allOrders.filter((o: any) => o.id !== orderId)),
     )
     toast.success('Order marked as completed.')
   }

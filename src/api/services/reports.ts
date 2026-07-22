@@ -9,6 +9,9 @@ import type {
 
 // All paths proxied via api-gateway → report-service
 export const reportsService = {
+  getDashboard: () =>
+    apiClient.get('/reports/dashboard').then((r) => r.data),
+
   getPatientCensus: (params?: ReportParams) =>
     apiClient
       .get<PatientCensusReport>('/reports/patient-census', { params })
@@ -30,11 +33,5 @@ export const reportsService = {
       .then((r) => r.data),
 
   getDischargeStats: (params?: ReportParams) =>
-    apiClient.get('/reports/discharge-stats', { params }).then((r) => r.data),
-
-  getLabTurnaround: (params?: ReportParams) =>
-    apiClient.get('/reports/lab-turnaround', { params }).then((r) => r.data),
-
-  getOutstandingBills: (params?: ReportParams) =>
-    apiClient.get('/reports/outstanding-bills', { params }).then((r) => r.data),
+    apiClient.get('/reports/discharge-statistics', { params }).then((r) => r.data),
 }

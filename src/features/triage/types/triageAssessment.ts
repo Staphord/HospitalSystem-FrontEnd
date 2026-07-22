@@ -1,16 +1,21 @@
-export type TriageQueuePriority = 'emergency' | 'urgent' | 'routine'
+export type TriageQueuePriority = 'emergency' | 'urgent' | 'semi_urgent' | 'non_urgent' | 'routine'
 
 export type TriageCategory = 'emergency' | 'urgent' | 'semi_urgent' | 'non_urgent'
 
 export interface TriageVisit {
+  queueId: string
+  status: 'waiting' | 'in_progress' | 'completed' | 'skipped'
   visitId: string
-  queueNumber: number
+  patientId: string
+  queueNumber: string
   name: string
   initials: string
   patientNumber: string
   gender: string
   age: number
   arrival: string
+  created_at: string
+  completed_at: string | null
   waitTime: string
   waitColor: string
   waitWarningIcon?: boolean
