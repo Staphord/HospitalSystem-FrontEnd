@@ -860,7 +860,9 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/monitoring') ||
     url.includes('/incidents') ||
     url.includes('/announcements') ||
-    url.includes('/laboratory')
+    url.includes('/pharmacy') ||
+    url.includes('/laboratory') ||
+    url === '/stats'
 
   if (!MOCK_ENABLED || useRealBackend) {
     if (url === '/subscription' || url.startsWith('/subscription/')) {

@@ -238,6 +238,7 @@ export const masterService = {
             end_date: sub.end,
             auto_renew: sub.auto_renew,
             pending_plan_name: sub.pending_plan,
+            billing_cycle: sub.billing_cycle,
           } as any,
         ];
       }),
