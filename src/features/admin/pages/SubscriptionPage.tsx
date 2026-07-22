@@ -288,7 +288,7 @@ export const SubscriptionPage: React.FC = () => {
     : null;
   const currencySymbol = tenant.currency || 'USD';
   const priceDisplay = planDetails
-    ? `${currencySymbol} ${planDetails.monthly_price.toLocaleString()}`
+    ? `${currencySymbol} ${(String(subscription.billing_cycle || '').toLowerCase() === 'annual' ? planDetails.annual_price : planDetails.monthly_price).toLocaleString()}`
     : 'N/A';
 
   // Calculate plan usage details
@@ -455,7 +455,7 @@ export const SubscriptionPage: React.FC = () => {
                   {subscription.status}
                 </span>
                 <span className="bg-surface-container text-on-surface-variant font-label-md text-label-md px-sm py-[2px] rounded-full uppercase font-bold">
-                  Monthly
+                  {subscription.billing_cycle || 'Monthly'}
                 </span>
               </div>
               {daysUntilRenewal !== null && daysUntilRenewal <= 14 && (
@@ -535,13 +535,9 @@ export const SubscriptionPage: React.FC = () => {
                   )}
                 </div>
               </div>
-              {maxUsers > 0 ? (
-                <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className={`h-full ${staffPercent > 90 ? 'bg-error' : 'bg-success'}`} style={{ width: `${staffPercent}%` }}></div>
-                </div>
-              ) : (
-                <div className="h-2 w-full bg-success rounded-full"></div>
-              )}
+              <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+                <div className={`h-full ${staffPercent > 90 ? 'bg-error' : 'bg-success'}`} style={{ width: `${staffPercent}%` }}></div>
+              </div>
             </div>
             <div className="flex flex-col gap-sm">
               <div className="flex justify-between items-end">
@@ -559,13 +555,9 @@ export const SubscriptionPage: React.FC = () => {
                   {patientsCount.toLocaleString()} / {maxPatients > 0 ? maxPatients.toLocaleString() : 'Unlimited'}
                 </span>
               </div>
-              {maxPatients > 0 ? (
-                <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className="h-full bg-success" style={{ width: `${patientsPercent}%` }}></div>
-                </div>
-              ) : (
-                <div className="h-2 w-full bg-success rounded-full"></div>
-              )}
+              <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+                <div className="h-full bg-success" style={{ width: `${patientsPercent}%` }}></div>
+              </div>
             </div>
           </div>
         </div>
@@ -792,12 +784,30 @@ export const SubscriptionPage: React.FC = () => {
           </button>
           {subscription.status !== 'cancelled' ? (
             <button
-              onClick={() => !pendingRequest && setIsCancelModalOpen(true)}
-              disabled={!!pendingRequest}
-              title={pendingRequest ? 'A request is already pending approval' : ''}
-              style={{ height: '40px', padding: '0 24px', borderRadius: '6px', background: pendingRequest ? '#f4f5f7' : 'transparent', border: `1px solid ${pendingRequest ? '#dfe1e6' : '#FF5630'}`, color: pendingRequest ? '#999' : '#FF5630', cursor: pendingRequest ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '12px', transition: 'background 0.15s' }}
-              onMouseEnter={e => { if (!pendingRequest) e.currentTarget.style.background = '#ffebe6'; }}
-              onMouseLeave={e => { if (!pendingRequest) e.currentTarget.style.background = 'transparent'; }}
+              onClick={() => {
+                const isCancellationPending = pendingRequest && pendingRequest.pending_action === 'cancellation';
+                if (!isCancellationPending) setIsCancelModalOpen(true);
+              }}
+              disabled={pendingRequest?.pending_action === 'cancellation'}
+              title={pendingRequest?.pending_action === 'cancellation' ? 'A cancellation request is already pending approval' : ''}
+              style={{
+                height: '40px',
+                padding: '0 24px',
+                borderRadius: '6px',
+                background: pendingRequest?.pending_action === 'cancellation' ? '#f4f5f7' : 'transparent',
+                border: `1px solid ${pendingRequest?.pending_action === 'cancellation' ? '#dfe1e6' : '#FF5630'}`,
+                color: pendingRequest?.pending_action === 'cancellation' ? '#999' : '#FF5630',
+                cursor: pendingRequest?.pending_action === 'cancellation' ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+                fontSize: '12px',
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={e => {
+                if (pendingRequest?.pending_action !== 'cancellation') e.currentTarget.style.background = '#ffebe6';
+              }}
+              onMouseLeave={e => {
+                if (pendingRequest?.pending_action !== 'cancellation') e.currentTarget.style.background = 'transparent';
+              }}
             >
               Cancel Subscription
             </button>
