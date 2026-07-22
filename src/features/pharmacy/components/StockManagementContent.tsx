@@ -1,20 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { AddStockItemModal, type NewStockItemForm } from '@/features/pharmacy/components/AddStockItemModal'
 import { StockInModal } from '@/features/pharmacy/components/StockInModal'
 import { StockOutModal } from '@/features/pharmacy/components/StockOutModal'
 import {
   CATEGORY_BADGE,
-  INITIAL_STOCK_ITEMS,
   STOCK_CATEGORIES,
   STOCK_PAGE_SIZE,
-  STOCK_TOTAL_COUNT,
-  computeStockStats,
   getStockStatus,
   type DrugCategory,
   type StockItem,
   type StockStatus,
 } from '@/features/pharmacy/data/mockStockManagement'
+import { pharmacyService, type InventoryItem } from '@/api/services/pharmacy'
 
 type CategoryFilter = 'all' | DrugCategory
 type StatusFilter = 'all' | StockStatus
@@ -25,15 +22,16 @@ const STATUS_CONFIG: Record<StockStatus, { label: string; dot: string; text: str
   out_of_stock: { label: 'Out of Stock', dot: 'bg-error', text: 'text-error' },
 }
 
-function formatExpiryFromDate(isoDate: string): string {
-  if (!isoDate) return '—'
-  const date = new Date(isoDate)
-  if (Number.isNaN(date.getTime())) return isoDate
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  return `${month}/${date.getFullYear()}`
+interface StatCardsProps {
+  stats: {
+    totalItems: number
+    lowStock: number
+    outOfStock: number
+    expiringSoon: number
+  }
 }
 
-function StatCards({ stats }: { stats: ReturnType<typeof computeStockStats> }) {
+function StatCards({ stats }: StatCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
       <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col gap-xs hover:border-outline-variant transition-colors">
@@ -93,66 +91,32 @@ function StockStatusBadge({ status }: { status: StockStatus }) {
 
 function StockRowActionsMenu({
   item,
+  isOpen,
+  onToggle,
   onStockIn,
   onStockOut,
 }: {
   item: StockItem
+  isOpen: boolean
+  onToggle: (id: string, rect: DOMRect) => void
   onStockIn: (item: StockItem) => void
   onStockOut: (item: StockItem) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
-
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          onToggle(item.id, rect)
+        }}
         className="p-1 hover:bg-primary/10 text-primary rounded transition-colors bg-transparent border-0 cursor-pointer"
         title="More Actions"
         aria-label={`Actions for ${item.drugName}`}
-        aria-expanded={open}
+        aria-expanded={isOpen}
       >
         <span className="material-symbols-outlined">more_vert</span>
       </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-20 min-w-[160px] bg-surface-white border border-border-subtle rounded-lg shadow-lg py-xs overflow-hidden">
-          <button
-            type="button"
-            onClick={() => {
-              onStockIn(item)
-              setOpen(false)
-            }}
-            className="w-full text-left px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low bg-transparent border-0 cursor-pointer flex items-center gap-sm"
-          >
-            <span className="material-symbols-outlined text-[18px] text-success">add_box</span>
-            Stock In
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onStockOut(item)
-              setOpen(false)
-            }}
-            className="w-full text-left px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low bg-transparent border-0 cursor-pointer flex items-center gap-sm"
-          >
-            <span className="material-symbols-outlined text-[18px] text-error">remove_circle</span>
-            Stock Out
-          </button>
-        </div>
-      )}
     </div>
   )
 }
@@ -164,41 +128,76 @@ function getRowClass(status: StockStatus): string {
 }
 
 export function StockManagementContent() {
-  const [items, setItems] = useState<StockItem[]>(INITIAL_STOCK_ITEMS)
+  const [dbItems, setDbItems] = useState<InventoryItem[]>([])
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [page, setPage] = useState(1)
-  const [addModalOpen, setAddModalOpen] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+
   const [stockInItem, setStockInItem] = useState<StockItem | null>(null)
   const [stockOutItem, setStockOutItem] = useState<StockItem | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
 
-  const stats = useMemo(() => computeStockStats(items), [items])
+  const fetchInventory = async () => {
+    try {
+      setLoading(true)
+      const params = {
+        search: search.trim() || undefined,
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        low_stock: statusFilter === 'low_stock' ? true : undefined,
+        page,
+        page_size: STOCK_PAGE_SIZE,
+      }
+      const res = await pharmacyService.getInventory(params)
+      setDbItems(res.items || [])
+      setTotalCount(res.total || 0)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load inventory stock.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const filteredItems = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return items.filter((item) => {
-      const status = getStockStatus(item.stock, item.minThreshold)
-      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false
-      if (statusFilter !== 'all' && status !== statusFilter) return false
-      if (query && !item.drugName.toLowerCase().includes(query)) return false
-      return true
+  useEffect(() => {
+    fetchInventory()
+  }, [search, categoryFilter, statusFilter, page])
+
+  const mappedStockItems = useMemo<StockItem[]>(() => {
+    return dbItems.map((item) => {
+      // Format last_restocked_at date as MM/YYYY if available
+      let expiry = 'N/A'
+      if (item.last_restocked_at) {
+        const d = new Date(item.last_restocked_at)
+        expiry = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+      }
+      return {
+        id: item.inventory_id,
+        drugName: item.drug_name,
+        category: (item.category as DrugCategory) || 'General',
+        stock: item.quantity_in_stock,
+        unit: item.unit,
+        minThreshold: item.reorder_level,
+        maxThreshold: item.reorder_level * 5,
+        expiry,
+      }
     })
-  }, [items, search, categoryFilter, statusFilter])
+  }, [dbItems])
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / STOCK_PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-
-  const paginatedItems = useMemo(() => {
-    const start = (safePage - 1) * STOCK_PAGE_SIZE
-    return filteredItems.slice(start, start + STOCK_PAGE_SIZE)
-  }, [filteredItems, safePage])
-
-  const rangeStart = filteredItems.length === 0 ? 0 : (safePage - 1) * STOCK_PAGE_SIZE + 1
-  const rangeEnd = Math.min(safePage * STOCK_PAGE_SIZE, filteredItems.length)
-  const displayTotal = search || categoryFilter !== 'all' || statusFilter !== 'all'
-    ? filteredItems.length
-    : STOCK_TOTAL_COUNT
+  const stats = useMemo(() => {
+    const totalItems = totalCount
+    const lowStock = dbItems.filter((i) => i.quantity_in_stock <= i.reorder_level && i.quantity_in_stock > 0).length
+    const outOfStock = dbItems.filter((i) => i.quantity_in_stock === 0).length
+    return {
+      totalItems,
+      lowStock,
+      outOfStock,
+      expiringSoon: 0,
+    }
+  }, [dbItems, totalCount])
 
   const handleResetFilters = () => {
     setSearch('')
@@ -207,43 +206,75 @@ export function StockManagementContent() {
     setPage(1)
   }
 
-  const handleAddItem = (form: NewStockItemForm) => {
-    const id = `stk-${Date.now()}`
-    const newItem: StockItem = {
-      id,
-      drugName: form.drugName,
-      category: form.category,
-      stock: form.initialStock,
-      unit: form.unit,
-      minThreshold: form.minThreshold,
-      maxThreshold: form.maxThreshold,
-      expiry: formatExpiryFromDate(form.expiry),
+  const handleMenuToggle = (id: string, rect: DOMRect) => {
+    if (openMenuId === id) {
+      setOpenMenuId(null)
+      setMenuAnchor(null)
+    } else {
+      setOpenMenuId(id)
+      // Anchor just below and to the right of the button, using fixed coords
+      setMenuAnchor({
+        top: rect.bottom + window.scrollY + 4,
+        right: window.innerWidth - rect.right,
+      })
     }
-    setItems((prev) => [newItem, ...prev])
-    setAddModalOpen(false)
-    toast.success(`${form.drugName} added to inventory.`)
   }
 
-  const handleStockIn = (itemId: string, quantity: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, stock: item.stock + quantity } : item,
-      ),
-    )
-    setStockInItem(null)
-    toast.success(`Stock intake recorded (+${quantity}).`)
+  const handleMenuClose = () => {
+    setOpenMenuId(null)
+    setMenuAnchor(null)
   }
 
-  const handleStockOut = (itemId: string, quantity: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, stock: Math.max(0, item.stock - quantity) } : item,
-      ),
-    )
-    setStockOutItem(null)
-    toast.success(`Stock removal recorded (-${quantity}).`)
+  const handleStockIn = async (payload: { quantity: number; batchNumber: string; expiry: string }) => {
+    if (!stockInItem) return
+    try {
+      // Find matching db item
+      const dbItem = dbItems.find((i) => i.inventory_id === stockInItem.id)
+      if (!dbItem) return
+
+      await pharmacyService.restockInventory({
+        inventory_id: stockInItem.id,
+        quantity_added: payload.quantity,
+        batch_number: payload.batchNumber,
+        expiry_date: payload.expiry,
+        unit_cost: dbItem.unit_cost,
+        notes: 'Recorded stock intake via frontend UI',
+      })
+      setStockInItem(null)
+      fetchInventory()
+      toast.success(`Stock intake recorded for ${stockInItem.drugName}`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to register stock intake.')
+    }
   }
 
+  const handleStockOut = async (payload: { quantity: number; reason: string; note: string }) => {
+    if (!stockOutItem) return
+    try {
+      const typeMap: Record<string, 'adjustment' | 'write_off' | 'return'> = {
+        dispensed: 'adjustment',
+        expired: 'write_off',
+        damaged: 'write_off',
+        correction: 'adjustment',
+      }
+      await pharmacyService.adjustInventory({
+        inventory_id: stockOutItem.id,
+        transaction_type: typeMap[payload.reason] || 'adjustment',
+        quantity_change: -payload.quantity, // Negative for removal
+        notes: payload.note || 'Manual adjustment via stock-out UI',
+      })
+      setStockOutItem(null)
+      fetchInventory()
+      toast.success(`Stock removal recorded for ${stockOutItem.drugName}`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to register stock adjustment.')
+    }
+  }
+
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * STOCK_PAGE_SIZE + 1
+  const rangeEnd = Math.min(page * STOCK_PAGE_SIZE, totalCount)
   const showWarningBanner = stats.lowStock > 0 || stats.outOfStock > 0
 
   return (
@@ -260,8 +291,7 @@ export function StockManagementContent() {
               warning
             </span>
             <p className="font-body-md text-body-md text-on-surface m-0">
-              <strong className="font-semibold">{stats.lowStock} items</strong> are below minimum stock
-              level.{' '}
+              <strong className="font-semibold">{stats.lowStock} items</strong> are below minimum stock level.{' '}
               {stats.outOfStock > 0 && (
                 <>
                   <strong className="font-semibold">{stats.outOfStock} item</strong>
@@ -277,14 +307,6 @@ export function StockManagementContent() {
       <div className="bg-surface-white rounded-xl border border-border-subtle shadow-sm overflow-hidden w-full">
         <div className="px-lg py-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
           <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Drug Inventory</h2>
-          <button
-            type="button"
-            onClick={() => setAddModalOpen(true)}
-            className="h-8 px-md bg-primary text-white rounded-lg font-label-md text-label-md flex items-center gap-sm hover:bg-primary-container transition-all border-0 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            Add Stock Item
-          </button>
         </div>
 
         <div className="px-lg py-sm bg-surface-container-low border-b border-border-subtle flex flex-wrap gap-md items-center">
@@ -329,9 +351,7 @@ export function StockManagementContent() {
             className="px-md py-1.5 h-8 border border-border-subtle rounded-lg text-body-sm bg-surface-white min-w-[160px] focus:ring-1 focus:ring-primary focus:border-primary"
           >
             <option value="all">Stock Status</option>
-            <option value="in_stock">In Stock</option>
             <option value="low_stock">Low Stock</option>
-            <option value="out_of_stock">Out of Stock</option>
           </select>
 
           <button
@@ -345,123 +365,116 @@ export function StockManagementContent() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-border-subtle">
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Drug Name
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Category
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Stock
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Unit
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Threshold (Min/Max)
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Status
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
-                  Expiry
-                </th>
-                <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle font-body-sm text-body-sm">
-              {paginatedItems.map((item) => {
-                const status = getStockStatus(item.stock, item.minThreshold)
-                return (
-                  <tr key={item.id} className={getRowClass(status)}>
-                    <td className="px-lg py-md font-semibold text-on-surface whitespace-nowrap">
-                      {item.drugName}
-                    </td>
-                    <td className="px-lg py-md whitespace-nowrap">
-                      <span
-                        className={`px-2 py-0.5 rounded-md font-medium text-[12px] ${CATEGORY_BADGE[item.category]}`}
+          {loading ? (
+            <div className="p-xl text-center text-secondary">Loading inventory items...</div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-surface-container-low border-b border-border-subtle">
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Drug Name
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Category
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Stock
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Unit
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Threshold (Min/Max)
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap">
+                    Expiry
+                  </th>
+                  <th className="px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-wider whitespace-nowrap text-right">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle font-body-sm text-body-sm">
+                {mappedStockItems.map((item) => {
+                  const status = getStockStatus(item.stock, item.minThreshold)
+                  return (
+                    <tr key={item.id} className={getRowClass(status)}>
+                      <td className="px-lg py-md font-semibold text-on-surface whitespace-nowrap">
+                        {item.drugName}
+                      </td>
+                      <td className="px-lg py-md whitespace-nowrap">
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-medium text-[12px] ${CATEGORY_BADGE[item.category] || 'bg-surface-container-highest'}`}
+                        >
+                          {item.category}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-lg py-md font-bold whitespace-nowrap ${
+                          status === 'out_of_stock'
+                            ? 'text-error'
+                            : status === 'low_stock'
+                              ? 'text-warning'
+                              : 'text-on-surface'
+                        }`}
                       >
-                        {item.category}
-                      </span>
-                    </td>
-                    <td
-                      className={`px-lg py-md font-bold whitespace-nowrap ${
-                        status === 'out_of_stock'
-                          ? 'text-error'
-                          : status === 'low_stock'
-                            ? 'text-warning'
-                            : 'text-on-surface'
-                      }`}
-                    >
-                      {item.stock.toLocaleString()}
-                    </td>
-                    <td className="px-lg py-md whitespace-nowrap">{item.unit}</td>
-                    <td className="px-lg py-md text-secondary whitespace-nowrap">
-                      {item.minThreshold.toLocaleString()} / {item.maxThreshold.toLocaleString()}
-                    </td>
-                    <td className="px-lg py-md whitespace-nowrap">
-                      <StockStatusBadge status={status} />
-                    </td>
-                    <td className="px-lg py-md whitespace-nowrap">{item.expiry}</td>
-                    <td className="px-lg py-md text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-sm">
-                        <StockRowActionsMenu
-                          item={item}
-                          onStockIn={setStockInItem}
-                          onStockOut={setStockOutItem}
-                        />
-                      </div>
+                        {item.stock.toLocaleString()}
+                      </td>
+                      <td className="px-lg py-md whitespace-nowrap">{item.unit}</td>
+                      <td className="px-lg py-md text-secondary whitespace-nowrap">
+                        {item.minThreshold.toLocaleString()} / {item.maxThreshold.toLocaleString()}
+                      </td>
+                      <td className="px-lg py-md whitespace-nowrap">
+                        <StockStatusBadge status={status} />
+                      </td>
+                      <td className="px-lg py-md whitespace-nowrap">{item.expiry}</td>
+                      <td className="px-lg py-md text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-sm">
+                          <StockRowActionsMenu
+                            item={item}
+                            isOpen={openMenuId === item.id}
+                            onToggle={handleMenuToggle}
+                            onStockIn={(i) => { setStockInItem(i); handleMenuClose() }}
+                            onStockOut={(i) => { setStockOutItem(i); handleMenuClose() }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {mappedStockItems.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-lg py-xl text-center text-secondary font-body-sm">
+                      No inventory items match your filters.
                     </td>
                   </tr>
-                )
-              })}
-              {paginatedItems.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-lg py-xl text-center text-secondary font-body-sm">
-                    No inventory items match your filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="px-lg py-md border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-md">
           <span className="font-body-sm text-body-sm text-secondary">
-            Showing {rangeStart}-{rangeEnd} of {displayTotal} items
+            Showing {rangeStart}-{rangeEnd} of {totalCount} items
           </span>
           <div className="flex items-center gap-xs">
             <button
               type="button"
-              disabled={safePage === 1}
+              disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-surface-white text-secondary hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPage(p)}
-                className={`w-8 h-8 flex items-center justify-center rounded border text-label-md cursor-pointer ${
-                  safePage === p
-                    ? 'border-primary bg-secondary-container text-primary font-bold'
-                    : 'border-border-subtle bg-surface-white text-secondary hover:bg-surface-variant'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+            <span className="px-3 font-semibold text-body-sm">Page {page}</span>
             <button
               type="button"
-              disabled={safePage === totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={rangeEnd >= totalCount}
+              onClick={() => setPage((p) => p + 1)}
               className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-surface-white text-secondary hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
@@ -470,15 +483,48 @@ export function StockManagementContent() {
         </div>
       </div>
 
-      {addModalOpen && (
-        <AddStockItemModal onClose={() => setAddModalOpen(false)} onSave={handleAddItem} />
-      )}
+      {/* Fixed-position dropdown — escapes overflow-x-auto clipping */}
+      {openMenuId && menuAnchor && (() => {
+        const activeItem = mappedStockItems.find((i) => i.id === openMenuId)
+        if (!activeItem) return null
+        return (
+          <>
+            {/* Click-outside backdrop */}
+            <div
+              className="fixed inset-0 z-40"
+              onClick={handleMenuClose}
+              aria-hidden
+            />
+            <div
+              className="fixed z-50 min-w-[160px] bg-surface-white border border-border-subtle rounded-lg shadow-xl py-xs overflow-hidden"
+              style={{ top: menuAnchor.top, right: menuAnchor.right }}
+            >
+              <button
+                type="button"
+                onClick={() => { setStockInItem(activeItem); handleMenuClose() }}
+                className="w-full text-left px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low bg-transparent border-0 cursor-pointer flex items-center gap-sm"
+              >
+                <span className="material-symbols-outlined text-[18px] text-success">add_box</span>
+                Stock In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStockOutItem(activeItem); handleMenuClose() }}
+                className="w-full text-left px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low bg-transparent border-0 cursor-pointer flex items-center gap-sm"
+              >
+                <span className="material-symbols-outlined text-[18px] text-error">remove_circle</span>
+                Stock Out
+              </button>
+            </div>
+          </>
+        )
+      })()}
 
       {stockInItem && (
         <StockInModal
           item={stockInItem}
           onClose={() => setStockInItem(null)}
-          onConfirm={({ quantity }) => handleStockIn(stockInItem.id, quantity)}
+          onConfirm={handleStockIn}
         />
       )}
 
@@ -486,7 +532,7 @@ export function StockManagementContent() {
         <StockOutModal
           item={stockOutItem}
           onClose={() => setStockOutItem(null)}
-          onConfirm={({ quantity }) => handleStockOut(stockOutItem.id, quantity)}
+          onConfirm={handleStockOut}
         />
       )}
     </div>

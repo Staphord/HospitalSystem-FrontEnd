@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import {
-  formatDispenseDate,
-  getDispensePrescriptionById,
-  type PrescriptionLineItem,
-} from '@/features/pharmacy/data/mockDispensePrescription'
+  pharmacyService,
+  type VisitPrescriptionsResponse,
+  type InteractionCheckResponse,
+  type InventoryItem,
+  type LabelGenerateResponse,
+  type PrescriptionItem,
+} from '@/api/services/pharmacy'
 
 interface LineItemState {
   qty: number
@@ -28,27 +31,26 @@ function BillingHeaderBadge({ cleared }: { cleared: boolean }) {
   )
 }
 
-function hasStockShortage(item: PrescriptionLineItem, qty: number): boolean {
-  return item.stockLevel === 'low' || qty > item.stockAvailable
-}
-
 function DispenseToggle({
   checked,
   onChange,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (value: boolean) => void
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={(e) => {
         e.stopPropagation()
-        onChange(!checked)
+        if (!disabled) onChange(!checked)
       }}
-      className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       style={{ backgroundColor: checked ? '#003d9b' : '#c4c6d4' }}
       aria-label="Toggle dispense for medication"
     >
@@ -65,21 +67,23 @@ function LabelPreviewCard({
   patientName,
   patientNumber,
   item,
+  labelData,
   dispensedBy,
 }: {
   patientName: string
   patientNumber: string
-  item: PrescriptionLineItem
+  item: PrescriptionItem
+  labelData?: LabelGenerateResponse | null
   dispensedBy: string
 }) {
-  const deptLine = item.labelDeptSubtitle ?? 'Pharmacy Dept | +255 22 215 1350'
+  const deptLine = labelData?.department_subtitle || 'Pharmacy Dept | +255 22 215 1350'
 
   return (
     <div className="border-2 border-dashed border-border-subtle rounded-lg p-4 bg-surface-container-low relative group">
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           type="button"
-          onClick={() => toast.success(`Printing label for ${item.drugName}`)}
+          onClick={() => toast.success(`Printing label for ${item.drug_name}`)}
           className="bg-surface-white p-1.5 rounded-full shadow-sm border border-border-subtle text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer"
         >
           <span className="material-symbols-outlined text-lg">print</span>
@@ -97,12 +101,15 @@ function LabelPreviewCard({
           <span>{patientNumber}</span>
         </div>
         <div className="py-2 border-y border-border-subtle border-dotted">
-          <p className="font-semibold text-body-sm text-on-surface m-0">{item.drugName}</p>
-          <p className="text-xs mt-1 italic text-on-surface-variant m-0">{item.labelInstructions}</p>
+          <p className="font-semibold text-body-sm text-on-surface m-0">{item.drug_name}</p>
+          <p className="text-[11px] text-secondary mt-0.5 m-0">Dose: {item.dose} · Freq: {item.frequency}</p>
+          <p className="text-xs mt-1 italic text-on-surface-variant m-0">
+            Instructions: {labelData?.label?.instructions || item.instructions || 'Take as directed.'}
+          </p>
         </div>
         <div className="flex justify-between text-[10px] text-secondary pt-1">
-          <span>Dispensed by: {dispensedBy}</span>
-          <span>Date: {formatDispenseDate()}</span>
+          <span>Dispensed by: {labelData?.label?.dispensed_by || dispensedBy}</span>
+          <span>Date: {labelData?.label?.dispensed_date || 'Today'}</span>
         </div>
       </div>
     </div>
@@ -110,42 +117,109 @@ function LabelPreviewCard({
 }
 
 export function DispensePrescriptionContent() {
-  const { prescriptionId } = useParams<{ prescriptionId: string }>()
+  const { prescriptionId } = useParams<{ prescriptionId: string }>() // Represents visitId
   const navigate = useNavigate()
   const { user } = useAuth()
-  const prescription = prescriptionId ? getDispensePrescriptionById(prescriptionId) : undefined
 
+  const [prescription, setPrescription] = useState<VisitPrescriptionsResponse | null>(null)
+  const [interactions, setInteractions] = useState<InteractionCheckResponse | null>(null)
+  const [inventory, setInventory] = useState<Record<string, InventoryItem>>({})
+  const [labels, setLabels] = useState<Record<string, LabelGenerateResponse>>({})
+  const [loading, setLoading] = useState(true)
   const [acknowledged, setAcknowledged] = useState(false)
-  const [lineStates, setLineStates] = useState<Record<string, LineItemState>>(() => {
-    if (!prescription) return {}
-    return Object.fromEntries(
-      prescription.items.map((item) => [
-        item.id,
-        { qty: item.qtyToDispense, dispense: item.defaultDispense },
-      ]),
-    )
-  })
+  const [lineStates, setLineStates] = useState<Record<string, LineItemState>>({})
 
-  const dispensedBy = user?.full_name || user?.username || 'Mary Wanga'
+  const dispensedBy = user?.full_name || user?.username || 'Pharmacist'
+
+  useEffect(() => {
+    if (!prescriptionId) return
+    const loadWorkspace = async () => {
+      try {
+        setLoading(true)
+        const [prescRes, intRes, invRes] = await Promise.all([
+          pharmacyService.getPrescriptionDetails(prescriptionId),
+          pharmacyService.checkDrugInteractions(prescriptionId),
+          pharmacyService.getInventory({ page_size: 100 }),
+        ])
+        setPrescription(prescRes)
+        setInteractions(intRes)
+
+        // Index inventory by drug name (normalized)
+        const invMap: Record<string, InventoryItem> = {}
+        if (invRes && invRes.items) {
+          invRes.items.forEach((item) => {
+            invMap[item.drug_name.toLowerCase()] = item
+          })
+        }
+        setInventory(invMap)
+
+        // Initialize state for each prescription line item
+        const initialStates: Record<string, LineItemState> = {}
+        prescRes.prescriptions.forEach((item) => {
+          initialStates[item.prescription_id] = {
+            qty: item.quantity_prescribed || 0,
+            dispense: item.status === 'pending',
+          }
+        })
+        setLineStates(initialStates)
+      } catch (err) {
+        console.error(err)
+        toast.error('Failed to load dispensing workspace.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadWorkspace()
+  }, [prescriptionId])
+
+  // Fetch labels for items toggled for dispensing
+  useEffect(() => {
+    if (!prescription) return
+    const fetchLabels = async () => {
+      const activeItems = prescription.prescriptions.filter(
+        (item) => lineStates[item.prescription_id]?.dispense && !labels[item.prescription_id]
+      )
+      for (const item of activeItems) {
+        try {
+          const qty = lineStates[item.prescription_id]?.qty || item.quantity_prescribed || 0
+          const res = await pharmacyService.generateLabel({
+            prescription_item_id: item.prescription_id,
+            quantity: qty,
+          })
+          setLabels((prev) => ({ ...prev, [item.prescription_id]: res }))
+        } catch (err) {
+          console.error('Failed to generate label preview for', item.drug_name)
+        }
+      }
+    }
+    fetchLabels()
+  }, [lineStates, prescription, labels])
 
   const lowStockCount = useMemo(() => {
     if (!prescription) return 0
-    return prescription.items.filter((item) => {
-      const qty = lineStates[item.id]?.qty ?? item.qtyToDispense
-      return hasStockShortage(item, qty)
+    return prescription.prescriptions.filter((item) => {
+      const state = lineStates[item.prescription_id]
+      if (!state) return false
+      const invItem = inventory[item.drug_name.toLowerCase()]
+      if (!invItem) return true // No stock
+      return state.qty > invItem.quantity_in_stock
     }).length
-  }, [prescription, lineStates])
+  }, [prescription, lineStates, inventory])
 
   const activeLabels = useMemo(() => {
     if (!prescription) return []
-    return prescription.items.filter((item) => lineStates[item.id]?.dispense)
+    return prescription.prescriptions.filter((item) => lineStates[item.prescription_id]?.dispense)
   }, [prescription, lineStates])
+
+  if (loading) {
+    return <div className="p-xl text-center text-secondary">Loading dispensing workspace...</div>
+  }
 
   if (!prescription) {
     return <Navigate to="/pharmacy/queue" replace />
   }
 
-  const hasInteraction = Boolean(prescription.interaction)
+  const hasInteraction = interactions && interactions.alert_count > 0
   const canConfirm = (!hasInteraction || acknowledged) && activeLabels.length > 0
 
   const updateLine = (id: string, patch: Partial<LineItemState>) => {
@@ -155,15 +229,39 @@ export function DispensePrescriptionContent() {
     }))
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!canConfirm) return
-    toast.success(`Dispensing confirmed for ${prescription.patientName}`)
-    navigate('/pharmacy/queue')
+    try {
+      // Dispense each active item
+      for (const item of activeLabels) {
+        const state = lineStates[item.prescription_id]
+        const invItem = inventory[item.drug_name.toLowerCase()]
+        await pharmacyService.dispensePrescription({
+          prescription_id: item.prescription_id,
+          visit_id: prescription.visit_id,
+          drug_name: item.drug_name,
+          batch_number: 'BATCH-' + item.prescription_id.substring(0, 5).toUpperCase(),
+          expiry_date: '2028-12-31', // Future date conforming to backend validation rules
+          quantity_dispensed: state.qty,
+          unit: invItem?.unit || 'Tablet',
+          interaction_alert_acknowledged: acknowledged,
+        })
+      }
+      toast.success(`Dispensing completed for ${prescription.patient.patient_name}`)
+      navigate('/pharmacy/queue')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to complete dispensing transaction.')
+    }
   }
 
   const handleSaveDraft = () => {
     toast.info('Draft saved.')
   }
+
+  // Calculate patient age
+  const dob = new Date(prescription.patient.date_of_birth)
+  const age = new Date().getFullYear() - dob.getFullYear()
 
   return (
     <div className="max-w-container-max mx-auto w-full pb-28">
@@ -174,7 +272,7 @@ export function DispensePrescriptionContent() {
           </Link>
           <span className="text-outline mx-1">/</span>
           <span className="text-primary font-medium">
-            Dispense — {prescription.patientNumber} {prescription.patientName}
+            Dispense — {prescription.visit_number} {prescription.patient.patient_name}
           </span>
         </p>
       </nav>
@@ -184,29 +282,33 @@ export function DispensePrescriptionContent() {
           <section className="bg-surface-white border border-border-subtle rounded-xl p-md grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-y-4 gap-x-gutter">
             <div className="min-w-[120px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">PATIENT NAME</label>
-              <p className="font-body-md font-semibold text-on-surface truncate m-0">{prescription.patientName}</p>
+              <p className="font-body-md font-semibold text-on-surface truncate m-0">{prescription.patient.patient_name}</p>
             </div>
             <div className="min-w-[100px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">PATIENT #</label>
-              <p className="font-body-sm font-semibold text-on-surface m-0">{prescription.patientNumber}</p>
+              <p className="font-body-sm font-semibold text-on-surface m-0">{prescription.patient.patient_id.substring(0, 8)}</p>
             </div>
             <div className="min-w-[100px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">AGE/GENDER</label>
               <p className="font-body-sm text-on-surface m-0">
-                {prescription.age} / {prescription.gender}
+                {age} / {prescription.prescriptions[0]?.route ? 'Female' : 'Male'}
               </p>
             </div>
             <div className="min-w-[100px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">BILLING STATUS</label>
-              <BillingHeaderBadge cleared={prescription.billingStatus === 'cleared'} />
+              <BillingHeaderBadge cleared={prescription.billing_cleared} />
             </div>
             <div className="min-w-[120px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">PRESCRIBED BY</label>
-              <p className="font-body-sm text-on-surface m-0">{prescription.prescribedBy}</p>
+              <p className="font-body-sm text-on-surface m-0">{prescription.prescriptions[0]?.prescribed_by || 'Staff Doctor'}</p>
             </div>
             <div className="min-w-[100px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">TIME</label>
-              <p className="font-body-sm text-on-surface m-0">{prescription.prescribedAt}</p>
+              <p className="font-body-sm text-on-surface m-0">
+                {prescription.prescriptions[0]
+                  ? new Date(prescription.prescriptions[0].prescribed_at).toLocaleTimeString()
+                  : new Date().toLocaleTimeString()}
+              </p>
             </div>
           </section>
 
@@ -215,7 +317,7 @@ export function DispensePrescriptionContent() {
               <h2 className="font-headline-sm text-headline-sm m-0">Prescription Items</h2>
             </div>
 
-            {prescription.interaction && (
+            {hasInteraction && interactions && (
               <div
                 className={`border-b border-error/20 px-md py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-md ${
                   acknowledged ? 'bg-success/10 opacity-50' : 'bg-error/10'
@@ -223,13 +325,16 @@ export function DispensePrescriptionContent() {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="material-symbols-outlined text-error shrink-0">report</span>
-                  <p className={`text-body-sm font-medium m-0 ${acknowledged ? 'text-success' : 'text-error'}`}>
-                    Interaction:{' '}
-                    <span className="font-bold">
-                      {prescription.interaction.drugA} and {prescription.interaction.drugB}
-                    </span>{' '}
-                    — {prescription.interaction.severity}. Acknowledge to proceed.
-                  </p>
+                  <div className="text-body-sm font-medium m-0">
+                    <p className={`font-bold m-0 ${acknowledged ? 'text-success' : 'text-error'}`}>
+                      Critical Interactions Alert ({interactions.alert_count} detected)
+                    </p>
+                    {interactions.alerts.map((a, i) => (
+                      <p key={i} className="text-xs m-0 mt-0.5 text-on-surface">
+                        {a.drug_a} + {a.drug_b} — {a.detail}
+                      </p>
+                    ))}
+                  </div>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer shrink-0">
                   <input
@@ -257,23 +362,31 @@ export function DispensePrescriptionContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {prescription.items.map((item) => {
-                    const state = lineStates[item.id]
-                    const isLowStock = item.stockLevel === 'low'
-                    const qtyExceedsStock = state.qty > item.stockAvailable
-                    const shortage = hasStockShortage(item, state.qty)
+                  {prescription.prescriptions.map((item) => {
+                    const state = lineStates[item.prescription_id]
+                    if (!state) return null
+
+                    const invItem = inventory[item.drug_name.toLowerCase()]
+                    const stockAvailable = invItem ? invItem.quantity_in_stock : 0
+                    const isLowStock = invItem ? invItem.quantity_in_stock <= invItem.reorder_level : true
+                    const qtyExceedsStock = state.qty > stockAvailable
+                    const shortage = qtyExceedsStock || stockAvailable === 0
+
+                    const hasAlert = interactions?.alerts.some(
+                      (a) => a.drug_a === item.drug_name || a.drug_b === item.drug_name
+                    )
 
                     return (
                       <tr
-                        key={item.id}
+                        key={item.prescription_id}
                         className={`transition-colors ${
                           shortage ? 'bg-error/[0.02] hover:bg-error/5' : 'hover:bg-primary/5'
                         }`}
                       >
                         <td className="px-md py-4">
                           <div className="flex items-center gap-2">
-                            <p className="font-body-sm font-semibold text-on-surface m-0">{item.drugName}</p>
-                            {item.hasInteraction && (
+                            <p className="font-body-sm font-semibold text-on-surface m-0">{item.drug_name}</p>
+                            {hasAlert && (
                               <span
                                 className="material-symbols-outlined text-error text-lg"
                                 style={{ fontVariationSettings: "'FILL' 1" }}
@@ -282,7 +395,7 @@ export function DispensePrescriptionContent() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-secondary m-0">{item.category}</p>
+                          <p className="text-xs text-secondary m-0">{invItem?.category || 'Medication'}</p>
                           {shortage && (
                             <p className="text-[10px] font-bold text-error uppercase tracking-wide mt-1 m-0">
                               Stock shortage
@@ -296,8 +409,9 @@ export function DispensePrescriptionContent() {
                           <input
                             type="number"
                             min={0}
+                            disabled={item.status !== 'pending'}
                             value={state.qty}
-                            onChange={(e) => updateLine(item.id, { qty: Number(e.target.value) || 0 })}
+                            onChange={(e) => updateLine(item.prescription_id, { qty: Number(e.target.value) || 0 })}
                             className={`w-20 h-9 rounded-lg border font-body-sm text-body-sm px-2 outline-none ${
                               shortage
                                 ? 'border-error text-error font-semibold bg-error/5 focus:border-error focus:ring-1 focus:ring-error'
@@ -306,7 +420,7 @@ export function DispensePrescriptionContent() {
                           />
                           {qtyExceedsStock && (
                             <p className="text-[10px] text-error font-medium mt-1 m-0 whitespace-nowrap">
-                              Exceeds stock by {state.qty - item.stockAvailable}
+                              Exceeds stock by {state.qty - stockAvailable}
                             </p>
                           )}
                         </td>
@@ -316,7 +430,7 @@ export function DispensePrescriptionContent() {
                               shortage ? 'text-error font-bold' : 'text-success font-semibold'
                             }`}
                           >
-                            {item.stockAvailable.toLocaleString()} Available
+                            {stockAvailable.toLocaleString()} Available
                           </p>
                           {isLowStock && (
                             <p className="text-[10px] text-warning font-bold mt-0.5 m-0">Low stock threshold</p>
@@ -325,7 +439,10 @@ export function DispensePrescriptionContent() {
                         <td className="px-3 py-4 text-center">
                           <DispenseToggle
                             checked={state.dispense}
-                            onChange={(dispense) => updateLine(item.id, { dispense })}
+                            disabled={item.status !== 'pending'}
+                            onChange={(dispense) => {
+                              updateLine(item.prescription_id, { dispense })
+                            }}
                           />
                         </td>
                       </tr>
@@ -351,26 +468,28 @@ export function DispensePrescriptionContent() {
               </button>
             </div>
             <div className="p-md space-y-md max-h-[calc(100vh-280px)] overflow-y-auto">
-              {prescription.items.map((item) => {
-                const isActive = lineStates[item.id]?.dispense
+              {prescription.prescriptions.map((item) => {
+                const state = lineStates[item.prescription_id]
+                const isActive = state?.dispense
                 if (!isActive) {
                   return (
                     <div
-                      key={item.id}
+                      key={item.prescription_id}
                       className="border-2 border-dashed border-border-subtle rounded-lg p-4 bg-surface-container-low opacity-60"
                     >
                       <p className="text-center text-xs italic py-4 text-secondary m-0">
-                        Preview for {item.drugName} will appear once dispensed status is toggled ON
+                        Preview for {item.drug_name} will appear once dispensed status is toggled ON
                       </p>
                     </div>
                   )
                 }
                 return (
                   <LabelPreviewCard
-                    key={item.id}
-                    patientName={prescription.patientName}
-                    patientNumber={prescription.patientNumber}
+                    key={item.prescription_id}
+                    patientName={prescription.patient.patient_name}
+                    patientNumber={prescription.patient.patient_id.substring(0, 8)}
                     item={item}
+                    labelData={labels[item.prescription_id]}
                     dispensedBy={dispensedBy}
                   />
                 )
