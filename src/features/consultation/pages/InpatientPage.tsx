@@ -120,7 +120,7 @@ export function InpatientPage() {
   const loadPatients = async () => {
     try {
       const res = await wardService.getAdmittedPatients()
-      setPatients(res.data)
+      setPatients(res || [])
     } catch (err) {
       console.error('Failed to load admitted patients:', err)
     } finally {

@@ -591,7 +591,7 @@ export function DashboardPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-body-sm text-xs font-semibold text-on-surface truncate">{patient.full_name}</p>
-                          <p className="font-body-sm text-[10px] text-outline truncate">{patient.patient_number} • {regDate} {regTime}</p>
+                          <p className="font-body-sm text-[10px] text-outline truncate">{patient.patient_number} • {regTime}</p>
                         </div>
                       </div>
                     )
