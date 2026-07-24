@@ -55,6 +55,18 @@ function SummaryCard({
   )
 }
 
+function isToday(dateInput?: string | Date | null): boolean {
+  if (!dateInput) return false
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
 function matchesPaymentFilter(payment: string, filter: PaymentFilter): boolean {
   if (filter === 'all') return true
   if (filter === 'cash') return payment.toLowerCase() === 'cash'
@@ -427,7 +439,9 @@ export function TriageQueueContent() {
   // Dashboard Stats Calculations
   const awaitingCount = patients.filter((p) => p.status === 'waiting').length
   const inProgressCount = patients.filter((p) => p.status === 'in_progress').length
-  const assessedTodayCount = patients.filter((p) => p.status === 'completed').length
+  const assessedTodayCount = patients.filter(
+    (p) => p.status === 'completed' && isToday(p.completed_at || p.created_at)
+  ).length
   const emergencyCount = patients.filter(
     (p) => (p.status === 'waiting' || p.status === 'in_progress') && p.priority === 'emergency'
   ).length

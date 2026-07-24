@@ -54,6 +54,18 @@ function StatCard({
   )
 }
 
+function isToday(dateInput?: string | Date | null): boolean {
+  if (!dateInput) return false
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
 export function TriageDashboardContent() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState<TriageVisit[]>([])
@@ -72,18 +84,22 @@ export function TriageDashboardContent() {
     try {
       const data = await triageService.getQueue('waiting,in_progress,completed,skipped')
       
-      // Compute average assessment time from raw items
-      const completedItems = data.queue.filter(
-        (item) => item.status === 'completed' && item.called_at && item.completed_at
+      // Compute average assessment time from today's completed raw items
+      const completedTodayItems = data.queue.filter(
+        (item) =>
+          item.status === 'completed' &&
+          item.called_at &&
+          item.completed_at &&
+          isToday(item.completed_at || item.created_at)
       )
-      if (completedItems.length > 0) {
-        const totalDuration = completedItems.reduce((acc, item) => {
+      if (completedTodayItems.length > 0) {
+        const totalDuration = completedTodayItems.reduce((acc, item) => {
           const start = new Date(item.called_at!).getTime()
           const end = new Date(item.completed_at!).getTime()
           const diff = Math.max(0, Math.floor((end - start) / 60000))
           return acc + diff
         }, 0)
-        setAvgAssessment(`${Math.round(totalDuration / completedItems.length)} min`)
+        setAvgAssessment(`${Math.round(totalDuration / completedTodayItems.length)} min`)
       } else {
         setAvgAssessment('--')
       }
@@ -181,7 +197,9 @@ export function TriageDashboardContent() {
   }, [patients])
 
   const assessedCount = useMemo(() => {
-    return patients.filter((p) => p.status === 'completed').length
+    return patients.filter(
+      (p) => p.status === 'completed' && isToday(p.completed_at || p.created_at)
+    ).length
   }, [patients])
 
   const criticalCount = useMemo(() => {
@@ -194,17 +212,17 @@ export function TriageDashboardContent() {
     return patients.filter((p) => p.status === 'waiting' || p.status === 'in_progress')
   }, [patients])
 
-  // Completed items feed
+  // Completed items feed for TODAY
   const recentlyAssessed = useMemo(() => {
-    const completed = patients
-      .filter((p) => p.status === 'completed')
+    const completedToday = patients
+      .filter((p) => p.status === 'completed' && isToday(p.completed_at || p.created_at))
       .sort((a, b) => {
         const tA = a.completed_at ? new Date(a.completed_at).getTime() : 0
         const tB = b.completed_at ? new Date(b.completed_at).getTime() : 0
         return tB - tA
       })
 
-    return completed.slice(0, 4).map((p): RecentlyAssessedItem => {
+    return completedToday.slice(0, 4).map((p): RecentlyAssessedItem => {
       let assessedAgo = ''
       if (p.completed_at) {
         const diffMs = now - new Date(p.completed_at).getTime()
@@ -257,15 +275,17 @@ export function TriageDashboardContent() {
     })
   }, [patients, now])
 
-  // Priority distribution chart calculations
+  // Priority distribution chart calculations for TODAY
   const triageDistribution = useMemo((): DistributionItem[] => {
-    const completed = patients.filter((p) => p.status === 'completed')
-    const total = completed.length
+    const completedToday = patients.filter(
+      (p) => p.status === 'completed' && isToday(p.completed_at || p.created_at)
+    )
+    const total = completedToday.length
 
-    const emergency = completed.filter((p) => p.priority === 'emergency').length
-    const urgent = completed.filter((p) => p.priority === 'urgent').length
-    const semiUrgent = completed.filter((p) => p.priority === 'semi_urgent').length
-    const nonUrgent = completed.filter((p) => p.priority === 'non_urgent').length
+    const emergency = completedToday.filter((p) => p.priority === 'emergency').length
+    const urgent = completedToday.filter((p) => p.priority === 'urgent').length
+    const semiUrgent = completedToday.filter((p) => p.priority === 'semi_urgent').length
+    const nonUrgent = completedToday.filter((p) => p.priority === 'non_urgent').length
 
     return [
       {
