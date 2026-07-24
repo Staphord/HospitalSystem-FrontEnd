@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatDoctorName } from '@/lib/localization'
 import { laboratoryService, type BackendLabRequestDetail } from '@/api/services/laboratory'
+import { CollectSpecimenModal } from '@/features/laboratory/components/CollectSpecimenModal'
 
 export function LabRequestDetailContent() {
   const { requestId } = useParams<{ requestId: string }>()
@@ -10,6 +11,7 @@ export function LabRequestDetailContent() {
 
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<BackendLabRequestDetail | null>(null)
+  const [collectModalOpen, setCollectModalOpen] = useState(false)
 
   // Result entry state
   const [resultValue, setResultValue] = useState('')
@@ -175,6 +177,17 @@ export function LabRequestDetailContent() {
         </div>
 
         <div className="flex items-center gap-sm">
+          {!detail.specimen && (
+            <button
+              type="button"
+              onClick={() => setCollectModalOpen(true)}
+              className="h-10 px-md bg-primary text-on-primary hover:bg-primary-hover rounded-lg font-label-md flex items-center gap-xs cursor-pointer border-0 shadow-xs transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">science</span>
+              Collect Specimen
+            </button>
+          )}
+
           {isVerified && (
             <button
               type="button"
@@ -298,8 +311,8 @@ export function LabRequestDetailContent() {
                 No active specimen collected yet.
                 <button
                   type="button"
-                  onClick={() => navigate('/laboratory/specimens', { state: { requestId: detail.request_id, openModal: true } })}
-                  className="mt-xs text-primary font-label-md hover:underline block cursor-pointer"
+                  onClick={() => setCollectModalOpen(true)}
+                  className="mt-xs text-primary font-label-md hover:underline block cursor-pointer bg-transparent border-0 p-0"
                 >
                   + Collect Specimen Now
                 </button>
@@ -552,6 +565,19 @@ export function LabRequestDetailContent() {
           )}
         </div>
       </div>
+
+      {collectModalOpen && detail && (
+        <CollectSpecimenModal
+          requestId={detail.request_id}
+          patientName={detail.patient.full_name}
+          testName={detail.test_name}
+          onClose={() => setCollectModalOpen(false)}
+          onSuccess={() => {
+            setCollectModalOpen(false)
+            loadDetail()
+          }}
+        />
+      )}
     </div>
   )
 }
