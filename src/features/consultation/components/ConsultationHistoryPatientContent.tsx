@@ -46,14 +46,10 @@ function fmtDate(raw?: string | null) {
   catch { return raw }
 }
 
+import { formatPatientAge } from '@/lib/localization'
+
 function calcAge(dob: string) {
-  try {
-    const b = new Date(dob)
-    const today = new Date()
-    let age = today.getFullYear() - b.getFullYear()
-    if (today < new Date(today.getFullYear(), b.getMonth(), b.getDate())) age--
-    return age
-  } catch { return 0 }
+  return formatPatientAge(dob)
 }
 
 function initials(name: string) {
@@ -392,7 +388,7 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
                   {patient.patient_number}
                 </span>
                 <span className="font-body-sm text-body-sm text-outline">
-                  {fmtDate(patient.date_of_birth)} ({age} yrs) · {patient.gender}
+                  {fmtDate(patient.date_of_birth)} ({age}) · {patient.gender}
                 </span>
               </div>
             </div>

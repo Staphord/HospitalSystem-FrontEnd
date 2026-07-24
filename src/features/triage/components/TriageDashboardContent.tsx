@@ -4,6 +4,7 @@ import { triageService } from '@/api/services/triage'
 import type { TriageVisit } from '@/features/triage/types/triageAssessment'
 import { buildAssessNavigateState } from '@/features/triage/utils/triageAssessNav'
 import { toast } from 'sonner'
+import { formatPatientAge } from '@/lib/localization'
 
 interface RecentlyAssessedItem {
   name: string
@@ -113,16 +114,8 @@ export function TriageDashboardContent() {
           .join('')
           .toUpperCase()
           
-        let age = 0
-        if (item.patient.date_of_birth) {
-          const birthDate = new Date(item.patient.date_of_birth)
-          const today = new Date()
-          age = today.getFullYear() - birthDate.getFullYear()
-          const m = today.getMonth() - birthDate.getMonth()
-          if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--
-          }
-        }
+        const ageFormatted = formatPatientAge(item.patient.date_of_birth)
+        const age = ageFormatted
         
         let arrival = ''
         const arrivalDate = new Date(item.created_at)

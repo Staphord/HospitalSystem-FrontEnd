@@ -12,7 +12,8 @@ export interface TriageVisit {
   initials: string
   patientNumber: string
   gender: string
-  age: number
+  age: number | string
+  ageDisplay?: string
   arrival: string
   created_at: string
   completed_at: string | null

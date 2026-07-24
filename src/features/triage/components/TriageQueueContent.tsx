@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { triageService } from '@/api/services/triage'
 import type { TriageQueuePriority, TriageVisit } from '@/features/triage/types/triageAssessment'
+import { formatPatientAge } from '@/lib/localization'
 import {
   buildAssessNavigateState,
   type TriageQueueLocationState,
@@ -277,10 +278,7 @@ export function TriageQueueContent() {
           .toUpperCase()
           .slice(0, 2)
         
-        const dob = new Date(item.patient.date_of_birth)
-        const age = isNaN(dob.getTime())
-          ? 0
-          : Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)
+        const age = formatPatientAge(item.patient.date_of_birth)
         
         const arrivalDate = new Date(item.created_at)
         let arrival = '--'

@@ -4,16 +4,12 @@ import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
 import type { PatientListItem } from '@/api/services/ward'
 
+import { formatPatientAge } from '@/lib/localization'
+
 // ── Formatting/calculation helpers ───────────────────────────────────────────
 
 function calcAge(dob: string) {
-  try {
-    const b = new Date(dob)
-    const today = new Date()
-    let age = today.getFullYear() - b.getFullYear()
-    if (today < new Date(today.getFullYear(), b.getMonth(), b.getDate())) age--
-    return age
-  } catch { return 0 }
+  return formatPatientAge(dob)
 }
 
 function initials(name: string) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { formatShortDateTime } from '@/lib/localization'
+import { formatShortDateTime, formatPatientAge } from '@/lib/localization'
 import { consultationService } from '@/api/services/consultation'
 import type { EncounterViewResponse } from '@/api/types/consultation'
 
@@ -16,7 +16,7 @@ interface VitalReading {
 interface MockPatient {
   name: string
   patientId: string
-  age: number
+  age: number | string
   sex: string
   priority: 'emergency' | 'urgent' | 'non-urgent' | 'general'
   payment: string
@@ -1354,9 +1354,9 @@ export function EncounterPage() {
       }
     }
     
-    let patientAge = 0
+    let patientAge: number | string = '--'
     if (encounter.patient.date_of_birth) {
-      patientAge = Math.floor((new Date().getTime() - new Date(encounter.patient.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+      patientAge = formatPatientAge(encounter.patient.date_of_birth)
     }
 
     let uiPriority: 'emergency' | 'urgent' | 'non-urgent' | 'general' = 'general'
