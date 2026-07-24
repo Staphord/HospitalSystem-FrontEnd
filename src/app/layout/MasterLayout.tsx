@@ -1,6 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from '@/app/layout/Sidebar'
-import { Topbar } from '@/app/layout/Topbar'
+import { MasterTopbar } from '@/app/layout/MasterTopbar'
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 
@@ -72,7 +72,7 @@ export function MasterLayout() {
             </button>
           </div>
         )}
-        <Topbar />
+        <MasterTopbar />
         <main className="page-content">
           <Outlet />
         </main>
