@@ -54,6 +54,35 @@ function StatCards({ stats }: { stats: { pendingTests: number; inProgress: numbe
   )
 }
 
+function getDashboardItemActionDetails(status: string = 'pending') {
+  const norm = status.toLowerCase()
+  if (norm === 'pending') {
+    return {
+      label: 'Collect Specimen',
+      btnClass: 'bg-primary text-on-primary hover:bg-primary-hover border-0',
+      action: 'collect_specimen',
+      statusPill: 'bg-warning/10 text-warning border border-warning/30',
+      statusText: 'pending',
+    }
+  }
+  if (norm === 'specimen_collected' || norm === 'in_progress' || norm === 'processing' || norm === 'received') {
+    return {
+      label: 'Enter Results',
+      btnClass: 'bg-secondary-container text-on-secondary-container hover:bg-surface-container-high border border-border-subtle',
+      action: 'enter_results',
+      statusPill: 'bg-primary/10 text-primary border border-primary/30',
+      statusText: norm.replace('_', ' '),
+    }
+  }
+  return {
+    label: 'View Results',
+    btnClass: 'bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle',
+    action: 'view_results',
+    statusPill: 'bg-success/10 text-success border border-success/30',
+    statusText: 'completed',
+  }
+}
+
 function RecentRequestsOverviewCard({
   requests,
   onViewAll,
@@ -91,29 +120,9 @@ function RecentRequestsOverviewCard({
             const requestedBy = item.requestedBy || rawItem.requested_by || '—'
             const requestedAgo = item.requestedAgo || rawItem.requested_ago || 'Recently'
             const priority = item.priority || rawItem.urgency || 'routine'
-            const status = rawItem.status || item.status || 'pending'
+            const status = item.status || rawItem.status || 'pending'
 
-            const isPending = status === 'pending'
-            const isCompleted = status === 'completed' || status === 'verified' || status === 'resulted'
-            const isInProgress = status === 'specimen_collected' || status === 'in_progress' || status === 'processing' || status === 'received'
-
-            let buttonLabel = 'View Request'
-            let buttonClass = 'bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle font-label-md text-label-md'
-
-            if (isPending) {
-              buttonLabel = 'Collect Specimen'
-              buttonClass = priority === 'stat'
-                ? 'bg-error hover:bg-error/90 text-white border-0 font-label-md text-label-md'
-                : priority === 'urgent'
-                  ? 'bg-warning hover:bg-warning/90 text-white border-0 font-label-md text-label-md'
-                  : 'bg-primary hover:bg-primary-hover text-on-primary border-0 font-label-md text-label-md'
-            } else if (isInProgress) {
-              buttonLabel = 'Enter Results'
-              buttonClass = 'bg-secondary-container text-on-secondary-container hover:bg-surface-container-high border border-border-subtle font-medium font-label-md text-label-md'
-            } else if (isCompleted) {
-              buttonLabel = 'View Results'
-              buttonClass = 'bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle font-label-md text-label-md'
-            }
+            const actionDetails = getDashboardItemActionDetails(status)
 
             return (
               <div
@@ -131,16 +140,8 @@ function RecentRequestsOverviewCard({
                         {patientName}
                       </span>
                       <InvestigationPriorityBadge priority={priority as any} />
-                      <span
-                        className={`inline-flex items-center px-sm py-[1px] rounded-full text-[10px] font-medium capitalize ${
-                          isCompleted
-                            ? 'bg-success/10 text-success border border-success/30'
-                            : isInProgress
-                              ? 'bg-primary/10 text-primary border border-primary/30'
-                              : 'bg-warning/10 text-warning border border-warning/30'
-                        }`}
-                      >
-                        {status.replace('_', ' ')}
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-label-sm capitalize ${actionDetails.statusPill}`}>
+                        {actionDetails.statusText}
                       </span>
                     </div>
                     <span className="font-body-sm text-body-sm text-secondary font-medium">{testName}</span>
@@ -161,9 +162,9 @@ function RecentRequestsOverviewCard({
                       e.stopPropagation()
                       onProcess(item.id)
                     }}
-                    className={`h-8 font-label-md text-label-md px-3 rounded transition-colors whitespace-nowrap cursor-pointer ${buttonClass}`}
+                    className={`h-8 font-label-md text-label-md px-3 rounded transition-colors whitespace-nowrap cursor-pointer ${actionDetails.btnClass}`}
                   >
-                    {buttonLabel} →
+                    {actionDetails.label} →
                   </button>
                 </div>
               </div>
@@ -389,6 +390,10 @@ export function LabDashboardContent() {
 
   useEffect(() => {
     fetchDashboardStats()
+    const interval = setInterval(() => {
+      fetchDashboardStats()
+    }, 15000)
+    return () => clearInterval(interval)
   }, [location.pathname])
 
   const [collectingRequest, setCollectingRequest] = useState<BackendStatRequestItem | null>(null)
@@ -399,9 +404,8 @@ export function LabDashboardContent() {
 
   const handleProcess = (id: string) => {
     const item = highPriorityRequests.find((r) => r.id === id)
-    const rawItem = item as any
-    const status = rawItem?.status || item?.status || 'pending'
-    const isPending = status === 'pending' || status === 'not_collected'
+    const request = getLabRequestById(id)
+    const isPending = (request && getRowAction(request) === 'collect_specimen') || (item && ((item as any).status === 'pending' || (item as any).status === 'not_collected'))
 
     if (isPending && item) {
       setCollectingRequest(item)
@@ -422,17 +426,6 @@ export function LabDashboardContent() {
             Real-time diagnostic workload, recent investigation orders, and turnaround metrics
           </p>
         </div>
-        <button
-          type="button"
-          onClick={fetchDashboardStats}
-          disabled={loading}
-          className="h-9 px-md rounded-lg border border-border-subtle bg-surface-white hover:bg-surface-container text-on-surface font-label-md text-label-md flex items-center gap-2 transition-all cursor-pointer shadow-xs shrink-0 self-start sm:self-auto"
-        >
-          <span className={`material-symbols-outlined text-[18px] text-primary ${loading ? 'animate-spin' : ''}`}>
-            refresh
-          </span>
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </button>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-xl">

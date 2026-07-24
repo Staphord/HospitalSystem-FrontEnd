@@ -204,6 +204,7 @@ export function LabRequestsContent() {
     () => (searchParams.get('status') as StatusFilter) || 'all',
   )
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null)
   const [collectingRequest, setCollectingRequest] = useState<BackendLabRequestItem | null>(null)
 
@@ -221,6 +222,10 @@ export function LabRequestsContent() {
 
   useEffect(() => {
     fetchRequests()
+    const interval = setInterval(() => {
+      fetchRequests()
+    }, 15000)
+    return () => clearInterval(interval)
   }, [location.pathname])
 
   const summary = useMemo(() => {
@@ -255,12 +260,12 @@ export function LabRequestsContent() {
 
     const index = filteredRequests.findIndex((r) => r.request_id === highlight)
     if (index >= 0) {
-      setCurrentPage(Math.floor(index / PAGE_SIZE) + 1)
+      setCurrentPage(Math.floor(index / pageSize) + 1)
       setActiveRequestId(highlight)
     }
 
     navigate(location.pathname, { replace: true, state: {} })
-  }, [location.state, location.pathname, filteredRequests, navigate])
+  }, [location.state, location.pathname, filteredRequests, navigate, pageSize])
 
   useEffect(() => {
     if (!activeRequestId) return
@@ -270,15 +275,31 @@ export function LabRequestsContent() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [priorityFilter, statusFilter])
+  }, [priorityFilter, statusFilter, pageSize])
 
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const visibleRequests = filteredRequests.slice(pageStart, pageStart + PAGE_SIZE)
+  const pageStart = (safePage - 1) * pageSize
+  const visibleRequests = filteredRequests.slice(pageStart, pageStart + pageSize)
   const showingFrom = filteredRequests.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, filteredRequests.length)
+  const showingTo = Math.min(pageStart + pageSize, filteredRequests.length)
   const hasFilters = priorityFilter !== 'all' || statusFilter !== 'all'
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (safePage > 3) pages.push('...')
+      const start = Math.max(2, safePage - 1)
+      const end = Math.min(totalPages - 1, safePage + 1)
+      for (let i = start; i <= end; i++) pages.push(i)
+      if (safePage < totalPages - 2) pages.push('...')
+      pages.push(totalPages)
+    }
+    return pages
+  }
 
   const handleClearFilters = () => {
     setPriorityFilter('all')
@@ -379,10 +400,10 @@ export function LabRequestsContent() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[580px] overflow-y-auto overflow-x-auto relative">
           <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead>
-              <tr className="border-b border-border-subtle bg-surface-container/30 text-secondary font-label-md text-label-md">
+            <thead className="sticky top-0 z-10 bg-surface-bright shadow-xs">
+              <tr className="border-b border-border-subtle text-secondary font-label-md text-label-md">
                 <th className="py-md px-md w-28">Urgency</th>
                 <th className="py-md px-md">Patient</th>
                 <th className="py-md px-md">Investigation Test</th>
@@ -462,11 +483,33 @@ export function LabRequestsContent() {
           </table>
         </div>
 
-        <div className="p-md border-t border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-background/50 font-body-sm text-secondary">
-          <div>
-            Showing <span className="font-medium text-on-surface">{showingFrom}</span> to{' '}
-            <span className="font-medium text-on-surface">{showingTo}</span> of{' '}
-            <span className="font-medium text-on-surface">{filteredRequests.length}</span> requests
+        <div className="p-md border-t border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md bg-surface-white font-body-sm text-secondary rounded-b-xl shadow-xs">
+          <div className="flex flex-wrap items-center gap-md">
+            <span>
+              Showing <span className="font-semibold text-on-surface">{showingFrom}</span> to{' '}
+              <span className="font-semibold text-on-surface">{showingTo}</span> of{' '}
+              <span className="font-semibold text-on-surface">{filteredRequests.length}</span> requests
+            </span>
+
+            <div className="flex items-center gap-xs">
+              <label htmlFor="req-rows-per-page" className="text-body-sm text-secondary font-medium">
+                Rows per page:
+              </label>
+              <select
+                id="req-rows-per-page"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="h-8 px-2 border border-border-subtle rounded-md bg-surface-white font-body-sm text-on-surface cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-xs">
@@ -474,20 +517,45 @@ export function LabRequestsContent() {
               type="button"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="h-8 px-sm border border-border-subtle rounded-md text-secondary hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed bg-surface-white cursor-pointer font-label-sm"
+              className="w-8 h-8 border border-border-subtle rounded-md text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed bg-surface-white cursor-pointer flex items-center justify-center transition-colors"
+              title="Previous page"
+              aria-label="Previous page"
             >
-              Previous
+              <span className="material-symbols-outlined text-[20px]">chevron_left</span>
             </button>
-            <span className="px-sm font-label-sm">
-              Page {safePage} of {totalPages}
-            </span>
+
+            <div className="flex items-center gap-1">
+              {getPageNumbers().map((page, idx) =>
+                typeof page === 'number' ? (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${
+                      page === safePage
+                        ? 'bg-primary text-on-primary font-bold shadow-xs'
+                        : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ) : (
+                  <span key={`ellipsis-${idx}`} className="px-1 text-secondary font-label-md">
+                    ...
+                  </span>
+                )
+              )}
+            </div>
+
             <button
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="h-8 px-sm border border-border-subtle rounded-md text-secondary hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed bg-surface-white cursor-pointer font-label-sm"
+              className="w-8 h-8 border border-border-subtle rounded-md text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed bg-surface-white cursor-pointer flex items-center justify-center transition-colors"
+              title="Next page"
+              aria-label="Next page"
             >
-              Next
+              <span className="material-symbols-outlined text-[20px]">chevron_right</span>
             </button>
           </div>
         </div>

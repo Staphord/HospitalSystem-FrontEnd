@@ -180,6 +180,7 @@ export interface BackendStatRequestItem {
   requestedBy: string
   requestedAgo: string
   priority: 'stat' | 'urgent' | 'routine' | string
+  status?: string
 }
 
 export interface BackendCriticalValueItem {

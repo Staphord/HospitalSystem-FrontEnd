@@ -132,6 +132,7 @@ export function LabSpecimensContent() {
   const [specimens, setSpecimens] = useState<TrackedSpecimen[]>([])
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [activeSpecimenId, setActiveSpecimenId] = useState<string | null>(null)
   const [modalSpecimen, setModalSpecimen] = useState<TrackedSpecimen | null>(null)
 
@@ -157,12 +158,28 @@ export function LabSpecimensContent() {
     return specimens.filter((specimen) => matchesStatusFilter(specimen.status, statusFilter))
   }, [specimens, statusFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filteredSpecimens.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredSpecimens.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const visibleSpecimens = filteredSpecimens.slice(pageStart, pageStart + PAGE_SIZE)
+  const pageStart = (safePage - 1) * pageSize
+  const visibleSpecimens = filteredSpecimens.slice(pageStart, pageStart + pageSize)
   const showingFrom = filteredSpecimens.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, filteredSpecimens.length)
+  const showingTo = Math.min(pageStart + pageSize, filteredSpecimens.length)
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (safePage > 3) pages.push('...')
+      const start = Math.max(2, safePage - 1)
+      const end = Math.min(totalPages - 1, safePage + 1)
+      for (let i = start; i <= end; i++) pages.push(i)
+      if (safePage < totalPages - 2) pages.push('...')
+      pages.push(totalPages)
+    }
+    return pages
+  }
 
   useEffect(() => {
     if (!locationState?.requestId) return
@@ -181,9 +198,9 @@ export function LabSpecimensContent() {
     if (!activeSpecimenId) return
     const index = filteredSpecimens.findIndex((s) => s.requestId === activeSpecimenId)
     if (index >= 0) {
-      setCurrentPage(Math.floor(index / PAGE_SIZE) + 1)
+      setCurrentPage(Math.floor(index / pageSize) + 1)
     }
-  }, [activeSpecimenId, filteredSpecimens])
+  }, [activeSpecimenId, filteredSpecimens, pageSize])
 
   useEffect(() => {
     if (!activeSpecimenId) return
@@ -193,7 +210,7 @@ export function LabSpecimensContent() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter])
+  }, [statusFilter, pageSize])
 
   const handleSaveStatus = async (
     status: SpecimenTrackingStatus,
@@ -262,9 +279,9 @@ export function LabSpecimensContent() {
         {filteredSpecimens.length === 0 ? (
           <SpecimensEmptyState onClearFilters={handleClearFilters} />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[580px] overflow-y-auto overflow-x-auto relative">
             <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface-bright shadow-xs">
                 <tr className="bg-surface-container-low border-b border-border-subtle text-secondary font-label-md text-label-md uppercase tracking-wider">
                   <th className="py-sm px-md font-semibold">Specimen ID</th>
                   <th className="py-sm px-md font-semibold">Patient Name</th>
@@ -338,40 +355,76 @@ export function LabSpecimensContent() {
         )}
 
         {filteredSpecimens.length > 0 && (
-          <div className="p-sm px-md border-t border-border-subtle bg-surface-white flex flex-col sm:flex-row items-center justify-between gap-sm text-body-sm text-secondary">
-            <span>
-              Showing {showingFrom} to {showingTo} of {filteredSpecimens.length} entries
-            </span>
+          <div className="p-md border-t border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md bg-surface-white font-body-sm text-secondary rounded-b-xl shadow-xs">
+            <div className="flex flex-wrap items-center gap-md">
+              <span>
+                Showing <span className="font-semibold text-on-surface">{showingFrom}</span> to{' '}
+                <span className="font-semibold text-on-surface">{showingTo}</span> of{' '}
+                <span className="font-semibold text-on-surface">{filteredSpecimens.length}</span> entries
+              </span>
+
+              <div className="flex items-center gap-xs">
+                <label htmlFor="spec-rows-per-page" className="text-body-sm text-secondary font-medium">
+                  Rows per page:
+                </label>
+                <select
+                  id="spec-rows-per-page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="h-8 px-2 border border-border-subtle rounded-md bg-surface-white font-body-sm text-on-surface cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
             <div className="flex items-center gap-xs">
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="p-1 rounded hover:bg-surface-variant disabled:opacity-50 border-0 bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="w-8 h-8 border border-border-subtle rounded-md text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed bg-surface-white cursor-pointer flex items-center justify-center transition-colors"
+                title="Previous page"
                 aria-label="Previous page"
               >
                 <span className="material-symbols-outlined text-[20px]">chevron_left</span>
               </button>
-              {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded font-medium border-0 cursor-pointer ${
-                    page === safePage
-                      ? 'bg-primary-container text-white'
-                      : 'hover:bg-surface-variant text-on-surface bg-transparent'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              {totalPages > 3 && <span className="px-1 text-secondary">…</span>}
+
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((page, idx) =>
+                  typeof page === 'number' ? (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${
+                        page === safePage
+                          ? 'bg-primary text-on-primary font-bold shadow-xs'
+                          : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ) : (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-secondary font-label-md">
+                      ...
+                    </span>
+                  )
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="p-1 rounded hover:bg-surface-variant disabled:opacity-50 border-0 bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="w-8 h-8 border border-border-subtle rounded-md text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed bg-surface-white cursor-pointer flex items-center justify-center transition-colors"
+                title="Next page"
                 aria-label="Next page"
               >
                 <span className="material-symbols-outlined text-[20px]">chevron_right</span>

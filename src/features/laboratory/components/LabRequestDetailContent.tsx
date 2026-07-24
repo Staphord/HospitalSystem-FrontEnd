@@ -21,8 +21,6 @@ export function LabRequestDetailContent() {
   const [resultNotes, setResultNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [billing, setBilling] = useState(false)
-  const [billCreated, setBillCreated] = useState(false)
 
   const loadDetail = async () => {
     if (!requestId) return
@@ -128,25 +126,9 @@ export function LabRequestDetailContent() {
     }
   }
 
-  const handleGenerateBill = async () => {
-    setBilling(true)
-    try {
-      await laboratoryService.createBill(detail.request_id, {
-        unit_price: 15000,
-        description: `Lab Charge: ${detail.test_name}`,
-      })
-      toast.success('Billing item generated successfully')
-      setBillCreated(true)
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to generate bill item')
-    } finally {
-      setBilling(false)
-    }
-  }
 
-  const handlePrintReport = () => {
-    window.print()
-  }
+
+
 
   return (
     <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg print:p-0 print:m-0 print:max-w-none">
@@ -185,17 +167,6 @@ export function LabRequestDetailContent() {
             >
               <span className="material-symbols-outlined text-[20px]">science</span>
               Collect Specimen
-            </button>
-          )}
-
-          {isVerified && (
-            <button
-              type="button"
-              onClick={handlePrintReport}
-              className="h-10 px-md border border-border-subtle rounded-lg text-on-surface hover:bg-surface-container font-label-md flex items-center gap-xs cursor-pointer bg-surface-white"
-            >
-              <span className="material-symbols-outlined text-[20px]">print</span>
-              Print Report
             </button>
           )}
 
@@ -441,26 +412,6 @@ export function LabRequestDetailContent() {
                 </div>
               </div>
 
-              {/* Report Actions Footer (Hidden on print) */}
-              <div className="flex items-center justify-between pt-md border-t border-border-subtle print:hidden">
-                <button
-                  type="button"
-                  onClick={handlePrintReport}
-                  className="h-10 px-md border border-border-subtle rounded-lg text-on-surface hover:bg-surface-container font-label-md flex items-center gap-xs cursor-pointer bg-surface-white"
-                >
-                  <span className="material-symbols-outlined text-[20px]">print</span>
-                  Print Official Certificate
-                </button>
-
-                <button
-                  type="button"
-                  disabled={billing || billCreated}
-                  onClick={handleGenerateBill}
-                  className="h-10 px-md bg-secondary text-on-secondary rounded-lg font-label-md hover:bg-secondary/90 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {billing ? 'Generating Bill...' : billCreated ? 'Bill Item Generated' : 'Generate Lab Bill Item'}
-                </button>
-              </div>
             </div>
           ) : (
             /* Draft Result Entry & Verification Panel */
