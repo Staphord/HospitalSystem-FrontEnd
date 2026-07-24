@@ -120,7 +120,64 @@ export function InpatientPage() {
   const loadPatients = async () => {
     try {
       const res = await wardService.getAdmittedPatients()
-      setPatients(res || [])
+      const mapped: AdmittedPatient[] = (res || []).map((item: any) => {
+        const admissionDateStr = item.admissionDate || item.admission_date || item.created_at
+        let los = item.lengthOfStay
+        if (los == null) los = item.lengthOfStayDays
+        if (los == null) los = item.length_of_stay_days
+        if (los == null && admissionDateStr) {
+          const adm = new Date(admissionDateStr)
+          if (!isNaN(adm.getTime())) {
+            const diffMs = Date.now() - adm.getTime()
+            los = Math.max(0, Math.round((diffMs / (1000 * 60 * 60 * 24)) * 10) / 10)
+          }
+        }
+        if (los == null) los = 0
+
+        let status: AdmissionStatus = 'stable'
+        if (item.status === 'critical') status = 'critical'
+        else if (item.status === 'monitoring') status = 'monitoring'
+        else if (item.status === 'discharge-ready' || item.status === 'discharged') status = 'discharge-ready'
+        else status = 'stable'
+
+        const pName = item.patientName || item.name || (item.patientId ? `Patient ${item.patientId.slice(0, 8)}` : 'Patient')
+
+        const pNum = item.patient_number || item.patientNumber || (item.patient_id || item.patientId ? `PT-${(item.patient_id || item.patientId).slice(0, 6).toUpperCase()}` : '—')
+
+        let admDateFormatted = '—'
+        if (admissionDateStr) {
+          const d = new Date(admissionDateStr)
+          if (!isNaN(d.getTime())) {
+            admDateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          } else {
+            admDateFormatted = String(admissionDateStr)
+          }
+        }
+
+        return {
+          id: item.admissionId || item.id || item.patientId || String(Math.random()),
+          patientId: item.patientId || item.patient_id || '',
+          name: pName,
+          patientNumber: pNum,
+          initials: pName
+            .split(' ')
+            .filter(Boolean)
+            .map((n: string) => n[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2) || 'PT',
+          gender: item.gender || '—',
+          age: item.age || 0,
+          ward: item.wardName || item.ward || 'General Ward',
+          bed: item.bedNumber ? `Bed ${item.bedNumber}` : item.bed || '—',
+          admissionDate: admDateFormatted,
+          lengthOfStay: Number(los),
+          diagnosis: item.admittingDiagnosis || item.diagnosis || 'General Observation',
+          primaryDiagnosis: item.admittingDiagnosis || item.primaryDiagnosis || 'General Observation',
+          status,
+        }
+      })
+      setPatients(mapped)
     } catch (err) {
       console.error('Failed to load admitted patients:', err)
     } finally {
@@ -156,7 +213,9 @@ export function InpatientPage() {
 
   const criticalCount      = patients.filter((p) => p.status === 'critical').length
   const dischargeReady     = patients.filter((p) => p.status === 'discharge-ready').length
-  const avgLOS             = patients.length === 0 ? '0' : (patients.reduce((s, p) => s + p.lengthOfStay, 0) / patients.length).toFixed(1)
+  
+  const totalLOS           = patients.reduce((s, p) => s + (p.lengthOfStay || 0), 0)
+  const avgLOS             = patients.length === 0 ? '0.0' : (totalLOS / patients.length).toFixed(1)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
