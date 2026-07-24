@@ -144,44 +144,28 @@ function RequestsSkeleton() {
 
 function RequestsEmptyState({ onClearFilters, hasFilters }: { onClearFilters: () => void; hasFilters: boolean }) {
   return (
-    <div className="flex flex-col gap-lg">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-md opacity-70 grayscale">
-        {['Pending', 'STAT', 'Urgent', 'In Progress', 'Completed Today'].map((label) => (
-          <div
-            key={label}
-            className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs"
-          >
-            <div className="flex justify-between text-on-surface-variant">
-              <span className="font-label-md">{label}</span>
-              <span className="material-symbols-outlined text-[20px]">hourglass_empty</span>
-            </div>
-            <span className="font-headline-lg">0</span>
-          </div>
-        ))}
+    <div className="bg-surface-white border border-border-subtle rounded-xl flex flex-col overflow-hidden min-h-[400px]">
+      <div className="p-md border-b border-border-subtle bg-background/50">
+        <h2 className="font-headline-sm text-on-surface m-0">All Test Requests</h2>
       </div>
-      <div className="bg-surface-white border border-border-subtle rounded-xl flex flex-col overflow-hidden min-h-[400px]">
-        <div className="p-md border-b border-border-subtle bg-background/50">
-          <h2 className="font-headline-sm text-on-surface m-0">All Test Requests</h2>
+      <div className="flex-1 flex flex-col items-center justify-center p-xl text-center">
+        <div className="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center mb-md">
+          <span className="material-symbols-outlined text-[40px] text-secondary">biotech</span>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-xl text-center">
-          <div className="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center mb-md">
-            <span className="material-symbols-outlined text-[40px] text-secondary">biotech</span>
-          </div>
-          <h3 className="font-headline-sm text-on-surface mb-xs m-0">No test requests found</h3>
-          <p className="text-body-md text-secondary max-w-sm m-0">
-            Test requests appear here when clinicians order investigations.
-            {hasFilters ? ' Try adjusting your filters.' : ' Check back later for new orders.'}
-          </p>
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={onClearFilters}
-              className="mt-lg h-10 px-md border border-border-subtle rounded-lg text-secondary font-label-md hover:bg-surface-container-high bg-transparent cursor-pointer"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+        <h3 className="font-headline-sm text-on-surface mb-xs m-0">No test requests found</h3>
+        <p className="text-body-md text-secondary max-w-sm m-0">
+          Test requests appear here when clinicians order investigations.
+          {hasFilters ? ' Try adjusting your filters.' : ' Check back later for new orders.'}
+        </p>
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="mt-lg h-10 px-md border border-border-subtle rounded-lg text-secondary font-label-md hover:bg-surface-container-high bg-transparent cursor-pointer"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
     </div>
   )
@@ -411,9 +395,8 @@ export function LabRequestsContent() {
             <tbody className="divide-y divide-border-subtle text-body-md font-body-md text-on-surface">
               {visibleRequests.map((req) => {
                 const isHighlighted = req.request_id === activeRequestId
-                const rowClass = `border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${
-                  isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : 'bg-surface-white'
-                }`
+                const rowClass = `border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : 'bg-surface-white'
+                  }`
                 const specimenStatus: SpecimenStatus = req.status === 'pending' ? 'not_collected' : 'collected'
                 const actionDetails = getActionButtonDetails(req)
 
@@ -451,13 +434,12 @@ export function LabRequestsContent() {
                     </td>
                     <td className="py-md px-md">
                       <span
-                        className={`inline-flex items-center px-sm py-[2px] rounded-full text-label-sm font-label-sm capitalize ${
-                          req.status === 'completed'
+                        className={`inline-flex items-center px-sm py-[2px] rounded-full text-label-sm font-label-sm capitalize ${req.status === 'completed'
                             ? 'bg-success/10 text-success border border-success/30'
                             : req.status === 'in_progress' || req.status === 'specimen_collected'
                               ? 'bg-primary/10 text-primary border border-primary/30'
                               : 'bg-warning/10 text-warning border border-warning/30'
-                        }`}
+                          }`}
                       >
                         {req.status.replace('_', ' ')}
                       </span>
