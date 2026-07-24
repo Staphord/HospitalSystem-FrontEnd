@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatShortDateTime } from '@/lib/localization'
 import { laboratoryService, type BackendTrackedSpecimenItem } from '@/api/services/laboratory'
@@ -125,6 +125,7 @@ function matchesStatusFilter(status: SpecimenTrackingStatus, filter: StatusFilte
 }
 
 export function LabSpecimensContent() {
+  const navigate = useNavigate()
   const location = useLocation()
   const locationState = location.state as SpecimensLocationState | null
 
@@ -297,6 +298,11 @@ export function LabSpecimensContent() {
                 {visibleSpecimens.map((specimen) => {
                   const isHighlighted = activeSpecimenId === specimen.requestId
                   const rejected = isSpecimenRejected(specimen)
+                  const isComplete =
+                    specimen.status === 'complete' ||
+                    specimen.status === 'completed' ||
+                    specimen.status === 'resulted' ||
+                    specimen.status === 'verified'
 
                   return (
                     <tr
@@ -338,13 +344,23 @@ export function LabSpecimensContent() {
                         </div>
                       </td>
                       <td className="py-sm px-md text-right">
-                        <button
-                          type="button"
-                          onClick={() => setModalSpecimen(specimen)}
-                          className="h-8 px-3 bg-primary hover:bg-primary-container text-white rounded font-label-md text-label-md cursor-pointer border-0 transition-colors"
-                        >
-                          Update Status
-                        </button>
+                        {isComplete ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/laboratory/requests/${specimen.requestId}`)}
+                            className="h-8 px-3 bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle rounded font-label-md text-label-md cursor-pointer transition-colors whitespace-nowrap"
+                          >
+                            View Results
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setModalSpecimen(specimen)}
+                            className="h-8 px-3 bg-primary hover:bg-primary-hover text-on-primary rounded font-label-md text-label-md cursor-pointer border-0 transition-colors whitespace-nowrap"
+                          >
+                            Update Status
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )

@@ -104,7 +104,7 @@ function RecentRequestsOverviewCard({
           onClick={onViewAll}
           className="font-label-sm text-label-sm text-primary hover:underline bg-transparent border-0 cursor-pointer p-0 font-medium"
         >
-          View All Requests →
+          View All Requests
         </button>
       </div>
       {requests.length === 0 ? (
@@ -164,7 +164,7 @@ function RecentRequestsOverviewCard({
                     }}
                     className={`h-8 font-label-md text-label-md px-3 rounded transition-colors whitespace-nowrap cursor-pointer ${actionDetails.btnClass}`}
                   >
-                    {actionDetails.label} →
+                    {actionDetails.label}
                   </button>
                 </div>
               </div>
