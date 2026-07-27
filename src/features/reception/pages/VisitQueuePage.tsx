@@ -501,10 +501,6 @@ export function VisitQueuePage() {
                     All History
                   </button>
                 </div>
-                <button type="button" className={TOOLBAR_BTN}>
-                  <span className="material-symbols-outlined text-[18px]">print</span>
-                  Print List
-                </button>
               </div>
             </div>
 

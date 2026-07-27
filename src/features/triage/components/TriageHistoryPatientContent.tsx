@@ -437,22 +437,6 @@ export function TriageHistoryPatientContent({ patient }: Props) {
       <section className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden">
         <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center bg-surface-container-lowest">
           <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Visit History</h3>
-          <div className="flex gap-sm">
-            <button
-              type="button"
-              className="p-xs text-outline hover:text-primary transition-colors bg-transparent border-0 cursor-pointer"
-              title="Filter visits"
-            >
-              <span className="material-symbols-outlined">filter_list</span>
-            </button>
-            <button
-              type="button"
-              className="p-xs text-outline hover:text-primary transition-colors bg-transparent border-0 cursor-pointer"
-              title="Download history"
-            >
-              <span className="material-symbols-outlined">download</span>
-            </button>
-          </div>
         </div>
 
         <div className="overflow-x-auto">
