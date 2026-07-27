@@ -271,7 +271,7 @@ export function LabSpecimensContent() {
                 </option>
               ))}
             </select>
-            <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-[18px]">
+            <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px] leading-none">
               expand_more
             </span>
           </div>
@@ -307,9 +307,8 @@ export function LabSpecimensContent() {
                   return (
                     <tr
                       key={specimen.id}
-                      className={`border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${
-                        isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : rejected ? 'bg-[#FFF4F4]' : 'bg-surface-white'
-                      }`}
+                      className={`border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : rejected ? 'bg-[#FFF4F4]' : 'bg-surface-white'
+                        }`}
                     >
                       <td className="py-sm px-md font-medium text-primary">{specimen.id}</td>
                       <td className="py-sm px-md font-medium">{specimen.patientName}</td>
@@ -419,11 +418,10 @@ export function LabSpecimensContent() {
                       key={page}
                       type="button"
                       onClick={() => setCurrentPage(page)}
-                      className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${
-                        page === safePage
+                      className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${page === safePage
                           ? 'bg-primary text-on-primary font-bold shadow-xs'
                           : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>

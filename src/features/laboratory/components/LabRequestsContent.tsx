@@ -456,10 +456,10 @@ export function LabRequestsContent() {
                     <td className="py-md px-md">
                       <span
                         className={`inline-flex items-center px-sm py-[2px] rounded-full text-label-sm font-label-sm capitalize ${req.status === 'completed'
-                            ? 'bg-success/10 text-success border border-success/30'
-                            : req.status === 'in_progress' || req.status === 'specimen_collected'
-                              ? 'bg-primary/10 text-primary border border-primary/30'
-                              : 'bg-warning/10 text-warning border border-warning/30'
+                          ? 'bg-success/10 text-success border border-success/30'
+                          : req.status === 'in_progress' || req.status === 'specimen_collected'
+                            ? 'bg-primary/10 text-primary border border-primary/30'
+                            : 'bg-warning/10 text-warning border border-warning/30'
                           }`}
                       >
                         {req.status.replace('_', ' ')}
@@ -531,11 +531,10 @@ export function LabRequestsContent() {
                     key={page}
                     type="button"
                     onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${
-                      page === safePage
+                    className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${page === safePage
                         ? 'bg-primary text-on-primary font-bold shadow-xs'
                         : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
-                    }`}
+                      }`}
                   >
                     {page}
                   </button>
