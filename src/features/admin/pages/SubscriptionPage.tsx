@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { masterService } from '@/api/services/master';
 import type { Subscription, Tenant, SubscriptionPlan, Invoice } from '@/api/types/master';
@@ -7,6 +8,8 @@ import { toast } from 'sonner';
 import { getSubscriptionBanners } from '../utils/subscriptionHelper';
 
 export const SubscriptionPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const { staffList } = useApp();
   const tenantId = useAuthStore((s) => s.tenantId) || 'gilgal';
 
@@ -100,6 +103,17 @@ export const SubscriptionPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSubscriptionData();
   }, [fetchSubscriptionData]);
+
+  useEffect(() => {
+    if (tabParam === 'history') {
+      setTimeout(() => {
+        const el = document.getElementById('subscription-request-history-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 400);
+    }
+  }, [tabParam]);
 
 
 
@@ -628,7 +642,7 @@ export const SubscriptionPage: React.FC = () => {
         </div>
 
         {/* Subscription Request History Card */}
-        <div className="col-span-1 md:col-span-12 bg-surface-white rounded-xl border border-border-subtle shadow-sm flex flex-col justify-between" style={{ marginTop: '20px' }}>
+        <div id="subscription-request-history-section" className="col-span-1 md:col-span-12 bg-surface-white rounded-xl border border-border-subtle shadow-sm flex flex-col justify-between" style={{ marginTop: '20px' }}>
           <div className="px-lg py-md border-b border-border-subtle bg-surface-white flex flex-wrap gap-md justify-between items-center">
             <h3 className="font-headline-sm text-headline-sm text-on-surface">Subscription Request History</h3>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

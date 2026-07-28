@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { getPharmacyPageTitle } from '@/app/layout/pharmacyNavUtils'
+import { NotificationBellDropdown } from '@/app/layout/NotificationBellDropdown'
 
 function formatDateTime(): string {
   return new Date().toLocaleString('en-US', {
@@ -36,7 +37,6 @@ function UserAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' })
 export function PharmacyTopbar() {
   const { user } = useAuth()
   const location = useLocation()
-  const [showNotificationBadge, setShowNotificationBadge] = useState(true)
   const [dateTime, setDateTime] = useState(formatDateTime)
   const displayName = user?.full_name || user?.username || 'User'
 
@@ -57,17 +57,7 @@ export function PharmacyTopbar() {
       <div className="flex items-center gap-md shrink-0">
         <div className="text-[#737685] font-body-sm text-body-sm hidden md:block">{dateTime}</div>
 
-        <Link
-          to="/notifications"
-          className="relative p-2 hover:bg-surface-container-low rounded-full transition-colors flex items-center justify-center no-underline"
-          title="Notifications"
-          onClick={() => setShowNotificationBadge(false)}
-        >
-          <span className="material-symbols-outlined text-secondary">notifications</span>
-          {showNotificationBadge && (
-            <span className="absolute top-1 right-1.5 w-2 h-2 bg-error rounded-full border border-surface-white" />
-          )}
-        </Link>
+        <NotificationBellDropdown />
 
         <div className="flex items-center bg-success/10 text-success px-sm py-xs rounded-full gap-xs border border-success/20">
           <span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse" />
