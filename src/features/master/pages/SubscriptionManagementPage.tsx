@@ -24,11 +24,24 @@ export function SubscriptionManagementPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const tenantIdParam = searchParams.get('tenant_id')
+  const tabParam = searchParams.get('tab')
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'active' | 'tiers' | 'requests'>('active')
+  const [activeTab, setActiveTab] = useState<'active' | 'tiers' | 'requests'>(
+    tabParam === 'requests' ? 'requests' : tabParam === 'tiers' ? 'tiers' : 'active'
+  )
+
+  useEffect(() => {
+    if (tabParam === 'requests') {
+      setActiveTab('requests')
+    } else if (tabParam === 'tiers') {
+      setActiveTab('tiers')
+    } else if (tabParam === 'active') {
+      setActiveTab('active')
+    }
+  }, [tabParam])
   const [now] = useState(() => Date.now())
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)

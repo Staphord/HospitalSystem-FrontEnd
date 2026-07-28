@@ -34,25 +34,8 @@ export function NotificationsPage() {
 
   const isSuperAdmin = user?.role === 'super_admin'
 
-  const allowedCategories = useMemo(() => {
-    if (isSuperAdmin) return []
-
-    const role = user?.role?.toLowerCase() || ''
-    if (role === 'pharmacist') {
-      return ['all', 'clinical', 'pharmacy', 'system'] as const
-    }
-    if (role === 'cashier') {
-      return ['all', 'billing', 'system'] as const
-    }
-    if (role === 'hospital_admin') {
-      return ['all', 'clinical', 'pharmacy', 'billing', 'system'] as const
-    }
-    return ['all', 'clinical', 'system'] as const
-  }, [isSuperAdmin, user?.role])
-
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState<boolean>(true)
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [page, setPage] = useState<number>(1)
@@ -66,7 +49,6 @@ export function NotificationsPage() {
       setLoading(true)
       const res = await notificationsApi.getNotifications({
         unread_only: statusFilter === 'unread',
-        category: categoryFilter !== 'all' ? categoryFilter : undefined,
         page,
         page_size: pageSize,
       })
@@ -90,7 +72,7 @@ export function NotificationsPage() {
 
   useEffect(() => {
     fetchItems()
-  }, [categoryFilter, statusFilter, page, pageSize])
+  }, [statusFilter, page, pageSize])
 
   const handleMarkItemRead = async (id: string) => {
     await markAsRead(id)
@@ -169,33 +151,11 @@ export function NotificationsPage() {
 
       {/* Filter and Search Bar */}
       <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col lg:flex-row lg:items-center justify-between gap-md shadow-sm">
-        {/* Category Tabs (Hidden for Superadmin) */}
-        {!isSuperAdmin && allowedCategories.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-xs overflow-x-auto">
-            {allowedCategories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => {
-                  setCategoryFilter(cat as CategoryFilter)
-                  setPage(1)
-                }}
-                className={`px-md py-1.5 rounded-lg text-label-md font-label-md capitalize transition-colors border-0 cursor-pointer ${
-                  categoryFilter === cat
-                    ? 'bg-primary text-white font-bold'
-                    : 'bg-surface-container-low text-secondary hover:bg-surface-variant'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-secondary text-body-sm font-medium">
-            <span className="material-symbols-outlined text-primary text-[20px]">notifications_active</span>
-            <span>System Alerts & Notifications</span>
-          </div>
-        )}
+        {/* Notifications Header Label */}
+        <div className="flex items-center gap-2 text-secondary text-body-sm font-medium">
+          <span className="material-symbols-outlined text-primary text-[20px]">notifications_active</span>
+          <span>{isSuperAdmin ? 'System Alerts & Notifications' : 'Notifications'}</span>
+        </div>
 
         <div className="flex items-center gap-sm flex-wrap">
           {/* Search Bar */}
@@ -286,15 +246,13 @@ export function NotificationsPage() {
               return (
                 <div
                   key={item.notification_id}
-                  className={`p-md sm:p-lg flex flex-col sm:flex-row items-start justify-between gap-md transition-colors ${
-                    isUnread ? 'bg-primary/[0.02]' : 'hover:bg-surface-container-low/50'
-                  }`}
+                  className={`p-md sm:p-lg flex flex-col sm:flex-row items-start justify-between gap-md transition-colors ${isUnread ? 'bg-primary/[0.02]' : 'hover:bg-surface-container-low/50'
+                    }`}
                 >
                   <div className="flex items-start gap-md flex-1">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        isUnread ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-secondary'
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isUnread ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-secondary'
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[20px]">{categoryIcon}</span>
                     </div>
@@ -387,11 +345,10 @@ export function NotificationsPage() {
                 <button
                   key={pageNum}
                   type="button"
-                  className={`px-sm py-xs border rounded font-body-sm font-medium cursor-pointer ${
-                    page === pageNum
+                  className={`px-sm py-xs border rounded font-body-sm font-medium cursor-pointer ${page === pageNum
                       ? 'border-primary bg-primary text-white'
                       : 'border-outline-variant bg-surface-container-lowest text-secondary hover:bg-surface-container-low'
-                  }`}
+                    }`}
                   onClick={() => setPage(pageNum)}
                 >
                   {pageNum}
@@ -430,7 +387,7 @@ export function NotificationsPage() {
               <label className="flex items-center justify-between cursor-pointer p-sm hover:bg-surface-container-low rounded-lg transition-colors">
                 <div>
                   <span className="font-body-md font-semibold text-on-surface block">In-App Notifications</span>
-                  <span className="text-xs text-secondary">Show popups and badge counters in app topbar</span>
+                  <span className="text-xs text-secondary">Receive notifications and badge counters in app</span>
                 </div>
                 <input
                   type="checkbox"
@@ -442,26 +399,13 @@ export function NotificationsPage() {
 
               <label className="flex items-center justify-between cursor-pointer p-sm hover:bg-surface-container-low rounded-lg transition-colors">
                 <div>
-                  <span className="font-body-md font-semibold text-on-surface block">Email Alerts</span>
-                  <span className="text-xs text-secondary">Dispatch email notifications for urgent clinical reports</span>
+                  <span className="font-body-md font-semibold text-on-surface block">Email Notifications</span>
+                  <span className="text-xs text-secondary">Receive email summaries for important updates</span>
                 </div>
                 <input
                   type="checkbox"
                   checked={preferences.email_enabled}
                   onChange={(e) => setPreferences({ ...preferences, email_enabled: e.target.checked })}
-                  className="w-5 h-5 accent-primary cursor-pointer"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer p-sm hover:bg-surface-container-low rounded-lg transition-colors">
-                <div>
-                  <span className="font-body-md font-semibold text-on-surface block">SMS Messages</span>
-                  <span className="text-xs text-secondary">Receive SMS alerts for emergency clinical events</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={preferences.sms_enabled}
-                  onChange={(e) => setPreferences({ ...preferences, sms_enabled: e.target.checked })}
                   className="w-5 h-5 accent-primary cursor-pointer"
                 />
               </label>

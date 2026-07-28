@@ -130,10 +130,7 @@ export function NotificationBellDropdown() {
                     </p>
 
                     <span className="text-[10px] text-outline mt-1 block">
-                      {new Date(item.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {new Date(item.created_at).toLocaleString()}
                     </span>
                   </div>
                 </div>

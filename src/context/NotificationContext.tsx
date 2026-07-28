@@ -31,13 +31,24 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
+  const inAppEnabledRef = React.useRef<boolean>(true)
 
   const refreshNotifications = useCallback(async () => {
     if (!isAuthenticated) return
     try {
       setLoading(true)
-      const res = await notificationsApi.getNotifications({ page: 1, page_size: 10 })
+      const [res, prefs] = await Promise.all([
+        notificationsApi.getNotifications({ page: 1, page_size: 10 }),
+        notificationsApi.getPreferences().catch(() => null),
+      ])
       setNotifications(res.items || [])
+      if (prefs) {
+        inAppEnabledRef.current = prefs.in_app_enabled
+        if (prefs.in_app_enabled === false) {
+          setUnreadCount(0)
+          return
+        }
+      }
       setUnreadCount(res.unread_count || 0)
     } catch {
       // Fallback silent handle
@@ -92,6 +103,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         try {
           const item: NotificationItem = JSON.parse(event.data)
           setNotifications((prev) => [item, ...prev.slice(0, 9)])
+          
+          // Respect user's in_app_enabled preference
+          if (inAppEnabledRef.current === false) {
+            return
+          }
+
           setUnreadCount((prev) => prev + 1)
 
           if (item.priority === 'emergency' || item.priority === 'urgent') {

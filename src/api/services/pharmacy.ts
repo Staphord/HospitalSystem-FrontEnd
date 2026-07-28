@@ -146,6 +146,48 @@ export interface LabelGenerateResponse {
 
 export const pharmacyService = {
   getQueue: async (status: string = 'waiting', date?: string): Promise<PharmacyQueueResponse> => {
+    // When no specific date is requested, collect all waiting items across history.
+    // Requests are sent sequentially (one at a time) to avoid rate limiting.
+    // Stops after 10 consecutive days with no results.
+    if (!date && status === 'waiting') {
+      const today = new Date()
+      const seen = new Set<string>()
+      const merged: PharmacyQueueItem[] = []
+      let consecutiveEmpty = 0
+      const MAX_CONSECUTIVE_EMPTY = 10
+      const MAX_DAYS = 90
+
+      for (let i = 0; i < MAX_DAYS; i++) {
+        const d = new Date(today)
+        d.setDate(today.getDate() - i)
+        const dateStr = d.toISOString().split('T')[0]
+
+        try {
+          const res = await apiClient.get<PharmacyQueueResponse>('/pharmacy/queue', {
+            params: { status, date: dateStr },
+          })
+          const items = res.data.queue || []
+          if (items.length > 0) {
+            consecutiveEmpty = 0
+            for (const item of items) {
+              if (!seen.has(item.queue_id)) {
+                seen.add(item.queue_id)
+                merged.push(item)
+              }
+            }
+          } else {
+            consecutiveEmpty++
+            if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break
+          }
+        } catch {
+          consecutiveEmpty++
+          if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break
+        }
+      }
+
+      return { date: today.toISOString().split('T')[0], queue: merged }
+    }
+
     const res = await apiClient.get<PharmacyQueueResponse>('/pharmacy/queue', {
       params: { status, date },
     })
