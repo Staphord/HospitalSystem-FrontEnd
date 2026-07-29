@@ -541,6 +541,9 @@ export function ConsultationQueuePage() {
                 paginated.map((entry) => {
                   const cfg = PRIORITY_CONFIG[entry.priority]
 
+                  const doneCount = entry.completedInvestigationsCount ?? 0
+                  const pendingCount = entry.pendingInvestigationsCount ?? 0
+
                   // Compute dynamic status configurations
                   let statusBadgeText = 'Waiting'
                   let statusBadgeClass = 'bg-primary/10 text-primary border-primary/30'
@@ -550,20 +553,14 @@ export function ConsultationQueuePage() {
                   if (entry.status === 'in_progress') {
                     const isResultsReady =
                       entry.visitStatus === 'results_ready' ||
-                      (entry.pendingInvestigationsCount === 0 && (entry.completedInvestigationsCount ?? 0) > 0)
+                      (pendingCount === 0 && doneCount > 0)
 
-                    if (entry.visitStatus === 'awaiting_results' || isResultsReady) {
-                      if (isResultsReady) {
-                        statusBadgeText = 'Results Ready'
-                        statusBadgeClass = 'bg-success/15 text-success border-success/30 font-bold animate-pulse'
-                        btnLabel = 'Review Results'
-                        btnColorClass = 'bg-success text-white hover:bg-success/90 shadow'
-                      } else {
-                        statusBadgeText = 'Awaiting Results'
-                        statusBadgeClass = 'bg-purple-500/10 text-purple-600 border-purple-500/30'
-                        btnLabel = 'Resume'
-                        btnColorClass = 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
-                      }
+                    if (isResultsReady && doneCount > 0 && pendingCount === 0) {
+                      btnLabel = 'Review Results'
+                      btnColorClass = 'bg-success text-white hover:bg-success/90 shadow'
+                    } else if (doneCount > 0 || pendingCount > 0) {
+                      btnLabel = 'Resume'
+                      btnColorClass = 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
                     } else {
                       statusBadgeText = 'In Progress'
                       statusBadgeClass = 'bg-warning/10 text-[#916a00] border-warning/30'
@@ -600,9 +597,34 @@ export function ConsultationQueuePage() {
                       </td>
                       <td className={`px-md py-4 ${cfg.waitColor}`}>{entry.waitTime}</td>
                       <td className="px-md py-4">
-                        <span className={`inline-flex px-2 py-0.5 rounded font-label-md text-[11px] uppercase border ${statusBadgeClass}`}>
-                          {statusBadgeText}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          {doneCount > 0 || pendingCount > 0 ? (
+                            <div className="flex flex-wrap items-center gap-1.5 font-medium">
+                              {doneCount > 0 && (
+                                <span
+                                  className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/20 px-2 py-0.5 rounded-md font-semibold text-[11px]"
+                                  title={`${doneCount} test(s) completed`}
+                                >
+                                  <span className="material-symbols-outlined text-[14px] font-bold">check_circle</span>
+                                  <span>{doneCount} Done</span>
+                                </span>
+                              )}
+                              {pendingCount > 0 && (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[#b45309] bg-warning/10 border border-warning/20 px-2 py-0.5 rounded-md font-semibold text-[11px]"
+                                  title={`${pendingCount} test(s) pending`}
+                                >
+                                  <span className="material-symbols-outlined text-[14px] font-bold">hourglass_top</span>
+                                  <span>{pendingCount} Pending</span>
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-md text-[11px] uppercase border ${statusBadgeClass}`}>
+                              {statusBadgeText}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-md py-4">
                         <VitalsCell vitals={entry.vitals} tooltip={entry.vitalsTooltip} />
