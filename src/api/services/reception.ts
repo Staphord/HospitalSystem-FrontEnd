@@ -33,11 +33,17 @@ export const receptionService = {
 
   /** Fetch a single patient's full profile by their UUID */
   getPatient: (patientId: string) =>
-    apiClient.get<BackendPatient>(`/patients/${patientId}`).then((r) => r.data),
+    apiClient
+      .get<BackendPatient>(`/reception/patients/${patientId}`)
+      .then((r) => r.data)
+      .catch(() => apiClient.get<BackendPatient>(`/patients/${patientId}`).then((r) => r.data)),
 
   /** Update a patient's profile details */
   updatePatient: (patientId: string, data: Partial<BackendPatient>) =>
-    apiClient.patch<BackendPatient>(`/patients/${patientId}`, data).then((r) => r.data),
+    apiClient
+      .patch<BackendPatient>(`/reception/patients/${patientId}`, data)
+      .then((r) => r.data)
+      .catch(() => apiClient.patch<BackendPatient>(`/patients/${patientId}`, data).then((r) => r.data)),
 
   // ── Insurance ───────────────────────────────────────────────────────────
 

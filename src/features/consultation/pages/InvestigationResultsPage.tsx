@@ -459,7 +459,6 @@ export function InvestigationResultsPage() {
   const [search, setSearch]             = useState('')
   const [deptFilter, setDeptFilter]     = useState<'all' | ResultDept>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | ResultStatus>('all')
-  const [applied, setApplied]           = useState({ search: '', dept: 'all' as 'all' | ResultDept, status: 'all' as 'all' | ResultStatus })
   const [currentPage, setCurrentPage]   = useState(1)
   const [openMenuId, setOpenMenuId]     = useState<string | null>(null)
   const [viewingResult, setViewingResult] = useState<InvestigationResult | null>(null)
@@ -478,10 +477,9 @@ export function InvestigationResultsPage() {
       })
   }, [])
 
-  const applyFilters = () => {
-    setApplied({ search: search.trim().toLowerCase(), dept: deptFilter, status: statusFilter })
+  useEffect(() => {
     setCurrentPage(1)
-  }
+  }, [search, deptFilter, statusFilter])
 
   const acknowledgeResult = (id: string) => {
     consultationService.acknowledgeInvestigation(id)
@@ -499,22 +497,24 @@ export function InvestigationResultsPage() {
 
   const filtered = useMemo(() => {
     let data = [...results]
-    if (applied.search) {
+    const q = search.trim().toLowerCase()
+    if (q) {
       data = data.filter(
         (r) =>
-          r.patientName.toLowerCase().includes(applied.search) ||
-          r.patientNumber.toLowerCase().includes(applied.search),
+          r.patientName.toLowerCase().includes(q) ||
+          r.patientNumber.toLowerCase().includes(q) ||
+          r.test.toLowerCase().includes(q),
       )
     }
-    if (applied.dept !== 'all')   data = data.filter((r) => r.dept === applied.dept)
-    if (applied.status !== 'all') data = data.filter((r) => r.status === applied.status)
+    if (deptFilter !== 'all')   data = data.filter((r) => r.dept === deptFilter)
+    if (statusFilter !== 'all') data = data.filter((r) => r.status === statusFilter)
     data.sort((a, b) => {
       if (a.status === 'critical' && b.status !== 'critical') return -1
       if (b.status === 'critical' && a.status !== 'critical') return 1
       return 0
     })
     return data
-  }, [applied, results])
+  }, [search, deptFilter, statusFilter, results])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -533,8 +533,7 @@ export function InvestigationResultsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-              placeholder="Name or Patient #"
+              placeholder="Name, Patient # or Test"
               className="flex-1 bg-transparent border-0 outline-none p-0 m-0 font-body-sm text-body-sm text-on-surface placeholder:text-outline"
             />
           </div>
@@ -583,16 +582,6 @@ export function InvestigationResultsPage() {
             />
           </div>
         </div>
-
-        {/* Apply */}
-        <button
-          type="button"
-          onClick={applyFilters}
-          className="h-[42px] bg-primary text-white px-lg rounded-lg font-label-md text-label-md flex items-center gap-sm hover:opacity-90 transition-opacity border-0 cursor-pointer active:scale-95 whitespace-nowrap"
-        >
-          <span className="material-symbols-outlined text-[20px] leading-none">filter_list</span>
-          Apply Filters
-        </button>
       </section>
 
       {/* Results Table Card */}
