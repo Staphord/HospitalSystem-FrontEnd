@@ -833,8 +833,21 @@ function SearchResultsTable({
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {results.map((patient) => (
-              <tr key={patient.id} className="hover:bg-hover-tint transition-colors">
-                <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
+              <tr
+                key={patient.id}
+                onClick={() => onSelect(patient)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(patient)
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`Select patient ${patient.full_name}`}
+                className="hover:bg-hover-tint transition-colors cursor-pointer group focus:outline-none focus:bg-hover-tint"
+              >
+                <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface group-hover:text-primary">
                   {patient.full_name}
                 </td>
                 <td className={TD_MUTED}>{patient.patient_number}</td>
@@ -844,7 +857,10 @@ function SearchResultsTable({
                 <td className="py-md px-md text-right">
                   <button
                     type="button"
-                    onClick={() => onSelect(patient)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelect(patient)
+                    }}
                     className="h-8 px-sm rounded font-body-sm text-body-sm font-medium text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer"
                   >
                     Select

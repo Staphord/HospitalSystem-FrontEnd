@@ -122,6 +122,36 @@ describe('PatientSearchPage', () => {
     })
   })
 
+  it('selects patient when clicking anywhere on a table row in multi-result search', async () => {
+    const mockMultiplePatients = [
+      mockPatient,
+      { ...mockPatient, id: 'pat-456', full_name: 'Jane Smith', patient_number: 'PT-20260713-0004' },
+    ]
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients })
+
+    render(
+      <MemoryRouter>
+        <PatientSearchPage />
+      </MemoryRouter>
+    )
+
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
+    fireEvent.change(searchInput, { target: { value: 'Jane' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Jane Smith')).toBeInTheDocument()
+    })
+
+    const patientRow = screen.getByText('Jane Smith').closest('tr')
+    expect(patientRow).toBeInTheDocument()
+
+    fireEvent.click(patientRow!)
+
+    await waitFor(() => {
+      expect(screen.getByText('Patient Details')).toBeInTheDocument()
+    })
+  })
+
   it('allows demographic details editing using function icons when patient is inactive', async () => {
     vi.mocked(receptionService.updatePatient).mockResolvedValue(mockPatient)
 
