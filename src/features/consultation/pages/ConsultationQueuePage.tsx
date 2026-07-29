@@ -275,6 +275,7 @@ export function ConsultationQueuePage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchQueue = async (showLoading = false) => {
     if (showLoading) setLoading(true)
@@ -352,6 +353,16 @@ export function ConsultationQueuePage() {
       result = result.filter((e) => e.priority === priorityFilter)
     }
 
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      result = result.filter(
+        (e) =>
+          e.name.toLowerCase().includes(q) ||
+          e.patientNumber.toLowerCase().includes(q) ||
+          e.chiefComplaint.toLowerCase().includes(q)
+      )
+    }
+
     // Emergency rows always float to top
     result.sort((a, b) => {
       if (a.priority === 'emergency' && b.priority !== 'emergency') return -1
@@ -359,7 +370,7 @@ export function ConsultationQueuePage() {
       return 0
     })
     return result
-  }, [queueEntries, priorityFilter, statusFilter])
+  }, [queueEntries, priorityFilter, statusFilter, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -452,6 +463,36 @@ export function ConsultationQueuePage() {
               </button>
             </div>
 
+            {/* Real-time Search input */}
+            <div className="relative flex items-center min-w-[220px] max-w-xs">
+              <span className="material-symbols-outlined absolute left-2.5 text-outline text-[18px] pointer-events-none select-none leading-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Search patient, ID, complaint..."
+                className="w-full pl-8 pr-8 py-1.5 h-[34px] text-body-sm font-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-2 flex items-center justify-center text-outline hover:text-on-surface border-0 bg-transparent cursor-pointer p-0 w-5 h-5 rounded-full"
+                  aria-label="Clear search"
+                >
+                  <span className="material-symbols-outlined text-[16px] leading-none">close</span>
+                </button>
+              )}
+            </div>
+
             {/* Priority filter */}
             <div className="flex items-center gap-xs bg-surface-container px-sm py-1.5 rounded-lg border border-border-subtle h-[34px]">
               <span className="font-label-sm text-label-sm text-secondary whitespace-nowrap">Priority:</span>
@@ -539,7 +580,15 @@ export function ConsultationQueuePage() {
                   return (
                     <tr
                       key={entry.id}
-                      className={`transition-colors ${cfg.rowClass}`}
+                      tabIndex={0}
+                      onClick={() => navigate(`/consultation/encounter/${entry.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          navigate(`/consultation/encounter/${entry.id}`)
+                        }
+                      }}
+                      className={`cursor-pointer hover:bg-hover-tint transition-colors focus:outline-none focus:bg-hover-tint ${cfg.rowClass}`}
                     >
                       <td className="px-md py-4 font-semibold text-on-background">{entry.name}</td>
                       <td className="px-md py-4 text-secondary">{entry.patientNumber}</td>
@@ -558,7 +607,7 @@ export function ConsultationQueuePage() {
                       <td className="px-md py-4">
                         <VitalsCell vitals={entry.vitals} tooltip={entry.vitalsTooltip} />
                       </td>
-                      <td className="px-md py-4 text-right">
+                      <td className="px-md py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => navigate(`/consultation/encounter/${entry.id}`)}
