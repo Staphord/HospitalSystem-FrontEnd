@@ -344,6 +344,7 @@ export function VisitQueuePage() {
   const [viewTarget, setViewTarget] = useState<QueueItem | null>(null)
   const [filterType, setFilterType] = useState<'active' | 'all'>('active')
   const [pageSize, setPageSize] = useState(10)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize)
@@ -369,7 +370,15 @@ export function VisitQueuePage() {
 
   const filteredItems = queueItems.filter((item) => {
     if (filterType === 'active') {
-      return item.status === 'WAITING' || item.status === 'IN TRIAGE'
+      if (item.status !== 'WAITING' && item.status !== 'IN TRIAGE') return false
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim()
+      return (
+        item.name.toLowerCase().includes(q) ||
+        item.patientNumber.toLowerCase().includes(q) ||
+        item.ticketNumber.toLowerCase().includes(q)
+      )
     }
     return true
   })
@@ -470,7 +479,34 @@ export function VisitQueuePage() {
               <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
                 {filterType === 'active' ? 'Active Queue' : 'Queue History'}
               </h3>
-              <div className="flex gap-sm items-center">
+              <div className="flex gap-sm items-center flex-1 max-w-md justify-end">
+                <div className="relative flex-1 max-w-xs">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    placeholder="Search patient, ticket or ID..."
+                    className="w-full pl-9 pr-8 py-1.5 text-body-sm font-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('')
+                        setCurrentPage(1)
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface border-0 bg-transparent cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center gap-xs bg-surface-container rounded-lg p-[3px] border border-border-subtle">
                   <button
                     type="button"

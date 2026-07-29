@@ -242,6 +242,7 @@ export function TriageQueueContent() {
   const [assessmentDetails, setAssessmentDetails] = useState<any | null>(null)
   const [loadingAssessment, setLoadingAssessment] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Live clock — ticks every 60s so active patients' wait times update in real-time
   const [now, setNow] = useState(() => Date.now())
@@ -368,9 +369,19 @@ export function TriageQueueContent() {
           patient.priority === priorityFilter ||
           (priorityFilter === 'routine' && (patient.priority === 'semi_urgent' || patient.priority === 'non_urgent'))
         const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
-        return priorityMatch && paymentMatch
+        
+        let searchMatch = true
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim()
+          searchMatch =
+            patient.name.toLowerCase().includes(q) ||
+            patient.patientNumber.toLowerCase().includes(q) ||
+            patient.queueNumber.toLowerCase().includes(q)
+        }
+        
+        return priorityMatch && paymentMatch && searchMatch
       })
-  }, [patients, priorityFilter, paymentFilter, statusFilter])
+  }, [patients, priorityFilter, paymentFilter, statusFilter, searchQuery])
 
   useEffect(() => {
     const highlight = (location.state as TriageQueueLocationState | null)?.highlightVisitId
@@ -533,6 +544,33 @@ export function TriageQueueContent() {
                 All
               </button>
             </div>
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Search patient, ticket or ID..."
+                className="w-full pl-9 pr-8 py-1.5 text-body-sm font-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface border-0 bg-transparent cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              )}
+            </div>
             <select
               value={priorityFilter}
               onChange={(e) => {
@@ -614,7 +652,15 @@ export function TriageQueueContent() {
                   visiblePatients.map((patient) => (
                     <tr
                       key={patient.visitId}
-                      className={`hover:bg-hover-tint transition-colors ${
+                      tabIndex={0}
+                      onClick={() => handleAssess(patient.visitId)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleAssess(patient.visitId)
+                        }
+                      }}
+                      className={`cursor-pointer hover:bg-hover-tint transition-colors focus:outline-none focus:bg-hover-tint ${
                         patient.isEmergency ? 'bg-[#FFF4F4]' : ''
                       } ${
                         activeVisitId === patient.visitId
@@ -698,7 +744,7 @@ export function TriageQueueContent() {
                           {patient.status.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="px-md py-md text-right">
+                      <td className="px-md py-md text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end">
                           <TriageQueueActionsMenu
                             patient={patient}

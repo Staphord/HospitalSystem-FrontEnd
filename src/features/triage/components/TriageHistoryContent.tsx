@@ -189,6 +189,33 @@ export function TriageHistoryContent() {
     void fetchRecent()
   }, [])
 
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setHasSearched(false)
+      setResults([])
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setHasSearched(true)
+      setLoadingSearch(true)
+      triageService.searchHistory(trimmed)
+        .then((response) => {
+          setResults(response.patients)
+        })
+        .catch((err) => {
+          console.error('Triage history search failed:', err)
+          toast.error('Search failed. Please try again.')
+        })
+        .finally(() => {
+          setLoadingSearch(false)
+        })
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [query])
+
   const runSearch = async (term: string) => {
     const trimmed = term.trim()
     if (!trimmed) {
@@ -196,17 +223,6 @@ export function TriageHistoryContent() {
       return
     }
     setQuery(trimmed)
-    setHasSearched(true)
-    setLoadingSearch(true)
-    try {
-      const response = await triageService.searchHistory(trimmed)
-      setResults(response.patients)
-    } catch (err) {
-      console.error('Triage history search failed:', err)
-      toast.error('Search failed. Please try again.')
-    } finally {
-      setLoadingSearch(false)
-    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {

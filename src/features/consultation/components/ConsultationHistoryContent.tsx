@@ -227,6 +227,32 @@ export function ConsultationHistoryContent() {
       .catch(() => setLoadingRecent(false))
   }, [])
 
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setHasSearched(false)
+      setResults([])
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setSearching(true)
+      setHasSearched(true)
+      wardService.searchPatients(trimmed, 1, 50)
+        .then((res) => {
+          setResults(res.patients || [])
+          setSearching(false)
+        })
+        .catch((err) => {
+          const msg = err?.response?.data?.detail || err?.message || 'Search failed'
+          toast.error(msg)
+          setSearching(false)
+        })
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [query])
+
   const runSearch = (term: string) => {
     const trimmed = term.trim()
     if (!trimmed) {
@@ -234,19 +260,6 @@ export function ConsultationHistoryContent() {
       return
     }
     setQuery(trimmed)
-    setSearching(true)
-    setHasSearched(true)
-    
-    wardService.searchPatients(trimmed, 1, 50)
-      .then((res) => {
-        setResults(res.patients || [])
-        setSearching(false)
-      })
-      .catch((err) => {
-        const msg = err?.response?.data?.detail || err?.message || 'Search failed'
-        toast.error(msg)
-        setSearching(false)
-      })
   }
 
   const handleSubmit = (e: React.FormEvent) => {

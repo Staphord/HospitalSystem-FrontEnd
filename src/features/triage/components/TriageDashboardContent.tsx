@@ -29,6 +29,7 @@ function StatCard({
   icon,
   iconClassName = 'text-outline',
   iconFilled = false,
+  onClick,
 }: {
   label: string
   value: string
@@ -36,16 +37,40 @@ function StatCard({
   icon: string
   iconClassName?: string
   iconFilled?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className="bg-surface-white border border-border-subtle p-lg rounded-xl flex flex-col justify-between shadow-sm">
-      <span className="font-label-md text-outline uppercase tracking-wider text-[11px] font-bold">
-        {label}
-      </span>
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      aria-label={`${label} KPI - Click to open Triage Queue`}
+      className={`bg-surface-white border border-border-subtle p-lg rounded-xl flex flex-col justify-between shadow-sm transition-all group ${
+        onClick
+          ? 'cursor-pointer hover:border-primary hover:shadow-md active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-primary/40'
+          : ''
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-label-md text-outline uppercase tracking-wider text-[11px] font-bold group-hover:text-primary transition-colors">
+          {label}
+        </span>
+        {onClick && (
+          <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">
+            arrow_forward
+          </span>
+        )}
+      </div>
       <div className="flex items-end justify-between mt-sm">
         <span className={`font-headline-lg text-[24px] font-semibold ${valueClassName}`}>{value}</span>
         <span
-          className={`material-symbols-outlined ${iconClassName}`}
+          className={`material-symbols-outlined ${iconClassName} group-hover:text-primary transition-colors`}
           style={iconFilled ? { fontVariationSettings: "'FILL' 1" } : undefined}
         >
           {icon}
@@ -323,12 +348,14 @@ export function TriageDashboardContent() {
               label="Awaiting Triage" 
               value={loading ? '...' : String(awaitingCount)} 
               icon="hourglass_empty" 
+              onClick={() => navigate('/triage/queue')}
             />
             <StatCard
               label="Assessed Today"
               value={loading ? '...' : String(assessedCount)}
               icon="trending_up"
               iconClassName="text-success"
+              onClick={() => navigate('/triage/queue')}
             />
             <StatCard
               label="Critical"
@@ -337,11 +364,13 @@ export function TriageDashboardContent() {
               icon="emergency_home"
               iconClassName="text-error"
               iconFilled
+              onClick={() => navigate('/triage/queue')}
             />
             <StatCard 
               label="Avg Assessment" 
               value={loading ? '...' : avgAssessment} 
               icon="timer" 
+              onClick={() => navigate('/triage/queue')}
             />
           </div>
 
