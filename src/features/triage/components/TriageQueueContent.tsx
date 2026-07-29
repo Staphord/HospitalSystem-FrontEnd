@@ -544,8 +544,8 @@ export function TriageQueueContent() {
                 All
               </button>
             </div>
-            <div className="relative flex-1 min-w-[200px] max-w-xs">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">
+            <div className="relative flex items-center min-w-[220px] max-w-xs">
+              <span className="material-symbols-outlined absolute left-2.5 text-outline text-[18px] pointer-events-none select-none leading-none">
                 search
               </span>
               <input
@@ -556,7 +556,7 @@ export function TriageQueueContent() {
                   setCurrentPage(1)
                 }}
                 placeholder="Search patient, ticket or ID..."
-                className="w-full pl-9 pr-8 py-1.5 text-body-sm font-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="w-full pl-8 pr-8 py-1.5 h-9 text-body-sm font-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
               {searchQuery && (
                 <button
@@ -565,9 +565,10 @@ export function TriageQueueContent() {
                     setSearchQuery('')
                     setCurrentPage(1)
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface border-0 bg-transparent cursor-pointer"
+                  className="absolute right-2 flex items-center justify-center text-outline hover:text-on-surface border-0 bg-transparent cursor-pointer p-0 w-5 h-5 rounded-full"
+                  aria-label="Clear search"
                 >
-                  <span className="material-symbols-outlined text-[16px]">close</span>
+                  <span className="material-symbols-outlined text-[16px] leading-none">close</span>
                 </button>
               )}
             </div>
@@ -577,7 +578,7 @@ export function TriageQueueContent() {
                 setPriorityFilter(e.target.value as PriorityFilter)
                 setCurrentPage(1)
               }}
-              className="text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm py-1.5 rounded outline-none focus:ring-1 focus:ring-primary"
+              className="h-9 text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm rounded-lg outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="all">Priority: All</option>
               <option value="emergency">Emergency</option>
@@ -590,7 +591,7 @@ export function TriageQueueContent() {
                 setPaymentFilter(e.target.value as PaymentFilter)
                 setCurrentPage(1)
               }}
-              className="text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm py-1.5 rounded outline-none focus:ring-1 focus:ring-primary"
+              className="h-9 text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm rounded-lg outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="all">Payment: All</option>
               <option value="cash">Cash</option>
