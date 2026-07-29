@@ -70,30 +70,48 @@ describe('PatientSearchPage', () => {
     vi.mocked(receptionService.getActiveVisit).mockResolvedValue({ active: false })
   })
 
-  it('renders search input fields correctly', () => {
+  it('renders unified single search input correctly', () => {
     render(
       <MemoryRouter>
         <PatientSearchPage />
       </MemoryRouter>
     )
 
-    expect(screen.getByPlaceholderText(/enter national id/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/enter full name/i)).toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText(/search by national id \/ nida, phone number, patient #, or name/i)
+    ).toBeInTheDocument()
   })
 
-  it('performs search and displays patient details', async () => {
+  it('performs auto-search when typing into the unified search field', async () => {
     render(
       <MemoryRouter>
         <PatientSearchPage />
       </MemoryRouter>
     )
 
-    const searchInput = screen.getByPlaceholderText(/enter national id/i)
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
     fireEvent.change(searchInput, { target: { value: '12345' } })
-    
+
+    await waitFor(() => {
+      expect(receptionService.searchPatients).toHaveBeenCalledWith('12345')
+      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getByText('PT-20260713-0003')).toBeInTheDocument()
+    })
+  })
+
+  it('performs manual search on form submission', async () => {
+    render(
+      <MemoryRouter>
+        <PatientSearchPage />
+      </MemoryRouter>
+    )
+
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
+    fireEvent.change(searchInput, { target: { value: '12345' } })
+
     const searchForm = searchInput.closest('form')
     expect(searchForm).toBeInTheDocument()
-    
+
     await act(async () => {
       fireEvent.submit(searchForm!)
     })
@@ -114,7 +132,7 @@ describe('PatientSearchPage', () => {
     )
 
     // Trigger search to load patient card
-    const searchInput = screen.getByPlaceholderText(/enter national id/i)
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
     fireEvent.change(searchInput, { target: { value: '12345' } })
     await act(async () => {
       fireEvent.submit(searchInput.closest('form')!)
@@ -163,7 +181,7 @@ describe('PatientSearchPage', () => {
     )
 
     // Search patient
-    const searchInput = screen.getByPlaceholderText(/enter national id/i)
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
     fireEvent.change(searchInput, { target: { value: '12345' } })
     await act(async () => {
       fireEvent.submit(searchInput.closest('form')!)
