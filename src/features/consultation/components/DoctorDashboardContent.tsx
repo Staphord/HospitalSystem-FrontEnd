@@ -9,7 +9,13 @@ type ResultStatus = 'critical' | 'ready' | 'pending'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatCards({ stats }: { stats: DoctorDashboardStatsResponse['stats'] }) {
+function StatCards({
+  stats,
+  onViewQueue,
+}: {
+  stats: DoctorDashboardStatsResponse['stats']
+  onViewQueue: () => void
+}) {
   const cards = [
     { label: 'Waiting to See Me', value: stats.waiting_patients, unit: 'Patients' },
     { label: 'In Progress', value: stats.in_progress, unit: 'Consulting' },
@@ -22,13 +28,28 @@ function StatCards({ stats }: { stats: DoctorDashboardStatsResponse['stats'] }) 
       {cards.map((card) => (
         <div
           key={card.label}
-          className="bg-surface-white border border-border-subtle rounded-lg overflow-hidden shadow-sm"
+          role="button"
+          tabIndex={0}
+          onClick={onViewQueue}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onViewQueue()
+            }
+          }}
+          aria-label={`${card.label} KPI - Click to open Patient Queue`}
+          className="bg-surface-white border border-border-subtle rounded-lg overflow-hidden shadow-sm cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-primary/40"
         >
-          <div className="p-md flex flex-col gap-xs">
-            <p className="font-label-md text-label-md text-secondary uppercase tracking-wider">
-              {card.label}
-            </p>
-            <div className="flex items-baseline gap-xs">
+          <div className="p-md flex flex-col justify-between h-full gap-xs">
+            <div className="flex items-center justify-between">
+              <p className="font-label-md text-label-md text-secondary uppercase tracking-wider group-hover:text-primary transition-colors m-0">
+                {card.label}
+              </p>
+              <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">
+                arrow_forward
+              </span>
+            </div>
+            <div className="flex items-baseline gap-xs mt-xs">
               <span className="text-[30px] leading-[38px] font-bold text-primary font-headline-lg">
                 {card.value}
               </span>
@@ -426,7 +447,7 @@ export function DoctorDashboardContent() {
     <div className="max-w-container-max mx-auto flex flex-col gap-lg lg:flex-row">
       {/* Left column — 65% */}
       <div className="w-full lg:w-[65%] space-y-lg">
-        <StatCards stats={data.stats} />
+        <StatCards stats={data.stats} onViewQueue={() => navigate('/consultation/queue')} />
         <NextPatientsTable
           patients={data.next_patients}
           onOpenEncounter={(visitId) => navigate(`/consultation/encounter/${visitId}`)}
