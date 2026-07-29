@@ -376,8 +376,10 @@ export function VisitQueuePage() {
       const q = searchTerm.toLowerCase().trim()
       return (
         item.name.toLowerCase().includes(q) ||
-        item.patientNumber.toLowerCase().includes(q) ||
-        item.ticketNumber.toLowerCase().includes(q)
+        item.id.toLowerCase().includes(q) ||
+        item.ticketNumber.toLowerCase().includes(q) ||
+        item.payment.toLowerCase().includes(q) ||
+        item.status.toLowerCase().includes(q)
       )
     }
     return true
@@ -555,7 +557,18 @@ export function VisitQueuePage() {
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {visibleItems.map((item) => (
-                    <tr key={item.queueId} className="hover:bg-hover-tint transition-colors group">
+                    <tr
+                      key={item.queueId}
+                      tabIndex={0}
+                      onClick={() => setViewTarget(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setViewTarget(item)
+                        }
+                      }}
+                      className="cursor-pointer hover:bg-hover-tint transition-colors group focus:outline-none focus:bg-hover-tint"
+                    >
                       <td className={TD_MUTED}>{item.ticketNumber}</td>
                       <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
                         {item.name}
@@ -571,7 +584,7 @@ export function VisitQueuePage() {
                           {item.status}
                         </span>
                       </td>
-                      <td className="py-md px-md text-right">
+                      <td className="py-md px-md text-right" onClick={(e) => e.stopPropagation()}>
                         <div
                           className={`flex justify-end ${item.status === 'COMPLETE' || item.status === 'SKIPPED' ? 'opacity-50' : ''}`}
                         >
