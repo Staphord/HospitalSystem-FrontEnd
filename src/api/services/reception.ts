@@ -51,7 +51,8 @@ export const receptionService = {
   getInsurancePolicies: (patientId: string) =>
     apiClient
       .get<BackendInsurancePolicy[]>(`/reception/patients/${patientId}/insurance`)
-      .then((r) => r.data),
+      .then((r) => r.data)
+      .catch(() => [] as BackendInsurancePolicy[]),
 
   /** Record the outcome of a manual insurance verification */
   verifyInsurance: (insuranceId: string, status: 'verified' | 'rejected') =>
@@ -104,5 +105,6 @@ export const receptionService = {
         queue_number?: string | null
         queue_type?: string | null
       }>(`/visits/active-patient/${patientId}`)
-      .then((r) => r.data),
+      .then((r) => r.data)
+      .catch(() => ({ active: false })),
 }

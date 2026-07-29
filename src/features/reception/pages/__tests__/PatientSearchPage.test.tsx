@@ -94,7 +94,7 @@ describe('PatientSearchPage', () => {
 
     await waitFor(() => {
       expect(receptionService.searchPatients).toHaveBeenCalledWith('12345')
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
       expect(screen.getByText('PT-20260713-0003')).toBeInTheDocument()
     })
   })
@@ -117,7 +117,7 @@ describe('PatientSearchPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
       expect(screen.getByText('PT-20260713-0003')).toBeInTheDocument()
     })
   })
@@ -148,7 +148,7 @@ describe('PatientSearchPage', () => {
     fireEvent.click(patientRow!)
 
     await waitFor(() => {
-      expect(screen.getByText('Patient Details')).toBeInTheDocument()
+      expect(screen.getByText('Patient Found')).toBeInTheDocument()
     })
   })
 
@@ -170,7 +170,7 @@ describe('PatientSearchPage', () => {
 
     // Wait for the patient card to load
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
     })
 
     // Click NOK name edit button (third edit pencil in list)
@@ -219,7 +219,7 @@ describe('PatientSearchPage', () => {
 
     // Wait for details card and verify active visit locks are applied
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
     })
 
     // Wait for the asynchronous active visit status update to resolve in UI
@@ -238,5 +238,42 @@ describe('PatientSearchPage', () => {
     // Verify button displays wait state
     const checkinBtn = screen.getByRole('button', { name: /Already Waiting/i })
     expect(checkinBtn).toBeDisabled()
+  })
+
+  it('navigates back to search list when clicking breadcrumb back button', async () => {
+    const mockMultiplePatients = [
+      mockPatient,
+      { ...mockPatient, id: 'pat-456', full_name: 'Jane Smith', patient_number: 'PT-20260713-0004' },
+    ]
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients })
+
+    render(
+      <MemoryRouter>
+        <PatientSearchPage />
+      </MemoryRouter>
+    )
+
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
+    fireEvent.change(searchInput, { target: { value: 'Jane' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Jane Smith')).toBeInTheDocument()
+    })
+
+    // Click row to select Jane Smith
+    fireEvent.click(screen.getByText('Jane Smith').closest('tr')!)
+
+    await waitFor(() => {
+      expect(screen.getByText('Patient Found')).toBeInTheDocument()
+    })
+
+    // Click "Search Results" breadcrumb button
+    const backBtn = screen.getByRole('button', { name: /search results/i })
+    fireEvent.click(backBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('Jane Smith')).toBeInTheDocument()
+      expect(screen.getByText('2 patients found')).toBeInTheDocument()
+    })
   })
 })

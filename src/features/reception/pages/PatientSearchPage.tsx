@@ -207,8 +207,11 @@ function PatientFoundCard({
     setLoadingQueue(true)
     try {
       // Load policies
-      const data = await receptionService.getInsurancePolicies(patient.id)
+      const data = await receptionService
+        .getInsurancePolicies(patient.id)
+        .catch(() => (patient.insurance_policies || []) as BackendInsurancePolicy[])
       setPolicies(data)
+
       // Auto-select the first active policy if any
       const active = data.filter((p) => p.is_active)
       if (active.length > 0) {
@@ -219,8 +222,8 @@ function PatientFoundCard({
       }
 
       // Check active queue status
-      const activeStatus = await receptionService.getActiveVisit(patient.id)
-      if (activeStatus.active) {
+      const activeStatus = await receptionService.getActiveVisit(patient.id).catch(() => ({ active: false }))
+      if (activeStatus && activeStatus.active) {
         const qStatus = activeStatus.queue_status?.toLowerCase()
         const qType = activeStatus.queue_type?.toLowerCase()
 
@@ -235,7 +238,9 @@ function PatientFoundCard({
         setQueueNumber(null)
       }
     } catch {
-      toast.error('Failed to load patient insurance or queue details.')
+      // Ignore unhandled exceptions safely
+      setPolicies(patient.insurance_policies || [])
+      setQueueStatus(null)
     } finally {
       setLoadingPolicies(false)
       setLoadingQueue(false)
@@ -1015,6 +1020,50 @@ export function PatientSearchPage() {
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
+      {hasSearched && (
+        <nav aria-label="Breadcrumb" className="flex items-center gap-xs text-body-sm font-body-sm text-secondary mb-md">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedPatient(null)
+              if (!searchResults || searchResults.length <= 1) {
+                setHasSearched(false)
+                setSearchResults(null)
+                setSearchTerm('')
+                setSearchedTerm('')
+              }
+            }}
+            className="hover:text-primary hover:underline font-medium text-secondary bg-transparent border-0 cursor-pointer p-0 transition-colors"
+          >
+            Patient Search
+          </button>
+
+          {searchResults && searchResults.length > 1 && (
+            <>
+              <span className="text-outline">/</span>
+              {displayPatient ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPatient(null)}
+                  className="hover:text-primary hover:underline font-medium text-secondary bg-transparent border-0 cursor-pointer p-0 transition-colors"
+                >
+                  Search Results ({searchResults.length})
+                </button>
+              ) : (
+                <span className="text-on-surface font-semibold">Search Results ({searchResults.length})</span>
+              )}
+            </>
+          )}
+
+          {displayPatient && (
+            <>
+              <span className="text-outline">/</span>
+              <span className="text-on-surface font-semibold">{displayPatient.full_name}</span>
+            </>
+          )}
+        </nav>
+      )}
+
       <div className="bg-surface-white border border-border-subtle rounded shadow-sm p-lg mb-xl">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-md">
           <div className="relative flex-1">
