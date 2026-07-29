@@ -269,7 +269,7 @@ export function DashboardPage() {
           name: entry.patient.full_name,
           patientNumber: entry.patient.patient_number,
           registeredAt: formatShortDateTime(entry.created_at),
-          wait: mins <= 0 ? '--' : `${mins} min`,
+          wait: `${Math.max(0, mins)} min`,
           waitColor: mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success',
           payment: entry.visit?.payment_type
             ? entry.visit.payment_type.charAt(0).toUpperCase() + entry.visit.payment_type.slice(1)
@@ -387,7 +387,7 @@ export function DashboardPage() {
                   <div className="flex flex-col gap-1">
                     <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Avg Wait Time</p>
                     <h3 className="font-headline-md text-primary font-bold text-2xl">
-                      {loading ? '...' : avgWaitTime > 0 ? `${avgWaitTime}m` : '--'}
+                      {loading ? '...' : `${Math.max(0, avgWaitTime)}m`}
                     </h3>
                   </div>
                   <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">

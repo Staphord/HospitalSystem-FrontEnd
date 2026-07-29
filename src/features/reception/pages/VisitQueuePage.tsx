@@ -49,8 +49,8 @@ function computeKpis(items: QueueItem[]) {
 }
 
 function formatWait(mins: number): string {
-  if (mins <= 0) return '--'
-  return `${mins} min`
+  const safeMins = Math.max(0, mins)
+  return `${safeMins} min`
 }
 
 function mapStatus(backendStatus: string): QueueItem['status'] {
@@ -433,7 +433,7 @@ export function VisitQueuePage() {
                 <div>
                   <p className={KPI_LABEL}>Avg Wait Time</p>
                   <h3 className={KPI_VALUE}>
-                    {avgWait > 0 ? <>{avgWait}<span className="text-outline text-headline-sm"> min</span></> : <span className="text-outline text-headline-sm">--</span>}
+                    <>{Math.max(0, avgWait)}<span className="text-outline text-headline-sm"> min</span></>
                   </h3>
                 </div>
                 <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center text-success">
@@ -451,9 +451,7 @@ export function VisitQueuePage() {
                 <div>
                   <p className={KPI_LABEL}>Longest Wait</p>
                   <h3 className={`${KPI_VALUE} ${longestWait > 30 ? 'text-error' : 'text-on-surface'}`}>
-                    {longestWait > 0
-                      ? <>{longestWait}<span className="text-headline-sm" style={{ opacity: 0.7 }}> min</span></>
-                      : <span className="text-outline text-headline-sm">--</span>}
+                    <>{Math.max(0, longestWait)}<span className="text-headline-sm" style={{ opacity: 0.7 }}> min</span></>
                   </h3>
                 </div>
                 <div className={`w-10 h-10 rounded flex items-center justify-center ${longestWait > 30 ? 'bg-error/10 text-error' : 'bg-surface-container text-on-surface-variant'}`}>

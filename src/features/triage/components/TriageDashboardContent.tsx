@@ -71,7 +71,7 @@ export function TriageDashboardContent() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState<TriageVisit[]>([])
   const [loading, setLoading] = useState(true)
-  const [avgAssessment, setAvgAssessment] = useState('--')
+  const [avgAssessment, setAvgAssessment] = useState('0 min')
   const [now, setNow] = useState(() => Date.now())
 
   // Keep now updated every 60 seconds for live ticking wait times
@@ -102,7 +102,7 @@ export function TriageDashboardContent() {
         }, 0)
         setAvgAssessment(`${Math.round(totalDuration / completedTodayItems.length)} min`)
       } else {
-        setAvgAssessment('--')
+        setAvgAssessment('0 min')
       }
 
       // Map queue items to TriageVisit shape
