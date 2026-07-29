@@ -114,6 +114,7 @@ export function InpatientPage() {
   const [loading, setLoading]                 = useState(true)
   const [wardFilter, setWardFilter]           = useState('All Wards')
   const [conditionFilter, setConditionFilter] = useState<'all' | AdmissionStatus>('all')
+  const [searchQuery, setSearchQuery]         = useState('')
   const [currentPage, setCurrentPage]         = useState(1)
   const [openMenuId, setOpenMenuId]           = useState<string | null>(null)
 
@@ -189,12 +190,27 @@ export function InpatientPage() {
     loadPatients()
   }, [])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, wardFilter, conditionFilter])
+
   const uniqueWards = useMemo(() => {
     return ['All Wards', ...Array.from(new Set(patients.map((p) => p.ward)))]
   }, [patients])
 
   const filtered = useMemo(() => {
     let data = [...patients]
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      data = data.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.patientNumber.toLowerCase().includes(q) ||
+          p.ward.toLowerCase().includes(q) ||
+          p.bed.toLowerCase().includes(q) ||
+          p.diagnosis.toLowerCase().includes(q)
+      )
+    }
     if (wardFilter !== 'All Wards') data = data.filter((p) => p.ward === wardFilter)
     if (conditionFilter !== 'all')  data = data.filter((p) => p.status === conditionFilter)
     // Critical always pinned to top
@@ -204,7 +220,7 @@ export function InpatientPage() {
       return 0
     })
     return data
-  }, [patients, wardFilter, conditionFilter])
+  }, [patients, searchQuery, wardFilter, conditionFilter])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated   = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -263,7 +279,20 @@ export function InpatientPage() {
         {/* Card header with filters */}
         <div className="px-lg py-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
           <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Patients Under My Care</h3>
-          <div className="flex flex-wrap gap-sm">
+          <div className="flex flex-wrap items-center gap-sm">
+            {/* Live Search Bar */}
+            <div className="relative flex items-center min-w-[240px]">
+              <span className="material-symbols-outlined absolute left-3 text-outline text-[18px] pointer-events-none select-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search name, patient #, ward..."
+                className="w-full pl-9 pr-3 py-1.5 font-body-sm text-body-sm bg-surface-container-low border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-outline"
+              />
+            </div>
             <select
               value={wardFilter}
               onChange={(e) => { setWardFilter(e.target.value); setCurrentPage(1) }}
