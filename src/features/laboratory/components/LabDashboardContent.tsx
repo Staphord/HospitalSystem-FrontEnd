@@ -14,33 +14,57 @@ import {
   type BackendCompletedTestItem,
 } from '@/api/services/laboratory'
 
-function StatCards({ stats }: { stats: { pendingTests: number; inProgress: number; completedToday: number; criticalValues: number } }) {
+function StatCards({
+  stats,
+  onNavigate,
+}: {
+  stats: { pendingTests: number; inProgress: number; completedToday: number; criticalValues: number }
+  onNavigate: (path: string) => void
+}) {
   const { pendingTests, inProgress, completedToday, criticalValues } = stats
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-md">
-      <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-outline transition-all">
-        <span className="font-label-md text-label-md text-secondary flex items-center justify-between">
+      <div
+        onClick={() => onNavigate('/laboratory/requests?status=pending')}
+        className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-primary hover:shadow-md transition-all cursor-pointer group"
+      >
+        <span className="font-label-md text-label-md text-secondary group-hover:text-primary flex items-center justify-between transition-colors">
           Pending Tests
           <span className="material-symbols-outlined text-[20px] text-warning">hourglass_empty</span>
         </span>
-        <span className="font-headline-lg text-headline-lg text-on-surface font-bold">{pendingTests}</span>
+        <span className="font-headline-lg text-headline-lg text-on-surface group-hover:text-primary font-bold transition-colors">
+          {pendingTests}
+        </span>
       </div>
-      <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-outline transition-all">
-        <span className="font-label-md text-label-md text-secondary flex items-center justify-between">
+      <div
+        onClick={() => onNavigate('/laboratory/requests?status=in_progress')}
+        className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-primary hover:shadow-md transition-all cursor-pointer group"
+      >
+        <span className="font-label-md text-label-md text-secondary group-hover:text-primary flex items-center justify-between transition-colors">
           In Progress
           <span className="material-symbols-outlined text-[20px] text-primary">sync</span>
         </span>
-        <span className="font-headline-lg text-headline-lg text-on-surface font-bold">{inProgress}</span>
+        <span className="font-headline-lg text-headline-lg text-on-surface group-hover:text-primary font-bold transition-colors">
+          {inProgress}
+        </span>
       </div>
-      <div className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-outline transition-all">
-        <span className="font-label-md text-label-md text-secondary flex items-center justify-between">
+      <div
+        onClick={() => onNavigate('/laboratory/requests?status=completed')}
+        className="bg-surface-white border border-border-subtle rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-primary hover:shadow-md transition-all cursor-pointer group"
+      >
+        <span className="font-label-md text-label-md text-secondary group-hover:text-primary flex items-center justify-between transition-colors">
           Completed Today
           <span className="material-symbols-outlined text-[20px] text-success">check_circle</span>
         </span>
-        <span className="font-headline-lg text-headline-lg text-success font-bold">{completedToday}</span>
+        <span className="font-headline-lg text-headline-lg text-success font-bold">
+          {completedToday}
+        </span>
       </div>
-      <div className="bg-error/10 border border-error/30 rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-error transition-all">
+      <div
+        onClick={() => onNavigate('/laboratory/requests?priority=stat')}
+        className="bg-error/10 border border-error/30 rounded-xl p-md flex flex-col justify-between h-24 shadow-sm hover:border-error hover:shadow-md transition-all cursor-pointer group"
+      >
         <span className="font-label-md text-label-md text-error flex items-center justify-between">
           <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[18px]">warning</span>
@@ -48,7 +72,9 @@ function StatCards({ stats }: { stats: { pendingTests: number; inProgress: numbe
           </span>
           <span className="material-symbols-outlined text-[20px] text-error">priority_high</span>
         </span>
-        <span className="font-headline-lg text-headline-lg text-error font-bold">{criticalValues}</span>
+        <span className="font-headline-lg text-headline-lg text-error font-bold">
+          {criticalValues}
+        </span>
       </div>
     </div>
   )
@@ -430,7 +456,7 @@ export function LabDashboardContent() {
 
       <div className="flex flex-col lg:flex-row gap-xl">
         <div className="w-full lg:w-[65%] flex flex-col gap-xl">
-          <StatCards stats={stats} />
+          <StatCards stats={stats} onNavigate={(path) => navigate(path)} />
           <RecentRequestsOverviewCard
             requests={highPriorityRequests}
             onViewAll={() => navigate('/laboratory/requests')}

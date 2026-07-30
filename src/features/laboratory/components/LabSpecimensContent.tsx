@@ -307,7 +307,8 @@ export function LabSpecimensContent() {
                   return (
                     <tr
                       key={specimen.id}
-                      className={`border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : rejected ? 'bg-[#FFF4F4]' : 'bg-surface-white'
+                      onClick={() => navigate(`/laboratory/requests/${specimen.requestId}`)}
+                      className={`border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors cursor-pointer ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : rejected ? 'bg-[#FFF4F4]' : 'bg-surface-white'
                         }`}
                     >
                       <td className="py-sm px-md font-medium text-primary">{specimen.id}</td>
@@ -346,7 +347,10 @@ export function LabSpecimensContent() {
                         {isComplete ? (
                           <button
                             type="button"
-                            onClick={() => navigate(`/laboratory/requests/${specimen.requestId}`)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/laboratory/requests/${specimen.requestId}`)
+                            }}
                             className="h-8 px-3 bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle rounded font-label-md text-label-md cursor-pointer transition-colors whitespace-nowrap"
                           >
                             View Results
@@ -354,7 +358,10 @@ export function LabSpecimensContent() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setModalSpecimen(specimen)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setModalSpecimen(specimen)
+                            }}
                             className="h-8 px-3 bg-primary hover:bg-primary-hover text-on-primary rounded font-label-md text-label-md cursor-pointer border-0 transition-colors whitespace-nowrap"
                           >
                             Update Status

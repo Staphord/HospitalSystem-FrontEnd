@@ -199,14 +199,24 @@ export function LabRequestsContent() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [requests, setRequests] = useState<BackendLabRequestItem[]>([])
-  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all')
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>(
+    () => (searchParams.get('priority') as PriorityFilter) || 'all',
+  )
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
     () => (searchParams.get('status') as StatusFilter) || 'all',
   )
+  const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null)
   const [collectingRequest, setCollectingRequest] = useState<BackendLabRequestItem | null>(null)
+
+  useEffect(() => {
+    const s = searchParams.get('status') as StatusFilter
+    const p = searchParams.get('priority') as PriorityFilter
+    if (s) setStatusFilter(s)
+    if (p) setPriorityFilter(p)
+  }, [searchParams])
 
   const fetchRequests = async () => {
     setLoading(true)
@@ -250,9 +260,18 @@ export function LabRequestsContent() {
     return requests.filter((r) => {
       const priorityMatch = priorityFilter === 'all' || r.urgency === priorityFilter
       const statusMatch = statusFilter === 'all' || r.status === statusFilter
-      return priorityMatch && statusMatch
+      const q = searchQuery.trim().toLowerCase()
+      const searchMatch =
+        !q ||
+        r.patient_name.toLowerCase().includes(q) ||
+        r.patient_number.toLowerCase().includes(q) ||
+        r.test_name.toLowerCase().includes(q) ||
+        (r.requested_by_name && r.requested_by_name.toLowerCase().includes(q)) ||
+        r.request_id.toLowerCase().includes(q)
+
+      return priorityMatch && statusMatch && searchMatch
     })
-  }, [requests, priorityFilter, statusFilter])
+  }, [requests, priorityFilter, statusFilter, searchQuery])
 
   useEffect(() => {
     const highlight = (location.state as LabRequestsLocationState | null)?.highlightRequestId
@@ -275,7 +294,7 @@ export function LabRequestsContent() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [priorityFilter, statusFilter, pageSize])
+  }, [priorityFilter, statusFilter, searchQuery, pageSize])
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
@@ -283,7 +302,7 @@ export function LabRequestsContent() {
   const visibleRequests = filteredRequests.slice(pageStart, pageStart + pageSize)
   const showingFrom = filteredRequests.length === 0 ? 0 : pageStart + 1
   const showingTo = Math.min(pageStart + pageSize, filteredRequests.length)
-  const hasFilters = priorityFilter !== 'all' || statusFilter !== 'all'
+  const hasFilters = priorityFilter !== 'all' || statusFilter !== 'all' || !!searchQuery.trim()
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = []
@@ -304,6 +323,7 @@ export function LabRequestsContent() {
   const handleClearFilters = () => {
     setPriorityFilter('all')
     setStatusFilter('all')
+    setSearchQuery('')
     setSearchParams({})
   }
 
@@ -362,6 +382,20 @@ export function LabRequestsContent() {
                 : 'All Test Requests'}
           </h2>
           <div className="flex flex-wrap items-center gap-sm">
+            {/* Live Search Bar */}
+            <div className="relative flex items-center min-w-[240px]">
+              <span className="material-symbols-outlined absolute left-3 text-secondary text-[18px] pointer-events-none select-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search patient, test, doctor..."
+                className="w-full pl-9 pr-3 py-2 font-body-sm text-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-secondary"
+              />
+            </div>
+
             <div className="relative">
               <select
                 value={priorityFilter}
@@ -416,19 +450,23 @@ export function LabRequestsContent() {
             <tbody className="divide-y divide-border-subtle text-body-md font-body-md text-on-surface">
               {visibleRequests.map((req) => {
                 const isHighlighted = req.request_id === activeRequestId
-                const rowClass = `border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : 'bg-surface-white'
+                const rowClass = `border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors cursor-pointer ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : 'bg-surface-white'
                   }`
                 const specimenStatus: SpecimenStatus = req.status === 'pending' ? 'not_collected' : 'collected'
                 const actionDetails = getActionButtonDetails(req)
 
                 return (
-                  <tr key={req.request_id} className={rowClass}>
+                  <tr
+                    key={req.request_id}
+                    onClick={() => navigate(`/laboratory/requests/${req.request_id}`)}
+                    className={rowClass}
+                  >
                     <td className="py-md px-md">
                       <InvestigationPriorityBadge priority={req.urgency as any} />
                     </td>
                     <td className="py-md px-md">
                       <div className="flex flex-col">
-                        <span className="font-headline-sm text-headline-sm text-on-surface">
+                        <span className="font-headline-sm text-headline-sm text-on-surface font-semibold">
                           {req.patient_name}
                         </span>
                         <span className="font-body-xs text-body-xs text-secondary">
@@ -469,7 +507,10 @@ export function LabRequestsContent() {
                       <div className="flex items-center justify-end">
                         <button
                           type="button"
-                          onClick={() => handleAction(req)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAction(req)
+                          }}
                           className={`h-8 px-4 rounded font-label-md text-label-md cursor-pointer whitespace-nowrap transition-colors ${actionDetails.btnClass}`}
                         >
                           {actionDetails.label}
