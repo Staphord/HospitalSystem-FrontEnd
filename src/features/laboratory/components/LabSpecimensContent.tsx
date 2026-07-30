@@ -132,6 +132,7 @@ export function LabSpecimensContent() {
   const [loading, setLoading] = useState(true)
   const [specimens, setSpecimens] = useState<TrackedSpecimen[]>([])
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [activeSpecimenId, setActiveSpecimenId] = useState<string | null>(null)
@@ -156,8 +157,20 @@ export function LabSpecimensContent() {
   const summary = useMemo(() => computeSpecimenSummary(specimens), [specimens])
 
   const filteredSpecimens = useMemo(() => {
-    return specimens.filter((specimen) => matchesStatusFilter(specimen.status, statusFilter))
-  }, [specimens, statusFilter])
+    return specimens.filter((specimen) => {
+      const statusMatch = matchesStatusFilter(specimen.status, statusFilter)
+      const q = searchQuery.trim().toLowerCase()
+      const searchMatch =
+        !q ||
+        (specimen.specimenId || '').toLowerCase().includes(q) ||
+        (specimen.patientName || '').toLowerCase().includes(q) ||
+        (specimen.patientNumber || '').toLowerCase().includes(q) ||
+        (specimen.testType || '').toLowerCase().includes(q) ||
+        (specimen.collectorName || '').toLowerCase().includes(q) ||
+        (specimen.requestId || '').toLowerCase().includes(q)
+      return statusMatch && searchMatch
+    })
+  }, [specimens, statusFilter, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredSpecimens.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
@@ -211,7 +224,7 @@ export function LabSpecimensContent() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter, pageSize])
+  }, [statusFilter, searchQuery, pageSize])
 
   const handleSaveStatus = async (
     status: SpecimenTrackingStatus,
@@ -241,7 +254,10 @@ export function LabSpecimensContent() {
   }
 
 
-  const handleClearFilters = () => setStatusFilter('all')
+  const handleClearFilters = () => {
+    setStatusFilter('all')
+    setSearchQuery('')
+  }
 
   if (loading) {
     return (
@@ -258,22 +274,38 @@ export function LabSpecimensContent() {
       <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
         <div className="p-md border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-background/50">
           <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Specimen Log</h2>
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-40 cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              {(Object.keys(SPECIMEN_TRACKING_STATUS_LABEL) as SpecimenTrackingStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {SPECIMEN_TRACKING_STATUS_LABEL[status]}
-                </option>
-              ))}
-            </select>
-            <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px] leading-none">
-              expand_more
-            </span>
+          <div className="flex flex-wrap items-center gap-sm">
+            {/* Live Search Bar */}
+            <div className="relative flex items-center min-w-[240px]">
+              <span className="material-symbols-outlined absolute left-3 text-secondary text-[18px] pointer-events-none select-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search specimen, patient, test..."
+                className="w-full pl-9 pr-3 py-2 font-body-sm text-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-secondary"
+              />
+            </div>
+
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-40 cursor-pointer"
+              >
+                <option value="all">All Statuses</option>
+                {(Object.keys(SPECIMEN_TRACKING_STATUS_LABEL) as SpecimenTrackingStatus[]).map((status) => (
+                  <option key={status} value={status}>
+                    {SPECIMEN_TRACKING_STATUS_LABEL[status]}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px] leading-none">
+                expand_more
+              </span>
+            </div>
           </div>
         </div>
 
@@ -426,8 +458,8 @@ export function LabSpecimensContent() {
                       type="button"
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${page === safePage
-                          ? 'bg-primary text-on-primary font-bold shadow-xs'
-                          : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
+                        ? 'bg-primary text-on-primary font-bold shadow-xs'
+                        : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
                         }`}
                     >
                       {page}

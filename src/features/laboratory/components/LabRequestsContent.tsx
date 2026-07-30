@@ -219,7 +219,6 @@ export function LabRequestsContent() {
   }, [searchParams])
 
   const fetchRequests = async () => {
-    setLoading(true)
     try {
       const data = await laboratoryService.getRequests()
       setRequests(data)
@@ -263,11 +262,11 @@ export function LabRequestsContent() {
       const q = searchQuery.trim().toLowerCase()
       const searchMatch =
         !q ||
-        r.patient_name.toLowerCase().includes(q) ||
-        r.patient_number.toLowerCase().includes(q) ||
-        r.test_name.toLowerCase().includes(q) ||
-        (r.requested_by_name && r.requested_by_name.toLowerCase().includes(q)) ||
-        r.request_id.toLowerCase().includes(q)
+        (r.patient_name || '').toLowerCase().includes(q) ||
+        (r.patient_number || '').toLowerCase().includes(q) ||
+        (r.test_name || '').toLowerCase().includes(q) ||
+        (r.requested_by_name || '').toLowerCase().includes(q) ||
+        (r.request_id || '').toLowerCase().includes(q)
 
       return priorityMatch && statusMatch && searchMatch
     })
@@ -277,14 +276,14 @@ export function LabRequestsContent() {
     const highlight = (location.state as LabRequestsLocationState | null)?.highlightRequestId
     if (!highlight) return
 
-    const index = filteredRequests.findIndex((r) => r.request_id === highlight)
+    const index = requests.findIndex((r) => r.request_id === highlight)
     if (index >= 0) {
       setCurrentPage(Math.floor(index / pageSize) + 1)
       setActiveRequestId(highlight)
     }
 
     navigate(location.pathname, { replace: true, state: {} })
-  }, [location.state, location.pathname, filteredRequests, navigate, pageSize])
+  }, [(location.state as LabRequestsLocationState | null)?.highlightRequestId])
 
   useEffect(() => {
     if (!activeRequestId) return
@@ -337,7 +336,7 @@ export function LabRequestsContent() {
   }
 
 
-  if (loading) {
+  if (loading && requests.length === 0) {
     return (
       <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
         <RequestsSkeleton />
@@ -573,8 +572,8 @@ export function LabRequestsContent() {
                     type="button"
                     onClick={() => setCurrentPage(page)}
                     className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${page === safePage
-                        ? 'bg-primary text-on-primary font-bold shadow-xs'
-                        : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
+                      ? 'bg-primary text-on-primary font-bold shadow-xs'
+                      : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
                       }`}
                   >
                     {page}
@@ -607,7 +606,7 @@ export function LabRequestsContent() {
           patientName={collectingRequest.patient_name}
           testName={collectingRequest.test_name}
           onClose={() => setCollectingRequest(null)}
-          onSuccess={fetchRequests}
+          onSuccess={() => fetchRequests()}
         />
       )}
     </div>

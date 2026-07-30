@@ -8,16 +8,16 @@ const PAGE_SIZE = 5
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<AdmissionStatus, { badge: string; rowBg: string; label: string }> = {
-  critical:        { badge: 'bg-error text-white',                                              rowBg: 'bg-[#FFF4F4]',   label: 'Critical'        },
-  stable:          { badge: 'bg-success/10 text-success border border-success/30',              rowBg: 'bg-surface-white', label: 'Stable'        },
-  monitoring:      { badge: 'bg-primary/10 text-primary border border-primary/20',              rowBg: 'bg-surface-white', label: 'Monitoring'    },
+  critical: { badge: 'bg-error text-white', rowBg: 'bg-[#FFF4F4]', label: 'Critical' },
+  stable: { badge: 'bg-success/10 text-success border border-success/30', rowBg: 'bg-surface-white', label: 'Stable' },
+  monitoring: { badge: 'bg-primary/10 text-primary border border-primary/20', rowBg: 'bg-surface-white', label: 'Monitoring' },
   'discharge-ready': { badge: 'bg-[#E3FCEF] text-[#006644] border border-success/40 font-bold', rowBg: 'bg-surface-white', label: 'Discharge Ready' },
 }
 
 const AVATAR_BG: Record<AdmissionStatus, string> = {
-  critical:          'bg-error-container text-on-error-container',
-  stable:            'bg-secondary-container text-on-secondary-container',
-  monitoring:        'bg-primary/10 text-primary',
+  critical: 'bg-error-container text-on-error-container',
+  stable: 'bg-secondary-container text-on-secondary-container',
+  monitoring: 'bg-primary/10 text-primary',
   'discharge-ready': 'bg-success/10 text-success',
 }
 
@@ -110,14 +110,14 @@ function StatCard({ icon, iconBg, iconColor, label, value, valueColor = 'text-on
 
 export function InpatientPage() {
   const navigate = useNavigate()
-  const [patients, setPatients]               = useState<AdmittedPatient[]>([])
-  const [loading, setLoading]                 = useState(true)
-  const [wardFilter, setWardFilter]           = useState('All Wards')
+  const [patients, setPatients] = useState<AdmittedPatient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [wardFilter, setWardFilter] = useState('All Wards')
   const [conditionFilter, setConditionFilter] = useState<'all' | AdmissionStatus>('all')
-  const [searchQuery, setSearchQuery]         = useState('')
-  const [pageSize, setPageSize]               = useState(10)
-  const [currentPage, setCurrentPage]         = useState(1)
-  const [openMenuId, setOpenMenuId]           = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [pageSize, setPageSize] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize)
@@ -218,7 +218,7 @@ export function InpatientPage() {
       )
     }
     if (wardFilter !== 'All Wards') data = data.filter((p) => p.ward === wardFilter)
-    if (conditionFilter !== 'all')  data = data.filter((p) => p.status === conditionFilter)
+    if (conditionFilter !== 'all') data = data.filter((p) => p.status === conditionFilter)
     // Critical always pinned to top
     data.sort((a, b) => {
       if (a.status === 'critical' && b.status !== 'critical') return -1
@@ -228,18 +228,18 @@ export function InpatientPage() {
     return data
   }, [patients, searchQuery, wardFilter, conditionFilter])
 
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const safePage    = Math.min(currentPage, totalPages)
-  const pageStart   = (safePage - 1) * pageSize
-  const paginated   = filtered.slice(pageStart, pageStart + pageSize)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const pageStart = (safePage - 1) * pageSize
+  const paginated = filtered.slice(pageStart, pageStart + pageSize)
   const showingFrom = filtered.length === 0 ? 0 : pageStart + 1
-  const showingTo   = Math.min(pageStart + pageSize, filtered.length)
+  const showingTo = Math.min(pageStart + pageSize, filtered.length)
 
-  const criticalCount      = patients.filter((p) => p.status === 'critical').length
-  const dischargeReady     = patients.filter((p) => p.status === 'discharge-ready').length
-  
-  const totalLOS           = patients.reduce((s, p) => s + (p.lengthOfStay || 0), 0)
-  const avgLOS             = patients.length === 0 ? '0.0' : (totalLOS / patients.length).toFixed(1)
+  const criticalCount = patients.filter((p) => p.status === 'critical').length
+  const dischargeReady = patients.filter((p) => p.status === 'discharge-ready').length
+
+  const totalLOS = patients.reduce((s, p) => s + (p.lengthOfStay || 0), 0)
+  const avgLOS = patients.length === 0 ? '0.0' : (totalLOS / patients.length).toFixed(1)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -329,132 +329,131 @@ export function InpatientPage() {
           </div>
         ) : (
           <div className="overflow-visible">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-border-subtle">
-                {['Patient Name', 'Patient #', 'Ward / Bed', 'Adm. Date', 'LOS', 'Diagnosis', 'Status', 'Actions'].map((h, i) => (
-                  <th
-                    key={h}
-                    className={`px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 7 ? 'text-right' : ''}`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-lg py-xl text-center">
-                    <div className="flex flex-col items-center gap-md">
-                      <span
-                        className="material-symbols-outlined text-[56px] text-outline/30 leading-none select-none"
-                        style={{ fontVariationSettings: "'wght' 200" }}
-                      >
-                        bed
-                      </span>
-                      <p className="font-body-md text-body-md text-outline m-0">
-                        No admitted patients match the selected filters.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((p) => {
-                  const sCfg   = STATUS_CONFIG[p.status]
-                  const avatar = AVATAR_BG[p.status]
-
-                  return (
-                    <tr
-                      key={p.id}
-                      className={`transition-colors hover:brightness-95 ${sCfg.rowBg}`}
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-surface-container-low border-b border-border-subtle">
+                  {['Patient Name', 'Patient #', 'Ward / Bed', 'Adm. Date', 'LOS', 'Diagnosis', 'Status', 'Actions'].map((h, i) => (
+                    <th
+                      key={h}
+                      className={`px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 7 ? 'text-right' : ''}`}
                     >
-                      {/* Patient Name */}
-                      <td className="px-lg py-md">
-                        <div className="flex items-center gap-sm">
-                          <div className={`w-8 h-8 rounded-full ${avatar} flex items-center justify-center font-bold text-xs shrink-0`}>
-                            {p.initials}
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-lg py-xl text-center">
+                      <div className="flex flex-col items-center gap-md">
+                        <span
+                          className="material-symbols-outlined text-[56px] text-outline/30 leading-none select-none"
+                          style={{ fontVariationSettings: "'wght' 200" }}
+                        >
+                          bed
+                        </span>
+                        <p className="font-body-md text-body-md text-outline m-0">
+                          No admitted patients match the selected filters.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginated.map((p) => {
+                    const sCfg = STATUS_CONFIG[p.status]
+                    const avatar = AVATAR_BG[p.status]
+
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`transition-colors hover:brightness-95 ${sCfg.rowBg}`}
+                      >
+                        {/* Patient Name */}
+                        <td className="px-lg py-md">
+                          <div className="flex items-center gap-sm">
+                            <div className={`w-8 h-8 rounded-full ${avatar} flex items-center justify-center font-bold text-xs shrink-0`}>
+                              {p.initials}
+                            </div>
+                            <span className="font-semibold text-on-surface">{p.name}</span>
                           </div>
-                          <span className="font-semibold text-on-surface">{p.name}</span>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Patient # */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
-                        {p.patientNumber}
-                      </td>
+                        {/* Patient # */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
+                          {p.patientNumber}
+                        </td>
 
-                      {/* Ward / Bed */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap">
-                        {p.ward} / {p.bed}
-                      </td>
+                        {/* Ward / Bed */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap">
+                          {p.ward} / {p.bed}
+                        </td>
 
-                      {/* Admission Date */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
-                        {p.admissionDate}
-                      </td>
+                        {/* Admission Date */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
+                          {p.admissionDate}
+                        </td>
 
-                      {/* LOS */}
-                      <td className="px-lg py-md">
-                        <span className="flex items-center gap-xs font-body-sm text-body-sm text-outline whitespace-nowrap">
-                          <span className="material-symbols-outlined text-[16px] leading-none">schedule</span>
-                          {p.lengthOfStay} {p.lengthOfStay === 1 ? 'day' : 'days'}
-                        </span>
-                      </td>
+                        {/* LOS */}
+                        <td className="px-lg py-md">
+                          <span className="flex items-center gap-xs font-body-sm text-body-sm text-outline whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[16px] leading-none">schedule</span>
+                            {p.lengthOfStay} {p.lengthOfStay === 1 ? 'day' : 'days'}
+                          </span>
+                        </td>
 
-                      {/* Diagnosis */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-outline max-w-[160px] truncate" title={p.diagnosis}>
-                        {p.diagnosis}
-                      </td>
+                        {/* Diagnosis */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-outline max-w-[160px] truncate" title={p.diagnosis}>
+                          {p.diagnosis}
+                        </td>
 
-                      {/* Status badge */}
-                      <td className="px-lg py-md">
-                        <span className={`px-2 py-1 rounded font-label-sm text-[10px] uppercase ${sCfg.badge}`}>
-                          {sCfg.label}
-                        </span>
-                      </td>
+                        {/* Status badge */}
+                        <td className="px-lg py-md">
+                          <span className={`px-2 py-1 rounded font-label-sm text-[10px] uppercase ${sCfg.badge}`}>
+                            {sCfg.label}
+                          </span>
+                        </td>
 
-                      {/* Actions */}
-                      <td className="px-lg py-md text-right">
-                        <div className="relative inline-block">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              console.log('Action button clicked:', p.id, p)
-                              setOpenMenuId(openMenuId === p.id ? null : p.id)
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${
-                              openMenuId === p.id
-                                ? 'bg-surface-container text-on-surface'
-                                : 'text-on-surface-variant hover:bg-surface-container bg-transparent'
-                            }`}
-                            title="More actions"
-                            aria-haspopup="true"
-                            aria-expanded={openMenuId === p.id}
-                          >
-                            <span className="material-symbols-outlined leading-none">more_vert</span>
-                          </button>
+                        {/* Actions */}
+                        <td className="px-lg py-md text-right">
+                          <div className="relative inline-block">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                console.log('Action button clicked:', p.id, p)
+                                setOpenMenuId(openMenuId === p.id ? null : p.id)
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${openMenuId === p.id
+                                  ? 'bg-surface-container text-on-surface'
+                                  : 'text-on-surface-variant hover:bg-surface-container bg-transparent'
+                                }`}
+                              title="More actions"
+                              aria-haspopup="true"
+                              aria-expanded={openMenuId === p.id}
+                            >
+                              <span className="material-symbols-outlined leading-none">more_vert</span>
+                            </button>
 
-                          {openMenuId === p.id && (
-                            <RowActionMenu
-                              patient={p}
-                              onClose={() => setOpenMenuId(null)}
-                              onViewOrders={() => navigate(`/consultation/inpatient/${p.id}/orders`)}
-                              onViewHistory={() => navigate(`/consultation/history/${p.patientId}`)}
-                              onDischarge={() => navigate(`/consultation/inpatient/${p.id}/discharge`)}
-                            />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                            {openMenuId === p.id && (
+                              <RowActionMenu
+                                patient={p}
+                                onClose={() => setOpenMenuId(null)}
+                                onViewOrders={() => navigate(`/consultation/inpatient/${p.id}/orders`)}
+                                onViewHistory={() => navigate(`/consultation/history/${p.patientId}`)}
+                                onDischarge={() => navigate(`/consultation/inpatient/${p.id}/discharge`)}
+                              />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Pagination footer */}
@@ -496,11 +495,10 @@ export function InpatientPage() {
                 key={page}
                 type="button"
                 onClick={() => setCurrentPage(page)}
-                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${
-                  safePage === page
+                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${safePage === page
                     ? 'border-primary bg-primary text-white'
                     : 'border-border-subtle hover:bg-surface-white text-on-surface'
-                }`}
+                  }`}
               >
                 {page}
               </button>
