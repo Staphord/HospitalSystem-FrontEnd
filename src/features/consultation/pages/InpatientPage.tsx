@@ -115,8 +115,14 @@ export function InpatientPage() {
   const [wardFilter, setWardFilter]           = useState('All Wards')
   const [conditionFilter, setConditionFilter] = useState<'all' | AdmissionStatus>('all')
   const [searchQuery, setSearchQuery]         = useState('')
+  const [pageSize, setPageSize]               = useState(10)
   const [currentPage, setCurrentPage]         = useState(1)
   const [openMenuId, setOpenMenuId]           = useState<string | null>(null)
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
 
   const loadPatients = async () => {
     try {
@@ -222,10 +228,12 @@ export function InpatientPage() {
     return data
   }, [patients, searchQuery, wardFilter, conditionFilter])
 
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated   = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const showingFrom = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
-  const showingTo   = Math.min(currentPage * PAGE_SIZE, filtered.length)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage    = Math.min(currentPage, totalPages)
+  const pageStart   = (safePage - 1) * pageSize
+  const paginated   = filtered.slice(pageStart, pageStart + pageSize)
+  const showingFrom = filtered.length === 0 ? 0 : pageStart + 1
+  const showingTo   = Math.min(pageStart + pageSize, filtered.length)
 
   const criticalCount      = patients.filter((p) => p.status === 'critical').length
   const dischargeReady     = patients.filter((p) => p.status === 'discharge-ready').length
@@ -450,28 +458,60 @@ export function InpatientPage() {
         )}
 
         {/* Pagination footer */}
-        <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between gap-md">
-          <p className="font-body-sm text-body-sm text-outline m-0">
-            {filtered.length === 0
-              ? 'No active admissions match filters'
-              : `Showing ${showingFrom}–${showingTo} of ${filtered.length} active admission${filtered.length === 1 ? '' : 's'}`}
-          </p>
-          <div className="flex gap-xs">
+        <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+          <div className="flex items-center gap-md">
+            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+              {filtered.length === 0
+                ? 'No active admissions match filters'
+                : `Showing ${showingFrom} to ${showingTo} of ${filtered.length} active admissions`}
+            </p>
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-xs">
+                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-xs">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-sm py-1 border border-border-subtle rounded bg-surface-white font-label-md text-label-md hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
+              disabled={safePage === 1}
+              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
             >
-              Prev
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${
+                  safePage === page
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border-subtle hover:bg-surface-white text-on-surface'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-sm py-1 border border-border-subtle rounded bg-surface-white font-label-md text-label-md hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
+              disabled={safePage === totalPages}
+              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
             >
-              Next
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
         </div>

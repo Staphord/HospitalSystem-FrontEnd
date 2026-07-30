@@ -459,9 +459,15 @@ export function InvestigationResultsPage() {
   const [search, setSearch]             = useState('')
   const [deptFilter, setDeptFilter]     = useState<'all' | ResultDept>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | ResultStatus>('all')
+  const [pageSize, setPageSize]         = useState(10)
   const [currentPage, setCurrentPage]   = useState(1)
   const [openMenuId, setOpenMenuId]     = useState<string | null>(null)
   const [viewingResult, setViewingResult] = useState<InvestigationResult | null>(null)
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -516,8 +522,12 @@ export function InvestigationResultsPage() {
     return data
   }, [search, deptFilter, statusFilter, results])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated  = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage    = Math.min(currentPage, totalPages)
+  const pageStart   = (safePage - 1) * pageSize
+  const paginated   = filtered.slice(pageStart, pageStart + pageSize)
+  const showingFrom = filtered.length === 0 ? 0 : pageStart + 1
+  const showingTo   = Math.min(pageStart + pageSize, filtered.length)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -709,15 +719,35 @@ export function InvestigationResultsPage() {
         </div>
 
         {/* Pagination footer */}
-        <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between">
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} results
-          </p>
-          <div className="flex gap-xs">
+        <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+          <div className="flex items-center gap-md">
+            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+              {filtered.length === 0
+                ? 'No results match filters'
+                : `Showing ${showingFrom} to ${showingTo} of ${filtered.length} results`}
+            </p>
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-xs">
+                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-xs">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={safePage === 1}
               className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-surface-white text-secondary hover:bg-surface-container-highest transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_left</span>
@@ -728,7 +758,7 @@ export function InvestigationResultsPage() {
                 type="button"
                 onClick={() => setCurrentPage(p)}
                 className={`w-8 h-8 flex items-center justify-center rounded border font-label-md text-label-md transition-colors cursor-pointer ${
-                  p === currentPage
+                  p === safePage
                     ? 'bg-primary text-white border-primary'
                     : 'bg-surface-white text-secondary border-border-subtle hover:bg-surface-container-highest'
                 }`}
@@ -739,7 +769,7 @@ export function InvestigationResultsPage() {
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              disabled={safePage === totalPages}
               className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-surface-white text-secondary hover:bg-surface-container-highest transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_right</span>
