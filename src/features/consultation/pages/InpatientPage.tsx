@@ -8,16 +8,16 @@ const PAGE_SIZE = 5
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<AdmissionStatus, { badge: string; rowBg: string; label: string }> = {
-  critical:        { badge: 'bg-error text-white',                                              rowBg: 'bg-[#FFF4F4]',   label: 'Critical'        },
-  stable:          { badge: 'bg-success/10 text-success border border-success/30',              rowBg: 'bg-surface-white', label: 'Stable'        },
-  monitoring:      { badge: 'bg-primary/10 text-primary border border-primary/20',              rowBg: 'bg-surface-white', label: 'Monitoring'    },
+  critical: { badge: 'bg-error text-white', rowBg: 'bg-[#FFF4F4]', label: 'Critical' },
+  stable: { badge: 'bg-success/10 text-success border border-success/30', rowBg: 'bg-surface-white', label: 'Stable' },
+  monitoring: { badge: 'bg-primary/10 text-primary border border-primary/20', rowBg: 'bg-surface-white', label: 'Monitoring' },
   'discharge-ready': { badge: 'bg-[#E3FCEF] text-[#006644] border border-success/40 font-bold', rowBg: 'bg-surface-white', label: 'Discharge Ready' },
 }
 
 const AVATAR_BG: Record<AdmissionStatus, string> = {
-  critical:          'bg-error-container text-on-error-container',
-  stable:            'bg-secondary-container text-on-secondary-container',
-  monitoring:        'bg-primary/10 text-primary',
+  critical: 'bg-error-container text-on-error-container',
+  stable: 'bg-secondary-container text-on-secondary-container',
+  monitoring: 'bg-primary/10 text-primary',
   'discharge-ready': 'bg-success/10 text-success',
 }
 
@@ -110,17 +110,81 @@ function StatCard({ icon, iconBg, iconColor, label, value, valueColor = 'text-on
 
 export function InpatientPage() {
   const navigate = useNavigate()
-  const [patients, setPatients]               = useState<AdmittedPatient[]>([])
-  const [loading, setLoading]                 = useState(true)
-  const [wardFilter, setWardFilter]           = useState('All Wards')
+  const [patients, setPatients] = useState<AdmittedPatient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [wardFilter, setWardFilter] = useState('All Wards')
   const [conditionFilter, setConditionFilter] = useState<'all' | AdmissionStatus>('all')
-  const [currentPage, setCurrentPage]         = useState(1)
-  const [openMenuId, setOpenMenuId]           = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [pageSize, setPageSize] = useState(10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
 
   const loadPatients = async () => {
     try {
       const res = await wardService.getAdmittedPatients()
-      setPatients(res.data)
+      const mapped: AdmittedPatient[] = (res || []).map((item: any) => {
+        const admissionDateStr = item.admissionDate || item.admission_date || item.created_at
+        let los = item.lengthOfStay
+        if (los == null) los = item.lengthOfStayDays
+        if (los == null) los = item.length_of_stay_days
+        if (los == null && admissionDateStr) {
+          const adm = new Date(admissionDateStr)
+          if (!isNaN(adm.getTime())) {
+            const diffMs = Date.now() - adm.getTime()
+            los = Math.max(0, Math.round((diffMs / (1000 * 60 * 60 * 24)) * 10) / 10)
+          }
+        }
+        if (los == null) los = 0
+
+        let status: AdmissionStatus = 'stable'
+        if (item.status === 'critical') status = 'critical'
+        else if (item.status === 'monitoring') status = 'monitoring'
+        else if (item.status === 'discharge-ready' || item.status === 'discharged') status = 'discharge-ready'
+        else status = 'stable'
+
+        const pName = item.patientName || item.name || (item.patientId ? `Patient ${item.patientId.slice(0, 8)}` : 'Patient')
+
+        const pNum = item.patient_number || item.patientNumber || (item.patient_id || item.patientId ? `PT-${(item.patient_id || item.patientId).slice(0, 6).toUpperCase()}` : '—')
+
+        let admDateFormatted = '—'
+        if (admissionDateStr) {
+          const d = new Date(admissionDateStr)
+          if (!isNaN(d.getTime())) {
+            admDateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          } else {
+            admDateFormatted = String(admissionDateStr)
+          }
+        }
+
+        return {
+          id: item.admissionId || item.id || item.patientId || String(Math.random()),
+          patientId: item.patientId || item.patient_id || '',
+          name: pName,
+          patientNumber: pNum,
+          initials: pName
+            .split(' ')
+            .filter(Boolean)
+            .map((n: string) => n[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2) || 'PT',
+          gender: item.gender || '—',
+          age: item.age || 0,
+          ward: item.wardName || item.ward || 'General Ward',
+          bed: item.bedNumber ? `Bed ${item.bedNumber}` : item.bed || '—',
+          admissionDate: admDateFormatted,
+          lengthOfStay: Number(los),
+          diagnosis: item.admittingDiagnosis || item.diagnosis || 'General Observation',
+          primaryDiagnosis: item.admittingDiagnosis || item.primaryDiagnosis || 'General Observation',
+          status,
+        }
+      })
+      setPatients(mapped)
     } catch (err) {
       console.error('Failed to load admitted patients:', err)
     } finally {
@@ -132,14 +196,29 @@ export function InpatientPage() {
     loadPatients()
   }, [])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, wardFilter, conditionFilter])
+
   const uniqueWards = useMemo(() => {
     return ['All Wards', ...Array.from(new Set(patients.map((p) => p.ward)))]
   }, [patients])
 
   const filtered = useMemo(() => {
     let data = [...patients]
+    const q = searchQuery.trim().toLowerCase()
+    if (q) {
+      data = data.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.patientNumber.toLowerCase().includes(q) ||
+          p.ward.toLowerCase().includes(q) ||
+          p.bed.toLowerCase().includes(q) ||
+          p.diagnosis.toLowerCase().includes(q)
+      )
+    }
     if (wardFilter !== 'All Wards') data = data.filter((p) => p.ward === wardFilter)
-    if (conditionFilter !== 'all')  data = data.filter((p) => p.status === conditionFilter)
+    if (conditionFilter !== 'all') data = data.filter((p) => p.status === conditionFilter)
     // Critical always pinned to top
     data.sort((a, b) => {
       if (a.status === 'critical' && b.status !== 'critical') return -1
@@ -147,16 +226,20 @@ export function InpatientPage() {
       return 0
     })
     return data
-  }, [patients, wardFilter, conditionFilter])
+  }, [patients, searchQuery, wardFilter, conditionFilter])
 
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated   = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const showingFrom = filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
-  const showingTo   = Math.min(currentPage * PAGE_SIZE, filtered.length)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const pageStart = (safePage - 1) * pageSize
+  const paginated = filtered.slice(pageStart, pageStart + pageSize)
+  const showingFrom = filtered.length === 0 ? 0 : pageStart + 1
+  const showingTo = Math.min(pageStart + pageSize, filtered.length)
 
-  const criticalCount      = patients.filter((p) => p.status === 'critical').length
-  const dischargeReady     = patients.filter((p) => p.status === 'discharge-ready').length
-  const avgLOS             = patients.length === 0 ? '0' : (patients.reduce((s, p) => s + p.lengthOfStay, 0) / patients.length).toFixed(1)
+  const criticalCount = patients.filter((p) => p.status === 'critical').length
+  const dischargeReady = patients.filter((p) => p.status === 'discharge-ready').length
+
+  const totalLOS = patients.reduce((s, p) => s + (p.lengthOfStay || 0), 0)
+  const avgLOS = patients.length === 0 ? '0.0' : (totalLOS / patients.length).toFixed(1)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -204,7 +287,20 @@ export function InpatientPage() {
         {/* Card header with filters */}
         <div className="px-lg py-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
           <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Patients Under My Care</h3>
-          <div className="flex flex-wrap gap-sm">
+          <div className="flex flex-wrap items-center gap-sm">
+            {/* Live Search Bar */}
+            <div className="relative flex items-center min-w-[240px]">
+              <span className="material-symbols-outlined absolute left-3 text-outline text-[18px] pointer-events-none select-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search name, patient #, ward..."
+                className="w-full pl-9 pr-3 py-1.5 font-body-sm text-body-sm bg-surface-container-low border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-outline"
+              />
+            </div>
             <select
               value={wardFilter}
               onChange={(e) => { setWardFilter(e.target.value); setCurrentPage(1) }}
@@ -233,157 +329,187 @@ export function InpatientPage() {
           </div>
         ) : (
           <div className="overflow-visible">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-border-subtle">
-                {['Patient Name', 'Patient #', 'Ward / Bed', 'Adm. Date', 'LOS', 'Diagnosis', 'Status', 'Actions'].map((h, i) => (
-                  <th
-                    key={h}
-                    className={`px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 7 ? 'text-right' : ''}`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-lg py-xl text-center">
-                    <div className="flex flex-col items-center gap-md">
-                      <span
-                        className="material-symbols-outlined text-[56px] text-outline/30 leading-none select-none"
-                        style={{ fontVariationSettings: "'wght' 200" }}
-                      >
-                        bed
-                      </span>
-                      <p className="font-body-md text-body-md text-outline m-0">
-                        No admitted patients match the selected filters.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((p) => {
-                  const sCfg   = STATUS_CONFIG[p.status]
-                  const avatar = AVATAR_BG[p.status]
-
-                  return (
-                    <tr
-                      key={p.id}
-                      className={`transition-colors hover:brightness-95 ${sCfg.rowBg}`}
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-surface-container-low border-b border-border-subtle">
+                  {['Patient Name', 'Patient #', 'Ward / Bed', 'Adm. Date', 'LOS', 'Diagnosis', 'Status', 'Actions'].map((h, i) => (
+                    <th
+                      key={h}
+                      className={`px-lg py-md font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 7 ? 'text-right' : ''}`}
                     >
-                      {/* Patient Name */}
-                      <td className="px-lg py-md">
-                        <div className="flex items-center gap-sm">
-                          <div className={`w-8 h-8 rounded-full ${avatar} flex items-center justify-center font-bold text-xs shrink-0`}>
-                            {p.initials}
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-lg py-xl text-center">
+                      <div className="flex flex-col items-center gap-md">
+                        <span
+                          className="material-symbols-outlined text-[56px] text-outline/30 leading-none select-none"
+                          style={{ fontVariationSettings: "'wght' 200" }}
+                        >
+                          bed
+                        </span>
+                        <p className="font-body-md text-body-md text-outline m-0">
+                          No admitted patients match the selected filters.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  paginated.map((p) => {
+                    const sCfg = STATUS_CONFIG[p.status]
+                    const avatar = AVATAR_BG[p.status]
+
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`transition-colors hover:brightness-95 ${sCfg.rowBg}`}
+                      >
+                        {/* Patient Name */}
+                        <td className="px-lg py-md">
+                          <div className="flex items-center gap-sm">
+                            <div className={`w-8 h-8 rounded-full ${avatar} flex items-center justify-center font-bold text-xs shrink-0`}>
+                              {p.initials}
+                            </div>
+                            <span className="font-semibold text-on-surface">{p.name}</span>
                           </div>
-                          <span className="font-semibold text-on-surface">{p.name}</span>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Patient # */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
-                        {p.patientNumber}
-                      </td>
+                        {/* Patient # */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
+                          {p.patientNumber}
+                        </td>
 
-                      {/* Ward / Bed */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap">
-                        {p.ward} / {p.bed}
-                      </td>
+                        {/* Ward / Bed */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-on-surface whitespace-nowrap">
+                          {p.ward} / {p.bed}
+                        </td>
 
-                      {/* Admission Date */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
-                        {p.admissionDate}
-                      </td>
+                        {/* Admission Date */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
+                          {p.admissionDate}
+                        </td>
 
-                      {/* LOS */}
-                      <td className="px-lg py-md">
-                        <span className="flex items-center gap-xs font-body-sm text-body-sm text-outline whitespace-nowrap">
-                          <span className="material-symbols-outlined text-[16px] leading-none">schedule</span>
-                          {p.lengthOfStay} {p.lengthOfStay === 1 ? 'day' : 'days'}
-                        </span>
-                      </td>
+                        {/* LOS */}
+                        <td className="px-lg py-md">
+                          <span className="flex items-center gap-xs font-body-sm text-body-sm text-outline whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[16px] leading-none">schedule</span>
+                            {p.lengthOfStay} {p.lengthOfStay === 1 ? 'day' : 'days'}
+                          </span>
+                        </td>
 
-                      {/* Diagnosis */}
-                      <td className="px-lg py-md font-body-sm text-body-sm text-outline max-w-[160px] truncate" title={p.diagnosis}>
-                        {p.diagnosis}
-                      </td>
+                        {/* Diagnosis */}
+                        <td className="px-lg py-md font-body-sm text-body-sm text-outline max-w-[160px] truncate" title={p.diagnosis}>
+                          {p.diagnosis}
+                        </td>
 
-                      {/* Status badge */}
-                      <td className="px-lg py-md">
-                        <span className={`px-2 py-1 rounded font-label-sm text-[10px] uppercase ${sCfg.badge}`}>
-                          {sCfg.label}
-                        </span>
-                      </td>
+                        {/* Status badge */}
+                        <td className="px-lg py-md">
+                          <span className={`px-2 py-1 rounded font-label-sm text-[10px] uppercase ${sCfg.badge}`}>
+                            {sCfg.label}
+                          </span>
+                        </td>
 
-                      {/* Actions */}
-                      <td className="px-lg py-md text-right">
-                        <div className="relative inline-block">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              console.log('Action button clicked:', p.id, p)
-                              setOpenMenuId(openMenuId === p.id ? null : p.id)
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${
-                              openMenuId === p.id
-                                ? 'bg-surface-container text-on-surface'
-                                : 'text-on-surface-variant hover:bg-surface-container bg-transparent'
-                            }`}
-                            title="More actions"
-                            aria-haspopup="true"
-                            aria-expanded={openMenuId === p.id}
-                          >
-                            <span className="material-symbols-outlined leading-none">more_vert</span>
-                          </button>
+                        {/* Actions */}
+                        <td className="px-lg py-md text-right">
+                          <div className="relative inline-block">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                console.log('Action button clicked:', p.id, p)
+                                setOpenMenuId(openMenuId === p.id ? null : p.id)
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${openMenuId === p.id
+                                  ? 'bg-surface-container text-on-surface'
+                                  : 'text-on-surface-variant hover:bg-surface-container bg-transparent'
+                                }`}
+                              title="More actions"
+                              aria-haspopup="true"
+                              aria-expanded={openMenuId === p.id}
+                            >
+                              <span className="material-symbols-outlined leading-none">more_vert</span>
+                            </button>
 
-                          {openMenuId === p.id && (
-                            <RowActionMenu
-                              patient={p}
-                              onClose={() => setOpenMenuId(null)}
-                              onViewOrders={() => navigate(`/consultation/inpatient/${p.id}/orders`)}
-                              onViewHistory={() => navigate(`/consultation/history/${p.patientId}`)}
-                              onDischarge={() => navigate(`/consultation/inpatient/${p.id}/discharge`)}
-                            />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                            {openMenuId === p.id && (
+                              <RowActionMenu
+                                patient={p}
+                                onClose={() => setOpenMenuId(null)}
+                                onViewOrders={() => navigate(`/consultation/inpatient/${p.id}/orders`)}
+                                onViewHistory={() => navigate(`/consultation/history/${p.patientId}`)}
+                                onDischarge={() => navigate(`/consultation/inpatient/${p.id}/discharge`)}
+                              />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Pagination footer */}
-        <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between gap-md">
-          <p className="font-body-sm text-body-sm text-outline m-0">
-            {filtered.length === 0
-              ? 'No active admissions match filters'
-              : `Showing ${showingFrom}–${showingTo} of ${filtered.length} active admission${filtered.length === 1 ? '' : 's'}`}
-          </p>
-          <div className="flex gap-xs">
+        <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+          <div className="flex items-center gap-md">
+            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+              {filtered.length === 0
+                ? 'No active admissions match filters'
+                : `Showing ${showingFrom} to ${showingTo} of ${filtered.length} active admissions`}
+            </p>
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-xs">
+                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-xs">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-sm py-1 border border-border-subtle rounded bg-surface-white font-label-md text-label-md hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
+              disabled={safePage === 1}
+              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
             >
-              Prev
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                className={`px-sm h-8 border rounded font-body-sm cursor-pointer ${safePage === page
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-border-subtle hover:bg-surface-white text-on-surface'
+                  }`}
+              >
+                {page}
+              </button>
+            ))}
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-sm py-1 border border-border-subtle rounded bg-surface-white font-label-md text-label-md hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
+              disabled={safePage === totalPages}
+              className="w-8 h-8 flex items-center justify-center border border-border-subtle rounded hover:bg-surface-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent cursor-pointer"
             >
-              Next
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { triageService } from '@/api/services/triage'
 import type { TriageVisit } from '@/features/triage/types/triageAssessment'
 import { buildAssessNavigateState } from '@/features/triage/utils/triageAssessNav'
 import { toast } from 'sonner'
+import { formatPatientAge } from '@/lib/localization'
 
 interface RecentlyAssessedItem {
   name: string
@@ -28,6 +29,7 @@ function StatCard({
   icon,
   iconClassName = 'text-outline',
   iconFilled = false,
+  onClick,
 }: {
   label: string
   value: string
@@ -35,16 +37,40 @@ function StatCard({
   icon: string
   iconClassName?: string
   iconFilled?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className="bg-surface-white border border-border-subtle p-lg rounded-xl flex flex-col justify-between shadow-sm">
-      <span className="font-label-md text-outline uppercase tracking-wider text-[11px] font-bold">
-        {label}
-      </span>
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      aria-label={`${label} KPI - Click to open Triage Queue`}
+      className={`bg-surface-white border border-border-subtle p-lg rounded-xl flex flex-col justify-between shadow-sm transition-all group ${
+        onClick
+          ? 'cursor-pointer hover:border-primary hover:shadow-md active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-primary/40'
+          : ''
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-label-md text-outline uppercase tracking-wider text-[11px] font-bold group-hover:text-primary transition-colors">
+          {label}
+        </span>
+        {onClick && (
+          <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">
+            arrow_forward
+          </span>
+        )}
+      </div>
       <div className="flex items-end justify-between mt-sm">
         <span className={`font-headline-lg text-[24px] font-semibold ${valueClassName}`}>{value}</span>
         <span
-          className={`material-symbols-outlined ${iconClassName}`}
+          className={`material-symbols-outlined ${iconClassName} group-hover:text-primary transition-colors`}
           style={iconFilled ? { fontVariationSettings: "'FILL' 1" } : undefined}
         >
           {icon}
@@ -54,11 +80,23 @@ function StatCard({
   )
 }
 
+function isToday(dateInput?: string | Date | null): boolean {
+  if (!dateInput) return false
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
 export function TriageDashboardContent() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState<TriageVisit[]>([])
   const [loading, setLoading] = useState(true)
-  const [avgAssessment, setAvgAssessment] = useState('--')
+  const [avgAssessment, setAvgAssessment] = useState('0 min')
   const [now, setNow] = useState(() => Date.now())
 
   // Keep now updated every 60 seconds for live ticking wait times
@@ -72,20 +110,24 @@ export function TriageDashboardContent() {
     try {
       const data = await triageService.getQueue('waiting,in_progress,completed,skipped')
       
-      // Compute average assessment time from raw items
-      const completedItems = data.queue.filter(
-        (item) => item.status === 'completed' && item.called_at && item.completed_at
+      // Compute average assessment time from today's completed raw items
+      const completedTodayItems = data.queue.filter(
+        (item) =>
+          item.status === 'completed' &&
+          item.called_at &&
+          item.completed_at &&
+          isToday(item.completed_at || item.created_at)
       )
-      if (completedItems.length > 0) {
-        const totalDuration = completedItems.reduce((acc, item) => {
+      if (completedTodayItems.length > 0) {
+        const totalDuration = completedTodayItems.reduce((acc, item) => {
           const start = new Date(item.called_at!).getTime()
           const end = new Date(item.completed_at!).getTime()
           const diff = Math.max(0, Math.floor((end - start) / 60000))
           return acc + diff
         }, 0)
-        setAvgAssessment(`${Math.round(totalDuration / completedItems.length)} min`)
+        setAvgAssessment(`${Math.round(totalDuration / completedTodayItems.length)} min`)
       } else {
-        setAvgAssessment('--')
+        setAvgAssessment('0 min')
       }
 
       // Map queue items to TriageVisit shape
@@ -97,16 +139,8 @@ export function TriageDashboardContent() {
           .join('')
           .toUpperCase()
           
-        let age = 0
-        if (item.patient.date_of_birth) {
-          const birthDate = new Date(item.patient.date_of_birth)
-          const today = new Date()
-          age = today.getFullYear() - birthDate.getFullYear()
-          const m = today.getMonth() - birthDate.getMonth()
-          if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--
-          }
-        }
+        const ageFormatted = formatPatientAge(item.patient.date_of_birth)
+        const age = ageFormatted
         
         let arrival = ''
         const arrivalDate = new Date(item.created_at)
@@ -181,7 +215,9 @@ export function TriageDashboardContent() {
   }, [patients])
 
   const assessedCount = useMemo(() => {
-    return patients.filter((p) => p.status === 'completed').length
+    return patients.filter(
+      (p) => p.status === 'completed' && isToday(p.completed_at || p.created_at)
+    ).length
   }, [patients])
 
   const criticalCount = useMemo(() => {
@@ -194,17 +230,17 @@ export function TriageDashboardContent() {
     return patients.filter((p) => p.status === 'waiting' || p.status === 'in_progress')
   }, [patients])
 
-  // Completed items feed
+  // Completed items feed for TODAY
   const recentlyAssessed = useMemo(() => {
-    const completed = patients
-      .filter((p) => p.status === 'completed')
+    const completedToday = patients
+      .filter((p) => p.status === 'completed' && isToday(p.completed_at || p.created_at))
       .sort((a, b) => {
         const tA = a.completed_at ? new Date(a.completed_at).getTime() : 0
         const tB = b.completed_at ? new Date(b.completed_at).getTime() : 0
         return tB - tA
       })
 
-    return completed.slice(0, 4).map((p): RecentlyAssessedItem => {
+    return completedToday.slice(0, 4).map((p): RecentlyAssessedItem => {
       let assessedAgo = ''
       if (p.completed_at) {
         const diffMs = now - new Date(p.completed_at).getTime()
@@ -257,15 +293,17 @@ export function TriageDashboardContent() {
     })
   }, [patients, now])
 
-  // Priority distribution chart calculations
+  // Priority distribution chart calculations for TODAY
   const triageDistribution = useMemo((): DistributionItem[] => {
-    const completed = patients.filter((p) => p.status === 'completed')
-    const total = completed.length
+    const completedToday = patients.filter(
+      (p) => p.status === 'completed' && isToday(p.completed_at || p.created_at)
+    )
+    const total = completedToday.length
 
-    const emergency = completed.filter((p) => p.priority === 'emergency').length
-    const urgent = completed.filter((p) => p.priority === 'urgent').length
-    const semiUrgent = completed.filter((p) => p.priority === 'semi_urgent').length
-    const nonUrgent = completed.filter((p) => p.priority === 'non_urgent').length
+    const emergency = completedToday.filter((p) => p.priority === 'emergency').length
+    const urgent = completedToday.filter((p) => p.priority === 'urgent').length
+    const semiUrgent = completedToday.filter((p) => p.priority === 'semi_urgent').length
+    const nonUrgent = completedToday.filter((p) => p.priority === 'non_urgent').length
 
     return [
       {
@@ -310,12 +348,14 @@ export function TriageDashboardContent() {
               label="Awaiting Triage" 
               value={loading ? '...' : String(awaitingCount)} 
               icon="hourglass_empty" 
+              onClick={() => navigate('/triage/queue')}
             />
             <StatCard
               label="Assessed Today"
               value={loading ? '...' : String(assessedCount)}
               icon="trending_up"
               iconClassName="text-success"
+              onClick={() => navigate('/triage/queue')}
             />
             <StatCard
               label="Critical"
@@ -324,11 +364,13 @@ export function TriageDashboardContent() {
               icon="emergency_home"
               iconClassName="text-error"
               iconFilled
+              onClick={() => navigate('/triage/queue')}
             />
             <StatCard 
               label="Avg Assessment" 
               value={loading ? '...' : avgAssessment} 
               icon="timer" 
+              onClick={() => navigate('/triage/queue')}
             />
           </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, type InputHTMLAttributes } from 'react'
+import { useState, useEffect, useCallback, type InputHTMLAttributes } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
@@ -207,8 +207,11 @@ function PatientFoundCard({
     setLoadingQueue(true)
     try {
       // Load policies
-      const data = await receptionService.getInsurancePolicies(patient.id)
+      const data = await receptionService
+        .getInsurancePolicies(patient.id)
+        .catch(() => (patient.insurance_policies || []) as BackendInsurancePolicy[])
       setPolicies(data)
+
       // Auto-select the first active policy if any
       const active = data.filter((p) => p.is_active)
       if (active.length > 0) {
@@ -219,8 +222,8 @@ function PatientFoundCard({
       }
 
       // Check active queue status
-      const activeStatus = await receptionService.getActiveVisit(patient.id)
-      if (activeStatus.active) {
+      const activeStatus = await receptionService.getActiveVisit(patient.id).catch(() => ({ active: false }))
+      if (activeStatus && activeStatus.active) {
         const qStatus = activeStatus.queue_status?.toLowerCase()
         const qType = activeStatus.queue_type?.toLowerCase()
 
@@ -235,7 +238,9 @@ function PatientFoundCard({
         setQueueNumber(null)
       }
     } catch {
-      toast.error('Failed to load patient insurance or queue details.')
+      // Ignore unhandled exceptions safely
+      setPolicies(patient.insurance_policies || [])
+      setQueueStatus(null)
     } finally {
       setLoadingPolicies(false)
       setLoadingQueue(false)
@@ -833,8 +838,21 @@ function SearchResultsTable({
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {results.map((patient) => (
-              <tr key={patient.id} className="hover:bg-hover-tint transition-colors">
-                <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface">
+              <tr
+                key={patient.id}
+                onClick={() => onSelect(patient)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(patient)
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`Select patient ${patient.full_name}`}
+                className="hover:bg-hover-tint transition-colors cursor-pointer group focus:outline-none focus:bg-hover-tint"
+              >
+                <td className="py-md px-md font-body-sm text-body-sm font-semibold text-on-surface group-hover:text-primary">
                   {patient.full_name}
                 </td>
                 <td className={TD_MUTED}>{patient.patient_number}</td>
@@ -844,7 +862,10 @@ function SearchResultsTable({
                 <td className="py-md px-md text-right">
                   <button
                     type="button"
-                    onClick={() => onSelect(patient)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelect(patient)
+                    }}
                     className="h-8 px-sm rounded font-body-sm text-body-sm font-medium text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer"
                   >
                     Select
@@ -883,35 +904,32 @@ function EmptySearchHint() {
 export function PatientSearchPage() {
   const navigate = useNavigate()
 
-  const [nationalId, setNationalId] = useState('')
-  const [phone, setPhone] = useState('')
-  const [name, setName] = useState('')
-  const [activeField, setActiveField] = useState<ActiveField>('id')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchedTerm, setSearchedTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<BackendPatient[] | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [searching, setSearching] = useState(false)
   const [checkingIn, setCheckingIn] = useState(false)
-  const [searchState, setSearchState] = useState<SearchState | null>(null)
   const [selectedPatient, setSelectedPatient] = useState<BackendPatient | null>(null)
   const [detailPatient, setDetailPatient] = useState<BackendPatient | null>(null)
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSelectedPatient(null)
-
-    const term = nationalId.trim() || phone.trim() || name.trim()
-    if (!term) {
-      toast.error('Enter a National ID, phone number, or patient name to search.')
+  const executeSearch = useCallback(async (query: string) => {
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setSearchResults(null)
+      setHasSearched(false)
+      setSelectedPatient(null)
+      setSearchedTerm('')
       return
     }
 
-    const field: ActiveField = nationalId.trim() ? 'id' : phone.trim() ? 'phone' : 'name'
-    setActiveField(field)
-
     setSearching(true)
+    setSelectedPatient(null)
     try {
-      const response = await receptionService.searchPatients(term)
+      const response = await receptionService.searchPatients(trimmed)
       const results = response.patients
-      setSearchState({ results, field, term })
+      setSearchResults(results)
+      setSearchedTerm(trimmed)
       setHasSearched(true)
       if (results.length === 1) {
         setSelectedPatient(results[0])
@@ -921,30 +939,35 @@ export function PatientSearchPage() {
     } finally {
       setSearching(false)
     }
+  }, [])
+
+  useEffect(() => {
+    const trimmed = searchTerm.trim()
+    if (!trimmed) {
+      setSearchResults(null)
+      setHasSearched(false)
+      setSelectedPatient(null)
+      setSearchedTerm('')
+      return
+    }
+
+    const timer = setTimeout(() => {
+      executeSearch(searchTerm)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm, executeSearch])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchTerm.trim()) {
+      toast.error('Enter a National ID / NIDA, phone number, patient #, or name to search.')
+      return
+    }
+    executeSearch(searchTerm)
   }
 
   const displayPatient = selectedPatient
-
-  const emptyMessage =
-    searchState?.field === 'id' ? (
-      <>
-        We couldn&apos;t find any patient matching the ID{' '}
-        <span className="font-bold text-on-surface">&quot;{searchState.term}&quot;</span> in the system.
-        Please verify the number or register them as a new patient.
-      </>
-    ) : searchState?.field === 'phone' ? (
-      <>
-        We couldn&apos;t find any patient matching the phone number{' '}
-        <span className="font-bold text-on-surface">&quot;{searchState.term}&quot;</span> in the system.
-        Please verify the number or register them as a new patient.
-      </>
-    ) : (
-      <>
-        We couldn&apos;t find any patient matching the name{' '}
-        <span className="font-bold text-on-surface">&quot;{searchState?.term}&quot;</span> in the system.
-        Please verify the information or register them as a new patient.
-      </>
-    )
 
   const handleCheckIn = async (
     patient: BackendPatient,
@@ -997,77 +1020,106 @@ export function PatientSearchPage() {
 
   return (
     <div className="max-w-container-max mx-auto px-gutter">
-      <div className="bg-surface-white border border-border-subtle rounded shadow-sm p-lg mb-xl">
-        <form onSubmit={handleSearch} className="grid grid-cols-12 gap-md items-end">
-          <div className="col-span-12 md:col-span-4">
-            <label className={FIELD_LABEL}>Search by National ID</label>
-            <SearchInput
-              icon="id_card"
-              placeholder="Enter National ID..."
-              type="text"
-              value={nationalId}
-              onFocus={() => setActiveField('id')}
-              onChange={(e) => {
-                setNationalId(e.target.value)
-                if (e.target.value) {
-                  setPhone('')
-                  setName('')
-                }
-              }}
-            />
-          </div>
-          <div className="col-span-12 md:col-span-4">
-            <label className={FIELD_LABEL}>Search by Phone Number</label>
-            <SearchInput
-              icon="call"
-              placeholder="e.g. 0712 345 678"
-              type="text"
-              value={phone}
-              onFocus={() => setActiveField('phone')}
-              onChange={(e) => {
-                setPhone(e.target.value)
-                if (e.target.value) {
-                  setNationalId('')
-                  setName('')
-                }
-              }}
-            />
-          </div>
-          <div className="col-span-12 md:col-span-3">
-            <label className={FIELD_LABEL}>Patient Name</label>
-            <SearchInput
-              icon="person"
-              placeholder="Enter Full Name"
-              type="text"
-              value={name}
-              onFocus={() => setActiveField('name')}
-              onChange={(e) => {
-                setName(e.target.value)
-                if (e.target.value) {
-                  setNationalId('')
-                  setPhone('')
-                }
-              }}
-            />
-          </div>
-          <div className="col-span-12 md:col-span-1">
-            <button
-              type="submit"
-              disabled={searching}
-              className="w-full h-10 bg-primary-container text-on-primary rounded font-medium hover:bg-primary transition-colors flex items-center justify-center border-0 cursor-pointer active:scale-95 disabled:opacity-60"
-            >
-              {searching
-                ? <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
-                : <span className="material-symbols-outlined text-[20px]">search</span>
+      {hasSearched && (
+        <nav aria-label="Breadcrumb" className="flex items-center gap-xs text-body-sm font-body-sm text-secondary mb-md">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedPatient(null)
+              if (!searchResults || searchResults.length <= 1) {
+                setHasSearched(false)
+                setSearchResults(null)
+                setSearchTerm('')
+                setSearchedTerm('')
               }
-            </button>
+            }}
+            className="hover:text-primary hover:underline font-medium text-secondary bg-transparent border-0 cursor-pointer p-0 transition-colors"
+          >
+            Patient Search
+          </button>
+
+          {searchResults && searchResults.length > 1 && (
+            <>
+              <span className="text-outline">/</span>
+              {displayPatient ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPatient(null)}
+                  className="hover:text-primary hover:underline font-medium text-secondary bg-transparent border-0 cursor-pointer p-0 transition-colors"
+                >
+                  Search Results ({searchResults.length})
+                </button>
+              ) : (
+                <span className="text-on-surface font-semibold">Search Results ({searchResults.length})</span>
+              )}
+            </>
+          )}
+
+          {displayPatient && (
+            <>
+              <span className="text-outline">/</span>
+              <span className="text-on-surface font-semibold">{displayPatient.full_name}</span>
+            </>
+          )}
+        </nav>
+      )}
+
+      <div className="bg-surface-white border border-border-subtle rounded shadow-sm p-lg mb-xl">
+        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-md">
+          <div className="relative flex-1">
+            <span className={INPUT_ICON_WRAPPER} aria-hidden="true">
+              <span className={INPUT_ICON} style={ICON_VARIATION}>
+                search
+              </span>
+            </span>
+            <input
+              type="text"
+              className="w-full h-11 py-0 pl-11 pr-10 border border-border-subtle rounded-lg focus:border-primary focus:ring-1 focus:ring-primary text-body-md font-body-md bg-white outline-none placeholder:text-outline shadow-sm transition-all"
+              placeholder="Search by National ID / NIDA, Phone number, Patient #, or Name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Patient search input"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('')
+                  setSearchResults(null)
+                  setHasSearched(false)
+                  setSelectedPatient(null)
+                  setSearchedTerm('')
+                }}
+                className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-outline hover:text-on-surface bg-transparent border-0 cursor-pointer"
+                aria-label="Clear search input"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            )}
           </div>
+          <button
+            type="submit"
+            disabled={searching}
+            className="h-11 px-lg bg-primary-container text-on-primary rounded-lg font-medium hover:bg-primary transition-all duration-200 flex items-center justify-center gap-xs border-0 cursor-pointer active:scale-95 disabled:opacity-60 shadow-sm shrink-0 min-w-[120px]"
+          >
+            {searching ? (
+              <>
+                <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                <span>Searching...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[20px]">search</span>
+                <span>Search</span>
+              </>
+            )}
+          </button>
         </form>
       </div>
 
       {!hasSearched && <EmptySearchHint />}
 
-      {hasSearched && searchState && searchState.results.length === 0 && (
+      {hasSearched && searchResults && searchResults.length === 0 && (
         <div className="flex flex-col items-center justify-center py-xl bg-surface-white border border-border-subtle border-dashed min-h-[400px] rounded">
           <div className="w-64 h-64 mb-lg relative">
             <div className="absolute inset-0 bg-surface-container-low rounded-full opacity-20" />
@@ -1084,7 +1136,9 @@ export function PatientSearchPage() {
             No patient found
           </h3>
           <p className="font-body-md text-body-md text-outline text-center max-w-md px-md mb-xl leading-relaxed m-0">
-            {emptyMessage}
+            We couldn&apos;t find any patient matching{' '}
+            <span className="font-bold text-on-surface">&quot;{searchedTerm}&quot;</span> in the system.
+            Please verify the information or register them as a new patient.
           </p>
           <button
             type="button"
@@ -1099,8 +1153,8 @@ export function PatientSearchPage() {
         </div>
       )}
 
-      {hasSearched && searchState && searchState.results.length > 1 && !displayPatient && (
-        <SearchResultsTable results={searchState.results} onSelect={setSelectedPatient} />
+      {hasSearched && searchResults && searchResults.length > 1 && !displayPatient && (
+        <SearchResultsTable results={searchResults} onSelect={setSelectedPatient} />
       )}
 
       {hasSearched && displayPatient && (
@@ -1115,15 +1169,9 @@ export function PatientSearchPage() {
           onViewDetails={() => setDetailPatient(displayPatient)}
           onPatientUpdated={(updatedPatient) => {
             setSelectedPatient(updatedPatient)
-            setSearchState((prev) => {
-              if (!prev) return null
-              return {
-                ...prev,
-                results: prev.results.map((p) =>
-                  p.id === updatedPatient.id ? updatedPatient : p
-                ),
-              }
-            })
+            setSearchResults((prev) =>
+              prev ? prev.map((p) => (p.id === updatedPatient.id ? updatedPatient : p)) : null
+            )
           }}
         />
       )}

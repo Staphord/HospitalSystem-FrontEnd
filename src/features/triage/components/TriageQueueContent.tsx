@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { triageService } from '@/api/services/triage'
 import type { TriageQueuePriority, TriageVisit } from '@/features/triage/types/triageAssessment'
+import { formatPatientAge } from '@/lib/localization'
 import {
   buildAssessNavigateState,
   type TriageQueueLocationState,
@@ -52,6 +53,18 @@ function SummaryCard({
       </p>
       <p className={`font-label-sm text-label-sm mt-1 m-0 ${subtextClassName}`}>{subtext}</p>
     </div>
+  )
+}
+
+function isToday(dateInput?: string | Date | null): boolean {
+  if (!dateInput) return false
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
   )
 }
 
@@ -229,6 +242,7 @@ export function TriageQueueContent() {
   const [assessmentDetails, setAssessmentDetails] = useState<any | null>(null)
   const [loadingAssessment, setLoadingAssessment] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Live clock — ticks every 60s so active patients' wait times update in real-time
   const [now, setNow] = useState(() => Date.now())
@@ -265,10 +279,7 @@ export function TriageQueueContent() {
           .toUpperCase()
           .slice(0, 2)
         
-        const dob = new Date(item.patient.date_of_birth)
-        const age = isNaN(dob.getTime())
-          ? 0
-          : Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)
+        const age = formatPatientAge(item.patient.date_of_birth)
         
         const arrivalDate = new Date(item.created_at)
         let arrival = '--'
@@ -358,9 +369,19 @@ export function TriageQueueContent() {
           patient.priority === priorityFilter ||
           (priorityFilter === 'routine' && (patient.priority === 'semi_urgent' || patient.priority === 'non_urgent'))
         const paymentMatch = matchesPaymentFilter(patient.payment, paymentFilter)
-        return priorityMatch && paymentMatch
+        
+        let searchMatch = true
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim()
+          searchMatch =
+            patient.name.toLowerCase().includes(q) ||
+            patient.patientNumber.toLowerCase().includes(q) ||
+            patient.queueNumber.toLowerCase().includes(q)
+        }
+        
+        return priorityMatch && paymentMatch && searchMatch
       })
-  }, [patients, priorityFilter, paymentFilter, statusFilter])
+  }, [patients, priorityFilter, paymentFilter, statusFilter, searchQuery])
 
   useEffect(() => {
     const highlight = (location.state as TriageQueueLocationState | null)?.highlightVisitId
@@ -427,7 +448,9 @@ export function TriageQueueContent() {
   // Dashboard Stats Calculations
   const awaitingCount = patients.filter((p) => p.status === 'waiting').length
   const inProgressCount = patients.filter((p) => p.status === 'in_progress').length
-  const assessedTodayCount = patients.filter((p) => p.status === 'completed').length
+  const assessedTodayCount = patients.filter(
+    (p) => p.status === 'completed' && isToday(p.completed_at || p.created_at)
+  ).length
   const emergencyCount = patients.filter(
     (p) => (p.status === 'waiting' || p.status === 'in_progress') && p.priority === 'emergency'
   ).length
@@ -521,13 +544,41 @@ export function TriageQueueContent() {
                 All
               </button>
             </div>
+            <div className="relative flex items-center min-w-[220px] max-w-xs">
+              <span className="material-symbols-outlined absolute left-2.5 text-outline text-[18px] pointer-events-none select-none leading-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Search patient, ticket or ID..."
+                className="w-full pl-8 pr-8 py-1.5 h-9 text-body-sm font-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-2 flex items-center justify-center text-outline hover:text-on-surface border-0 bg-transparent cursor-pointer p-0 w-5 h-5 rounded-full"
+                  aria-label="Clear search"
+                >
+                  <span className="material-symbols-outlined text-[16px] leading-none">close</span>
+                </button>
+              )}
+            </div>
             <select
               value={priorityFilter}
               onChange={(e) => {
                 setPriorityFilter(e.target.value as PriorityFilter)
                 setCurrentPage(1)
               }}
-              className="text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm py-1.5 rounded outline-none focus:ring-1 focus:ring-primary"
+              className="h-9 text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm rounded-lg outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="all">Priority: All</option>
               <option value="emergency">Emergency</option>
@@ -540,7 +591,7 @@ export function TriageQueueContent() {
                 setPaymentFilter(e.target.value as PaymentFilter)
                 setCurrentPage(1)
               }}
-              className="text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm py-1.5 rounded outline-none focus:ring-1 focus:ring-primary"
+              className="h-9 text-body-sm font-body-sm bg-surface-white border border-border-subtle px-sm rounded-lg outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="all">Payment: All</option>
               <option value="cash">Cash</option>
@@ -602,7 +653,15 @@ export function TriageQueueContent() {
                   visiblePatients.map((patient) => (
                     <tr
                       key={patient.visitId}
-                      className={`hover:bg-hover-tint transition-colors ${
+                      tabIndex={0}
+                      onClick={() => handleAssess(patient.visitId)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleAssess(patient.visitId)
+                        }
+                      }}
+                      className={`cursor-pointer hover:bg-hover-tint transition-colors focus:outline-none focus:bg-hover-tint ${
                         patient.isEmergency ? 'bg-[#FFF4F4]' : ''
                       } ${
                         activeVisitId === patient.visitId
@@ -686,7 +745,7 @@ export function TriageQueueContent() {
                           {patient.status.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="px-md py-md text-right">
+                      <td className="px-md py-md text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end">
                           <TriageQueueActionsMenu
                             patient={patient}

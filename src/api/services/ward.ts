@@ -1,4 +1,5 @@
 import { apiClient } from '@/api/client'
+import { receptionService } from '@/api/services/reception'
 import type {
   Admission,
   AdmissionCreate,
@@ -305,4 +306,164 @@ export const wardService = {
       }
     })
   },
+
+  getRecentPatients: (limit = 6): Promise<PatientListItem[]> =>
+    apiClient
+      .get<PatientListItem[]>('/consultation/patients/recent', { params: { limit } })
+      .then((r) => r.data)
+      .catch(async () => {
+        const res = await receptionService.searchPatients('', 1, limit).catch(() => ({ patients: [], total: 0 }))
+        return (res.patients || []).map((p) => ({
+          id: p.id,
+          patient_number: p.patient_number,
+          full_name: p.full_name,
+          date_of_birth: p.date_of_birth,
+          gender: p.gender,
+          phone_number: p.phone_primary,
+          allergies: p.allergies,
+        }))
+      }),
+
+  searchPatients: (query: string, page = 1, pageSize = 50): Promise<PatientSearchResponse> =>
+    apiClient
+      .get<PatientSearchResponse>('/consultation/patients', {
+        params: { query, page, page_size: pageSize },
+      })
+      .then((r) => r.data)
+      .catch(async () => {
+        const res = await receptionService.searchPatients(query, page, pageSize)
+        return {
+          patients: (res.patients || []).map((p) => ({
+            id: p.id,
+            patient_number: p.patient_number,
+            full_name: p.full_name,
+            date_of_birth: p.date_of_birth,
+            gender: p.gender,
+            phone_number: p.phone_primary,
+            allergies: p.allergies,
+          })),
+          total: res.total,
+        }
+      }),
+
+  getPatientHistory: (patientId: string): Promise<PatientHistoryData> =>
+    apiClient
+      .get<PatientHistoryData>(`/consultation/encounters/patient/${patientId}/history`)
+      .then((r) => r.data),
+
+  getAdmissionDetails: (admissionId: string) =>
+    apiClient
+      .get(`/consultation/inpatient/admissions/${admissionId}`)
+      .then((r) => r.data)
+      .catch(() => wardService.getAdmission(admissionId)),
+
+  getInpatientOrders: (admissionId: string) =>
+    apiClient
+      .get(`/consultation/inpatient/admissions/${admissionId}/orders`)
+      .then((r) => r.data)
+      .catch(() => wardService.listOrders(admissionId)),
+
+  updateOrderStatus: (orderId: string, status: string) =>
+    apiClient
+      .patch(`/consultation/inpatient/orders/${orderId}`, { status })
+      .then((r) => r.data)
+      .catch(() => apiClient.patch(`/ward/orders/${orderId}/status`, { status }).then((r) => r.data)),
+
+  issueInpatientOrder: (admissionId: string, data: any) =>
+    apiClient
+      .post(`/consultation/inpatient/admissions/${admissionId}/orders`, data)
+      .then((r) => r.data)
+      .catch(() => wardService.createOrder(admissionId, data)),
+
+  getAdmittedPatients: () =>
+    apiClient
+      .get('/consultation/inpatient/admissions')
+      .then((r) => r.data)
+      .catch(() => wardService.listAdmissions({ status: 'active' })),
+
+  dischargePatient: (admissionId: string, data: any) =>
+    apiClient
+      .post(`/consultation/inpatient/admissions/${admissionId}/discharge`, data)
+      .then((r) => r.data)
+      .catch(() => wardService.dischargeAdmission(admissionId, data)),
 }
+
+export interface PatientListItem {
+  id: string
+  patient_number: string
+  full_name: string
+  date_of_birth: string
+  gender: string
+  phone_number?: string
+  allergies?: string
+}
+
+export interface PatientSearchResponse {
+  patients: PatientListItem[]
+  total: number
+}
+
+export interface PatientHistoryData {
+  patient: {
+    id: string
+    patient_number: string
+    full_name: string
+    date_of_birth: string
+    gender: string
+    phone_primary?: string
+    phone_secondary?: string
+    email?: string
+    address?: string
+    national_id?: string
+    blood_group?: string
+    allergies?: string
+  }
+  total_visits: number
+  last_visit_date: string | null
+  active_conditions: string[]
+  previous_visits: Array<{
+    visit_id: string
+    created_at: string
+    visit_type?: string
+    status?: string
+    triage?: {
+      vitals_bp?: string
+      vitals_pulse?: number
+      vitals_temp?: number
+      vitals_spo2?: number
+      priority?: string
+    } | null
+    consultation?: {
+      consultation_id?: string
+      presenting_history?: string
+      examination_findings?: string
+      clinical_impression?: string
+      disposition?: string
+      referral_type?: string
+      referral_notes?: string
+      admission_reason?: string
+      discharge_instructions?: string
+      follow_up_date?: string
+      return_date?: string
+      return_reason?: string
+      diagnoses?: Array<{
+        diagnosis_type?: string
+        diagnosis_name?: string
+        icd_code?: string
+      }>
+      investigations?: Array<{
+        test_name?: string
+        request_type?: string
+        status?: string
+        result?: string
+      }>
+      prescriptions?: Array<{
+        drug_name?: string
+        dosage?: string
+        frequency?: string
+        duration?: string
+      }>
+    } | null
+  }>
+}
+

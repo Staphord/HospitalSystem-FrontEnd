@@ -33,11 +33,17 @@ export const receptionService = {
 
   /** Fetch a single patient's full profile by their UUID */
   getPatient: (patientId: string) =>
-    apiClient.get<BackendPatient>(`/patients/${patientId}`).then((r) => r.data),
+    apiClient
+      .get<BackendPatient>(`/reception/patients/${patientId}`)
+      .then((r) => r.data)
+      .catch(() => apiClient.get<BackendPatient>(`/patients/${patientId}`).then((r) => r.data)),
 
   /** Update a patient's profile details */
   updatePatient: (patientId: string, data: Partial<BackendPatient>) =>
-    apiClient.patch<BackendPatient>(`/patients/${patientId}`, data).then((r) => r.data),
+    apiClient
+      .patch<BackendPatient>(`/reception/patients/${patientId}`, data)
+      .then((r) => r.data)
+      .catch(() => apiClient.patch<BackendPatient>(`/patients/${patientId}`, data).then((r) => r.data)),
 
   // ── Insurance ───────────────────────────────────────────────────────────
 
@@ -51,7 +57,8 @@ export const receptionService = {
   getInsurancePolicies: (patientId: string) =>
     apiClient
       .get<BackendInsurancePolicy[]>(`/reception/patients/${patientId}/insurance`)
-      .then((r) => r.data),
+      .then((r) => r.data)
+      .catch(() => [] as BackendInsurancePolicy[]),
 
   /** Record the outcome of a manual insurance verification */
   verifyInsurance: (insuranceId: string, status: 'verified' | 'rejected') =>
@@ -104,5 +111,6 @@ export const receptionService = {
         queue_number?: string | null
         queue_type?: string | null
       }>(`/visits/active-patient/${patientId}`)
-      .then((r) => r.data),
+      .then((r) => r.data)
+      .catch(() => ({ active: false })),
 }
