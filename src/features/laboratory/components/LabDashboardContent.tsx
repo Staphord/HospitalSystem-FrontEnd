@@ -116,8 +116,12 @@ function RecentRequestsOverviewCard({
 }: {
   requests: BackendStatRequestItem[]
   onViewAll: () => void
-  onProcess: (id: string) => void
 }) {
+  const activeRequests = requests.filter((item: any) => {
+    const s = (item.status || item.status_name || '').toLowerCase()
+    return s !== 'completed' && s !== 'verified' && s !== 'resulted'
+  })
+
   return (
     <div className="bg-surface-white border border-border-subtle rounded-2xl overflow-hidden flex flex-col shadow-sm">
       <div className="px-md py-sm border-b border-border-subtle flex justify-between items-center bg-surface-bright">
@@ -133,13 +137,13 @@ function RecentRequestsOverviewCard({
           View All Requests
         </button>
       </div>
-      {requests.length === 0 ? (
+      {activeRequests.length === 0 ? (
         <div className="p-xl text-center font-body-sm text-body-sm text-outline">
-          No test requests recorded yet. Clinician orders will appear here automatically.
+          No active test requests awaiting processing. New clinician orders will appear here automatically.
         </div>
       ) : (
         <div className="flex flex-col divide-y divide-border-subtle">
-          {requests.slice(0, 5).map((item) => {
+          {activeRequests.slice(0, 5).map((item) => {
             const rawItem = item as any
             const patientName = item.patientName || rawItem.patient_name || 'Patient'
             const testName = item.testName || rawItem.test_name || 'Lab Test'
@@ -424,8 +428,14 @@ export function LabDashboardContent() {
 
   const [collectingRequest, setCollectingRequest] = useState<BackendStatRequestItem | null>(null)
 
-  const handleNotifyDoctor = (_id: string, patientName: string, testName: string) => {
-    toast.success(`Physician notified for ${patientName} — ${testName}`)
+  const handleNotifyDoctor = async (id: string, patientName: string, testName: string) => {
+    try {
+      await laboratoryService.notifyDoctor(id)
+      toast.success(`Physician notified for ${patientName} — ${testName}`)
+    } catch (err: any) {
+      console.error('[LabDashboard] Failed to notify doctor:', err)
+      toast.error(err?.response?.data?.detail || `Failed to send notification for ${patientName}`)
+    }
   }
 
   const handleProcess = (id: string) => {

@@ -12,7 +12,7 @@ import type {
 } from '@/features/laboratory/types/laboratory'
 
 type PriorityFilter = 'all' | LabRequestPriority
-type StatusFilter = 'all' | LabRequestStatus
+type StatusFilter = 'all' | 'active' | LabRequestStatus
 
 interface LabRequestsLocationState {
   highlightRequestId?: string
@@ -48,33 +48,29 @@ function SummaryCards({
       <div
         onClick={() => {
           onSelectPriorityFilter('stat')
-          onSelectStatusFilter('all')
+          onSelectStatusFilter('active')
         }}
-        className="bg-error/10 border border-error/30 rounded-lg p-md flex flex-col gap-xs relative overflow-hidden cursor-pointer hover:border-error transition-colors"
+        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer"
       >
-        <div className="absolute right-0 top-0 w-16 h-16 bg-error rounded-bl-full opacity-10" />
-        <div className="flex items-center justify-between text-error relative z-10">
-          <span className="font-label-md text-label-md">STAT</span>
-          <span className="material-symbols-outlined text-[20px] text-error">electric_bolt</span>
+        <div className="flex items-center justify-between text-error">
+          <span className="font-label-md text-label-md font-bold">STAT Orders</span>
+          <span className="material-symbols-outlined text-[20px]">bolt</span>
         </div>
-        <span className="font-headline-lg text-headline-lg text-error relative z-10">{summary.stat}</span>
+        <span className="font-headline-lg text-headline-lg text-error font-bold">{summary.stat}</span>
       </div>
 
       <div
         onClick={() => {
           onSelectPriorityFilter('urgent')
-          onSelectStatusFilter('all')
+          onSelectStatusFilter('active')
         }}
-        className="bg-warning/10 border border-warning/30 rounded-lg p-md flex flex-col gap-xs relative overflow-hidden cursor-pointer hover:border-warning transition-colors"
+        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer"
       >
-        <div className="absolute right-0 top-0 w-16 h-16 bg-warning rounded-bl-full opacity-10" />
-        <div className="flex items-center justify-between text-[#916a00] relative z-10">
-          <span className="font-label-md text-label-md">Urgent</span>
-          <span className="material-symbols-outlined text-[20px]">priority_high</span>
+        <div className="flex items-center justify-between text-warning">
+          <span className="font-label-md text-label-md font-bold">Urgent</span>
+          <span className="material-symbols-outlined text-[20px]">warning</span>
         </div>
-        <span className="font-headline-lg text-headline-lg text-[#916a00] relative z-10">
-          {summary.urgent}
-        </span>
+        <span className="font-headline-lg text-headline-lg text-warning font-bold">{summary.urgent}</span>
       </div>
 
       <div
@@ -84,11 +80,11 @@ function SummaryCards({
         }}
         className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer"
       >
-        <div className="flex items-center justify-between text-on-surface-variant">
+        <div className="flex items-center justify-between text-primary">
           <span className="font-label-md text-label-md">In Progress</span>
-          <span className="material-symbols-outlined text-[20px] text-primary">sync</span>
+          <span className="material-symbols-outlined text-[20px]">sync</span>
         </div>
-        <span className="font-headline-lg text-headline-lg text-on-surface">{summary.inProgress}</span>
+        <span className="font-headline-lg text-headline-lg text-primary">{summary.inProgress}</span>
       </div>
 
       <div
@@ -96,13 +92,13 @@ function SummaryCards({
           onSelectStatusFilter('completed')
           onSelectPriorityFilter('all')
         }}
-        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer col-span-2 lg:col-span-1"
+        className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline transition-colors cursor-pointer"
       >
-        <div className="flex items-center justify-between text-on-surface-variant">
+        <div className="flex items-center justify-between text-success">
           <span className="font-label-md text-label-md">Completed Today</span>
-          <span className="material-symbols-outlined text-[20px] text-success">check_circle</span>
+          <span className="material-symbols-outlined text-[20px]">check_circle</span>
         </div>
-        <span className="font-headline-lg text-headline-lg text-on-surface">{summary.completedToday}</span>
+        <span className="font-headline-lg text-headline-lg text-success">{summary.completedToday}</span>
       </div>
     </div>
   )
@@ -142,31 +138,35 @@ function RequestsSkeleton() {
   )
 }
 
-function RequestsEmptyState({ onClearFilters, hasFilters }: { onClearFilters: () => void; hasFilters: boolean }) {
+function RequestsEmptyState({
+  onClearFilters,
+  hasFilters,
+}: {
+  onClearFilters: () => void
+  hasFilters: boolean
+}) {
   return (
-    <div className="bg-surface-white border border-border-subtle rounded-xl flex flex-col overflow-hidden min-h-[400px]">
-      <div className="p-md border-b border-border-subtle bg-background/50">
-        <h2 className="font-headline-sm text-on-surface m-0">All Test Requests</h2>
+    <div className="bg-surface-white border border-border-subtle rounded-xl p-2xl flex flex-col items-center justify-center text-center gap-md my-lg">
+      <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-secondary">
+        <span className="material-symbols-outlined text-[32px]">science</span>
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center p-xl text-center">
-        <div className="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center mb-md">
-          <span className="material-symbols-outlined text-[40px] text-secondary">biotech</span>
-        </div>
-        <h3 className="font-headline-sm text-on-surface mb-xs m-0">No test requests found</h3>
-        <p className="text-body-md text-secondary max-w-sm m-0">
-          Test requests appear here when clinicians order investigations.
-          {hasFilters ? ' Try adjusting your filters.' : ' Check back later for new orders.'}
+      <div className="flex flex-col gap-xs max-w-md">
+        <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">No active lab requests</h3>
+        <p className="font-body-md text-body-md text-secondary m-0">
+          {hasFilters
+            ? 'No lab orders match your current filter settings. Try resetting search filters.'
+            : 'There are currently no active lab investigation requests waiting for specimen collection or processing.'}
         </p>
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={onClearFilters}
-            className="mt-lg h-10 px-md border border-border-subtle rounded-lg text-secondary font-label-md hover:bg-surface-container-high bg-transparent cursor-pointer"
-          >
-            Clear filters
-          </button>
-        )}
       </div>
+      {hasFilters && (
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="h-10 px-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md rounded-lg transition-colors border border-border-subtle mt-sm cursor-pointer"
+        >
+          Reset Filters
+        </button>
+      )}
     </div>
   )
 }
@@ -203,7 +203,7 @@ export function LabRequestsContent() {
     () => (searchParams.get('priority') as PriorityFilter) || 'all',
   )
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    () => (searchParams.get('status') as StatusFilter) || 'all',
+    () => (searchParams.get('status') as StatusFilter) || 'active',
   )
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -245,31 +245,63 @@ export function LabRequestsContent() {
     let completedToday = 0
 
     requests.forEach((r) => {
-      if (r.status === 'pending') pending++
-      if (r.urgency === 'stat') stat++
-      if (r.urgency === 'urgent') urgent++
-      if (r.status === 'in_progress' || r.status === 'specimen_collected') inProgress++
-      if (r.status === 'completed') completedToday++
+      const s = (r.status || '').toLowerCase()
+      if (s === 'cancelled' || s === 'canceled') return
+      if (s === 'pending' || s === 'not_collected') pending++
+      if (r.urgency === 'stat' && s !== 'completed' && s !== 'verified') stat++
+      if (r.urgency === 'urgent' && s !== 'completed' && s !== 'verified') urgent++
+      if (s === 'in_progress' || s === 'specimen_collected' || s === 'processing') inProgress++
+      if (s === 'completed' || s === 'verified') completedToday++
     })
 
     return { pending, stat, urgent, inProgress, completedToday }
   }, [requests])
 
   const filteredRequests = useMemo(() => {
-    return requests.filter((r) => {
-      const priorityMatch = priorityFilter === 'all' || r.urgency === priorityFilter
-      const statusMatch = statusFilter === 'all' || r.status === statusFilter
-      const q = searchQuery.trim().toLowerCase()
-      const searchMatch =
-        !q ||
-        (r.patient_name || '').toLowerCase().includes(q) ||
-        (r.patient_number || '').toLowerCase().includes(q) ||
-        (r.test_name || '').toLowerCase().includes(q) ||
-        (r.requested_by_name || '').toLowerCase().includes(q) ||
-        (r.request_id || '').toLowerCase().includes(q)
+    return requests
+      .filter((r) => {
+        const priorityMatch = priorityFilter === 'all' || r.urgency === priorityFilter
 
-      return priorityMatch && statusMatch && searchMatch
-    })
+        let statusMatch = true
+        if (statusFilter === 'active') {
+          const s = (r.status || '').toLowerCase()
+          statusMatch =
+            s !== 'completed' &&
+            s !== 'verified' &&
+            s !== 'resulted' &&
+            s !== 'cancelled' &&
+            s !== 'canceled'
+        } else if (statusFilter !== 'all') {
+          statusMatch = (r.status || '').toLowerCase() === statusFilter.toLowerCase()
+        }
+
+        const q = searchQuery.trim().toLowerCase()
+        const searchMatch =
+          !q ||
+          (r.patient_name || '').toLowerCase().includes(q) ||
+          (r.patient_number || '').toLowerCase().includes(q) ||
+          (r.test_name || '').toLowerCase().includes(q) ||
+          (r.requested_by_name || '').toLowerCase().includes(q) ||
+          (r.request_id || '').toLowerCase().includes(q)
+
+        return priorityMatch && statusMatch && searchMatch
+      })
+      .sort((a, b) => {
+        // Priority 1: STAT and URGENT requests first
+        const urgencyScore = (u: string) => (u === 'stat' ? 3 : u === 'urgent' ? 2 : 1)
+        const uDiff = urgencyScore(b.urgency) - urgencyScore(a.urgency)
+        if (uDiff !== 0) return uDiff
+
+        // Priority 2: Pending / active orders before completed or cancelled
+        const isDoneOrCancelled = (st: string) => {
+          const s = (st || '').toLowerCase()
+          return s === 'completed' || s === 'verified' || s === 'resulted' || s === 'cancelled' || s === 'canceled'
+        }
+        if (!isDoneOrCancelled(a.status) && isDoneOrCancelled(b.status)) return -1
+        if (isDoneOrCancelled(a.status) && !isDoneOrCancelled(b.status)) return 1
+
+        return 0
+      })
   }, [requests, priorityFilter, statusFilter, searchQuery])
 
   useEffect(() => {
@@ -377,8 +409,10 @@ export function LabRequestsContent() {
             {statusFilter === 'completed'
               ? 'Completed Test Requests'
               : statusFilter === 'pending'
-                ? 'Pending Test Requests'
-                : 'All Test Requests'}
+                ? 'Pending Specimen Requests'
+                : statusFilter === 'active'
+                  ? 'Active Lab Requests (Awaiting Processing)'
+                  : 'All Test Requests'}
           </h2>
           <div className="flex flex-wrap items-center gap-sm">
             {/* Live Search Bar */}
@@ -417,14 +451,16 @@ export function LabRequestsContent() {
                 onChange={(e) => {
                   const val = e.target.value as StatusFilter
                   setStatusFilter(val)
-                  setSearchParams(val === 'all' ? {} : { status: val })
+                  setSearchParams(val === 'active' ? {} : { status: val })
                 }}
-                className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-36 cursor-pointer"
+                className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-40 cursor-pointer"
               >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
+                <option value="active">Active Orders (Default)</option>
+                <option value="pending">Pending Specimen</option>
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="all">All Statuses</option>
               </select>
               <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px]">
                 expand_more

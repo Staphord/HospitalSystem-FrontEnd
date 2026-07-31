@@ -331,7 +331,6 @@ function TodaySummaryCard({ summary }: { summary: DoctorDashboardStatsResponse['
     </section>
   )
 }
-
 function CriticalAlertsCard({
   alerts,
   onAcknowledge,
@@ -339,6 +338,7 @@ function CriticalAlertsCard({
   alerts: DoctorDashboardStatsResponse['critical_alerts']
   onAcknowledge: (id: string) => void
 }) {
+  const navigate = useNavigate()
   return (
     <section className="bg-surface-white border border-border-subtle rounded-[16px] overflow-hidden relative">
       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-error rounded-l-[16px]" />
@@ -354,7 +354,7 @@ function CriticalAlertsCard({
           <h2 className="font-headline-sm text-headline-sm">Critical Alerts</h2>
         </div>
 
-        <div className="space-y-md">
+        <div className="space-y-md max-h-[350px] overflow-y-auto pr-xs">
           {alerts.length === 0 ? (
             <div className="py-md text-center text-outline font-body-sm">
               No active critical alerts.
@@ -376,17 +376,27 @@ function CriticalAlertsCard({
                   {alert.description}
                 </p>
                 <div className="flex gap-sm flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => onAcknowledge(alert.id)}
-                    className={`text-white text-[12px] px-md py-xs rounded transition-colors border-0 cursor-pointer ${
-                      alert.is_highlight
-                        ? 'bg-error hover:opacity-90'
-                        : 'bg-on-surface-variant hover:opacity-90'
-                    }`}
-                  >
-                    Acknowledge
-                  </button>
+                  {alert.type === 'triage' ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/consultation/encounter/${alert.visit_id}`)}
+                      className="text-white text-[12px] px-md py-xs rounded transition-colors border-0 cursor-pointer bg-error hover:opacity-90"
+                    >
+                      Start Consultation
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onAcknowledge(alert.id)}
+                      className={`text-white text-[12px] px-md py-xs rounded transition-colors border-0 cursor-pointer ${
+                        alert.is_highlight
+                          ? 'bg-error hover:opacity-90'
+                          : 'bg-on-surface-variant hover:opacity-90'
+                      }`}
+                    >
+                      Acknowledge
+                    </button>
+                  )}
                 </div>
               </div>
             ))

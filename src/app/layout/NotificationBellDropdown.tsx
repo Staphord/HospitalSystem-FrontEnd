@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '@/context/NotificationContext'
+import { useAuth } from '@/hooks/useAuth'
 import type { NotificationItem } from '@/api/services/notifications'
 
 export function NotificationBellDropdown() {
   const navigate = useNavigate()
+  const { roles } = useAuth()
   const { unreadCount, notifications, markAsRead, markAllAsRead } = useNotifications()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -19,16 +21,22 @@ export function NotificationBellDropdown() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const getRoleSafeActionUrl = (actionUrl: string | null | undefined): string => {
+    if (!actionUrl) return '/notifications'
+    const isDoctor = (roles || []).some((r) => String(r).toLowerCase().includes('doctor'))
+    if (isDoctor && (actionUrl.startsWith('/laboratory') || actionUrl.startsWith('/radiology'))) {
+      return '/consultation/results'
+    }
+    return actionUrl
+  }
+
   const handleItemClick = async (item: NotificationItem) => {
     if (item.status === 'unread') {
       await markAsRead(item.notification_id)
     }
     setIsOpen(false)
-    if (item.action_url) {
-      navigate(item.action_url)
-    } else {
-      navigate('/notifications')
-    }
+    const targetUrl = getRoleSafeActionUrl(item.action_url)
+    navigate(targetUrl)
   }
 
   const getCategoryIcon = (category: string) => {
