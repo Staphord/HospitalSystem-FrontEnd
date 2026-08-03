@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
+import type { AdmissionCondition } from '@/api/types/ward'
 
 interface Patient {
   id: string
@@ -18,243 +19,8 @@ interface Patient {
   photo?: string
 }
 
-const DEFAULT_PATIENTS: Patient[] = [
-  {
-    id: 'p1',
-    name: 'Fatuma Said',
-    patientNo: 'PT-4891',
-    bed: 'Bed 12',
-    admissionDate: '09 Jun 2026',
-    lengthOfStay: '1 day',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Critical',
-    lastNoteTime: '2h ago',
-    activeVisitors: 2,
-    diagnosis: 'Severe Pneumonia',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCTmEIyBoqvmWlWO6xMGNNH3WeH3r05Gg1eqYV2ifKa1VY6q6ZNcqtsmCzQOeZ8FG21DMnP9UW0YSU87nAwGz7QqXezXQvzHGgX5uYj2tnAO_UnFOPkq0orD9800Yogx-LBlvZJF2yvCqrLhXDUTH-Myfa8IPIzg_IiGW85mMgKt5V-vaStJOFYa37n0Yetk-eTK97zCAEX8vr62eoyxb2OBspB37923DpaY8lgC047fbh4U4TCNuPG6ZJ8lPkl762WBPjyl14szg'
-  },
-  {
-    id: 'p2',
-    name: 'Asha Juma',
-    patientNo: 'PT-4801',
-    bed: 'Bed 09',
-    admissionDate: '05 Jun 2026',
-    lengthOfStay: '5 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Monitoring',
-    lastNoteTime: '1h ago',
-    activeVisitors: 1,
-    diagnosis: 'Hypertensive Emergency'
-  },
-  {
-    id: 'p3',
-    name: 'John Mwangi',
-    patientNo: 'PT-4856',
-    bed: 'Bed 14',
-    admissionDate: '07 Jun 2026',
-    lengthOfStay: '3 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '4h ago',
-    activeVisitors: 0,
-    diagnosis: 'Post-Op Appendectomy'
-  },
-  {
-    id: 'p-test1',
-    name: 'Juma Hamisi',
-    patientNo: 'HN-9821',
-    bed: 'Bed 03',
-    admissionDate: '06 Jun 2026',
-    lengthOfStay: '4 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Critical',
-    lastNoteTime: '1h ago',
-    activeVisitors: 0,
-    diagnosis: 'Malaria'
-  },
-  {
-    id: 'p-test2',
-    name: 'Zuwena Said',
-    patientNo: 'HN-7721',
-    bed: 'Bed 04',
-    admissionDate: '05 Jun 2026',
-    lengthOfStay: '5 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Monitoring',
-    lastNoteTime: '2h ago',
-    activeVisitors: 1,
-    diagnosis: 'Pneumonia'
-  },
-  {
-    id: 'p-test3',
-    name: 'Neema Kessy',
-    patientNo: 'HN-8821',
-    bed: 'Bed 05',
-    admissionDate: '07 Jun 2026',
-    lengthOfStay: '3 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '3h ago',
-    activeVisitors: 0,
-    diagnosis: 'Gastritis'
-  },
-  {
-    id: 'p7',
-    name: 'Amina Juma',
-    patientNo: 'PT-4301',
-    bed: 'Bed 01',
-    admissionDate: '08 Jun 2026',
-    lengthOfStay: '2 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '6h ago',
-    activeVisitors: 0,
-    diagnosis: 'Gastroenteritis'
-  },
-  {
-    id: 'p8',
-    name: 'Baraka Elias',
-    patientNo: 'PT-4302',
-    bed: 'Bed 02',
-    admissionDate: '08 Jun 2026',
-    lengthOfStay: '2 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '7h ago',
-    activeVisitors: 0,
-    diagnosis: 'Cellulitis'
-  },
-  {
-    id: 'p9',
-    name: 'Chacha Mwita',
-    patientNo: 'PT-4303',
-    bed: 'Bed 06',
-    admissionDate: '07 Jun 2026',
-    lengthOfStay: '3 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '8h ago',
-    activeVisitors: 0,
-    diagnosis: 'UTI'
-  },
-  {
-    id: 'p10',
-    name: 'David Malima',
-    patientNo: 'PT-4304',
-    bed: 'Bed 07',
-    admissionDate: '07 Jun 2026',
-    lengthOfStay: '3 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '9h ago',
-    activeVisitors: 0,
-    diagnosis: 'Dehydration'
-  },
-  {
-    id: 'p11',
-    name: 'Emmanuel Kavishe',
-    patientNo: 'PT-4305',
-    bed: 'Bed 08',
-    admissionDate: '06 Jun 2026',
-    lengthOfStay: '4 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '10h ago',
-    activeVisitors: 0,
-    diagnosis: 'Asthma Exacerbation'
-  },
-  {
-    id: 'p12',
-    name: 'Faraja Mlay',
-    patientNo: 'PT-4306',
-    bed: 'Bed 10',
-    admissionDate: '06 Jun 2026',
-    lengthOfStay: '4 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '11h ago',
-    activeVisitors: 0,
-    diagnosis: 'Bronchitis'
-  },
-  {
-    id: 'p13',
-    name: 'Grace Masanja',
-    patientNo: 'PT-4307',
-    bed: 'Bed 11',
-    admissionDate: '05 Jun 2026',
-    lengthOfStay: '5 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '12h ago',
-    activeVisitors: 0,
-    diagnosis: 'Anemia'
-  },
-  {
-    id: 'p14',
-    name: 'Happy Swai',
-    patientNo: 'PT-4308',
-    bed: 'Bed 13',
-    admissionDate: '05 Jun 2026',
-    lengthOfStay: '5 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '13h ago',
-    activeVisitors: 0,
-    diagnosis: 'Malaria'
-  },
-  {
-    id: 'p15',
-    name: 'Irene Mushi',
-    patientNo: 'PT-4309',
-    bed: 'Bed 15',
-    admissionDate: '04 Jun 2026',
-    lengthOfStay: '6 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '14h ago',
-    activeVisitors: 0,
-    diagnosis: 'Gastritis'
-  },
-  {
-    id: 'p16',
-    name: 'Josephat Lowassa',
-    patientNo: 'PT-4310',
-    bed: 'Bed 16',
-    admissionDate: '04 Jun 2026',
-    lengthOfStay: '6 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '15h ago',
-    activeVisitors: 0,
-    diagnosis: 'Hypertension'
-  },
-  {
-    id: 'p17',
-    name: 'Kelvin Mwakasege',
-    patientNo: 'PT-4311',
-    bed: 'Bed 17',
-    admissionDate: '03 Jun 2026',
-    lengthOfStay: '7 days',
-    admittingDoctor: 'Dr. Amina Hassan',
-    condition: 'Stable',
-    lastNoteTime: '16h ago',
-    activeVisitors: 0,
-    diagnosis: 'COPD'
-  },
-  {
-    id: 'p18',
-    name: 'Lillian Temu',
-    patientNo: 'PT-4312',
-    bed: 'Bed 18',
-    admissionDate: '03 Jun 2026',
-    lengthOfStay: '7 days',
-    admittingDoctor: 'Dr. Baraka',
-    condition: 'Stable',
-    lastNoteTime: '17h ago',
-    activeVisitors: 0,
-    diagnosis: 'Tonsillitis'
-  }
-]
+const conditionLabel = (c: AdmissionCondition): Patient['condition'] =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
 
 function conditionBadge(condition: Patient['condition']) {
   if (condition === 'Critical') {
@@ -278,39 +44,23 @@ function conditionBadge(condition: Patient['condition']) {
   )
 }
 
-const isTestEnv =
-  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
-  import.meta.env.MODE === 'test'
-
-function loadMockPatients(): Patient[] {
-  const existing = localStorage.getItem('hf_mock_admitted_patients')
-  if (existing) {
-    const parsed = JSON.parse(existing)
-    if (parsed.length === DEFAULT_PATIENTS.length) {
-      return parsed
-    }
-  }
-  localStorage.setItem('hf_mock_admitted_patients', JSON.stringify(DEFAULT_PATIENTS))
-  return DEFAULT_PATIENTS
-}
-
 export function MyPatientsPage() {
-  const [isLoading, setIsLoading] = useState(() => {
-    if (isTestEnv) return false
-    return true
-  })
-
-  const [patients, setPatients] = useState<Patient[]>(() => (isTestEnv ? loadMockPatients() : []))
-
+  const [isLoading, setIsLoading] = useState(true)
+  const [patients, setPatients] = useState<Patient[]>([])
   const [filterCondition, setFilterCondition] = useState<string>('All Conditions')
   const [searchQuery, setSearchQuery] = useState<string>('')
 
   useEffect(() => {
-    if (isTestEnv) return
-
-    wardService
-      .listAdmissions({ status: 'active', limit: 200 })
-      .then((admissions) => {
+    Promise.all([
+      wardService.listAdmissions({ status: 'active', limit: 200 }),
+      wardService.listActiveVisitors(),
+    ])
+      .then(([admissions, activeVisitors]) => {
+        const visitorCounts = new Map<string, number>()
+        activeVisitors.forEach((v) => {
+          if (!v.admissionId) return
+          visitorCounts.set(v.admissionId, (visitorCounts.get(v.admissionId) || 0) + 1)
+        })
         setPatients(
           admissions.map((a) => ({
             id: a.admissionId,
@@ -325,9 +75,9 @@ export function MyPatientsPage() {
             lengthOfStay:
               a.lengthOfStayDays != null ? `${a.lengthOfStayDays} day(s)` : '—',
             admittingDoctor: a.admittingDoctorId || '—',
-            condition: 'Stable' as const,
+            condition: conditionLabel(a.condition),
             lastNoteTime: '—',
-            activeVisitors: 0,
+            activeVisitors: visitorCounts.get(a.admissionId) || 0,
             diagnosis: a.admittingDiagnosis,
           })),
         )
@@ -402,7 +152,7 @@ export function MyPatientsPage() {
         .bg-neutral-bg { background-color: #f4f5f7 !important; }
         .bg-secondary-container { background-color: #cdddff !important; }
         .text-on-secondary-container { color: #51617d !important; }
-        
+
         /* Hover and State overrides */
         .hover\:bg-secondary-container:hover { background-color: #cdddff !important; }
         .hover\:bg-primary:hover { background-color: #00296d !important; }
@@ -455,16 +205,6 @@ export function MyPatientsPage() {
           line-height: 1 !important;
         }
       `}</style>
-
-      {/* Header Search Bar Integration */}
-      <div className="hidden">
-        <input
-          type="text"
-          placeholder="Search patient, bed, or file #..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </div>
 
       {/* Summary Grid */}
       {!isLoading && (
@@ -544,6 +284,18 @@ export function MyPatientsPage() {
               <span className="sr-only">My Admitted Patients</span>
             </h2>
             <div className="flex items-center gap-3">
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-secondary text-[18px]">
+                  search
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search patient, bed, or file #..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-surface-container-low border border-border-default rounded-lg text-body-sm pl-8 pr-3 py-2 focus:ring-0 focus:border-clinical-blue outline-none filter-select-custom"
+                />
+              </div>
               <select
                 value={filterCondition}
                 onChange={(e) => setFilterCondition(e.target.value)}
@@ -554,12 +306,6 @@ export function MyPatientsPage() {
                 <option>Monitoring</option>
                 <option>Critical</option>
               </select>
-              <button className="filter-button-custom">
-                <span className="material-symbols-outlined text-outline">
-                  filter_list
-                </span>
-                <span className="filter-text">Filters</span>
-              </button>
             </div>
           </div>
 

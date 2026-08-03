@@ -104,7 +104,9 @@ export function Sidebar() {
               item.path === '/admin/departments' ||
               item.path === '/admin/fees' ||
               item.path === '/admin/insurance' ||
-              item.path === '/admin/settings'
+              item.path === '/admin/settings' ||
+              item.path === '/admin/roles' ||
+              item.path === '/admin/permissions'
           ),
         },
         {
@@ -321,6 +323,8 @@ export function Sidebar() {
                                (item.label === 'Insurance Providers' || item.label === 'Insurance') ? 'health_and_safety' :
                                item.label === 'Hospital Settings' ? 'settings_heart' :
                                item.label === 'Settings' ? 'settings' :
+                               item.label === 'Roles' ? 'admin_panel_settings' :
+                               item.label === 'Permissions' ? 'security' :
                                item.label === 'Data Backup' ? 'cloud_upload' :
                               (item.label === 'My Subscription' || item.label === 'Subscription') ? 'card_membership' :
                               item.label === 'Patient Reports' ? 'assignment' :

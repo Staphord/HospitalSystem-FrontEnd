@@ -1,49 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { adminService } from '@/api/services/admin';
+import type { StaffActivityLog, StaffLoginLog } from '@/api/types/admin';
 import { useApp } from '../context/AppContext';
 
+const generateTempPassword = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  let pass = '';
+  for (let i = 0; i < 12; i++) {
+    pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return pass;
+};
+
 type DetailTab = 'profile' | 'login-history' | 'activity-log';
-
-interface LoginLog {
-  timestamp: string;
-  ip: string;
-  device: string;
-  duration: string;
-  workspace: string;
-  status: 'Success' | 'Failed' | 'Expired';
-}
-
-interface ActivityLogItem {
-  timestamp: string;
-  action: string;
-  module: string;
-  targetId: string;
-  details: string;
-}
-
-const mockLoginLogs: LoginLog[] = [
-  { timestamp: '2023-10-27 08:15:22', ip: '192.168.1.105', device: 'Chrome / Windows 11', duration: '4h 12m', workspace: 'Consultation Room 3', status: 'Success' },
-  { timestamp: '2023-10-26 14:30:00', ip: '10.0.0.42', device: 'Safari / iOS', duration: '1h 05m', workspace: 'Mobile Access', status: 'Success' },
-  { timestamp: '2023-10-25 09:05:11', ip: '192.168.2.201', device: 'Firefox / macOS', duration: '-', workspace: 'Laboratory Workstation', status: 'Failed' },
-  { timestamp: '2023-10-24 18:45:00', ip: '192.168.1.105', device: 'Chrome / Windows 11', duration: '8h 00m', workspace: 'Consultation Room 3', status: 'Expired' },
-  { timestamp: '2023-10-23 07:55:30', ip: '192.168.1.105', device: 'Chrome / Windows 11', duration: '5h 30m', workspace: 'Consultation Room 3', status: 'Success' }
-];
-
-const mockActivityLogs: ActivityLogItem[] = [
-  { timestamp: 'Oct 24, 14:32:01', action: 'Updated Record', module: 'Patient Records', targetId: 'PT-992-81A', details: 'Updated patient vital signs and appended notes to daily chart...' },
-  { timestamp: 'Oct 24, 11:15:44', action: 'Viewed Lab Result', module: 'Laboratory', targetId: 'LB-REQ-442', details: 'Accessed metabolic panel results.' },
-  { timestamp: 'Oct 23, 09:05:12', action: 'Prescribed Med', module: 'Prescriptions', targetId: 'RX-771-009', details: 'Issued prescription for Amoxicillin 500mg.' },
-  { timestamp: 'Oct 22, 16:45:00', action: 'Updated Record', module: 'Patient Records', targetId: 'PT-110-33B', details: 'Updated discharge summary for outpatient visit.' }
-];
 
 export function StaffDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { staffList, updateStaff, setActiveView } = useApp();
   const [activeTab, setActiveTab] = useState<DetailTab>('profile');
   const [selectedModule, setSelectedModule] = useState('All Modules');
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [loginLogs, setLoginLogs] = useState<StaffLoginLog[]>([]);
+  const [activityLogs, setActivityLogs] = useState<StaffActivityLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const staff = staffList.find((s) => s.id === id);
+
+  useEffect(() => {
+    if (!id) return;
+    setLogsLoading(true);
+    Promise.all([
+      adminService.listStaffLoginHistory(id).catch(() => [] as StaffLoginLog[]),
+      adminService.listStaffActivityLogs(id).catch(() => [] as StaffActivityLog[]),
+    ])
+      .then(([logins, activities]) => {
+        setLoginLogs(logins);
+        setActivityLogs(activities);
+      })
+      .finally(() => setLogsLoading(false));
+  }, [id]);
 
   // Return to staff roster view
   const handleBack = () => {
@@ -67,23 +64,51 @@ export function StaffDetailPage() {
     updateStaff(staff.id, { status: nextStatus });
   };
 
-  // Trigger password reset feedback
+  // Sets a new temporary password for the staff member via Keycloak (admin-service)
   const handleResetPassword = () => {
-    setResetMessage('Reset password link has been sent to ' + staff.email);
-    setTimeout(() => setResetMessage(null), 4000);
+    if (isResettingPassword) return;
+    setIsResettingPassword(true);
+    const tempPassword = generateTempPassword();
+    adminService
+      .updateUser(staff.id, { password: tempPassword, forcePasswordChange: true })
+      .then(() => {
+        toast.success(
+          `Password reset for ${staff.name}. Temporary password: ${tempPassword} (share securely — they'll be required to change it on next login).`,
+          { duration: 15000 },
+        );
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to reset password.');
+      })
+      .finally(() => setIsResettingPassword(false));
   };
 
-  // Trigger MFA reset feedback
-  const handleResetMFA = () => {
-    setResetMessage('MFA verification settings reset successfully');
-    setTimeout(() => setResetMessage(null), 4000);
-  };
+  const moduleOptions = Array.from(
+    new Set(activityLogs.map((a) => a.module).filter(Boolean)),
+  ).sort();
 
   // Filter activities by the selected module dropdown option
-  const filteredActivities = mockActivityLogs.filter((act) => {
+  const filteredActivities = activityLogs.filter((act) => {
     if (selectedModule === 'All Modules') return true;
     return act.module === selectedModule;
   });
+
+  // Downloads the currently filtered activity log as CSV
+  const handleExportActivity = () => {
+    const header = ['Timestamp', 'Action', 'Module', 'Target ID', 'Details'];
+    const rows = filteredActivities.map((a) => [a.timestamp, a.action, a.module, a.targetId, a.details]);
+    const csv = [header, ...rows]
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${staff?.name || 'staff'}-activity-log.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   // Get initials for profile picture replacement avatar badge
   const initials = staff.name
@@ -111,13 +136,6 @@ export function StaffDetailPage() {
           <span className="text-on-surface">{staff.name}</span>
         </div>
       </div>
-
-      {/* Renders feedback banner for simulator events */}
-      {resetMessage && (
-        <div className="bg-[#DEEBFF] border border-[#0052CC]/20 text-[#0052CC] text-sm px-4 py-3 rounded">
-          {resetMessage}
-        </div>
-      )}
 
       {/* Header card info section */}
       <section className="bg-surface-white border border-border-subtle rounded-xl p-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-lg">
@@ -152,15 +170,10 @@ export function StaffDetailPage() {
           </button>
           <button
             onClick={handleResetPassword}
-            className="px-md py-sm rounded border border-border-subtle text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors bg-transparent cursor-pointer"
+            disabled={isResettingPassword}
+            className="px-md py-sm rounded border border-border-subtle text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors bg-transparent cursor-pointer disabled:opacity-60"
           >
-            Reset Password
-          </button>
-          <button
-            onClick={handleResetMFA}
-            className="px-md py-sm rounded border border-border-subtle text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors bg-transparent cursor-pointer"
-          >
-            Reset MFA
+            {isResettingPassword ? 'Resetting...' : 'Reset Password'}
           </button>
           <button
             onClick={handleToggleStatus}
@@ -283,14 +296,6 @@ export function StaffDetailPage() {
                 {staff.createdAt ? staff.createdAt.split('T')[0] : ''}
               </div>
             </div>
-            <div>
-              <label className="block font-label-md text-label-md text-outline uppercase mb-xs">Last Password Change</label>
-              <div className="font-body-md text-body-md text-on-surface">Nov 01, 2023, 14:20 PM</div>
-            </div>
-            <div>
-              <label className="block font-label-md text-label-md text-outline uppercase mb-xs">Created By</label>
-              <div className="font-body-md text-body-md text-on-surface">System Admin (admin@mnh)</div>
-            </div>
           </div>
         )}
 
@@ -300,21 +305,10 @@ export function StaffDetailPage() {
             {/* Filter controls row */}
             <div className="p-md border-b border-border-subtle flex justify-between items-center bg-surface-bright">
               <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">Session Logs</h3>
-              <div className="flex items-center gap-sm">
-                <label className="font-label-sm text-label-sm text-secondary">Date Range:</label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-2 top-1/2 transform -translate-y-1/2 text-secondary text-[16px]">calendar_today</span>
-                  <input
-                    className="pl-8 pr-3 py-1.5 bg-surface-white border border-border-subtle rounded font-body-sm text-body-sm text-on-surface focus:outline-none focus:border-primary cursor-pointer w-40 text-center"
-                    readOnly
-                    type="text"
-                    defaultValue="Last 30 Days"
-                  />
-                </div>
-                <button className="h-[32px] px-3 border border-border-subtle rounded font-label-md text-label-md text-secondary hover:bg-surface-container transition-colors flex items-center gap-xs bg-white cursor-pointer">
-                  <span className="material-symbols-outlined text-[16px]">filter_list</span> Filter
-                </button>
-              </div>
+              <span className="font-label-sm text-label-sm text-secondary flex items-center gap-xs">
+                <span className="material-symbols-outlined text-[16px]">calendar_today</span>
+                Last 30 days
+              </span>
             </div>
 
             {/* Logs list table */}
@@ -331,39 +325,48 @@ export function StaffDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="font-body-sm text-body-sm">
-                  {mockLoginLogs.map((log, index) => (
-                    <tr key={index} className="border-b border-border-subtle hover:bg-row-hover transition-colors">
-                      <td className="py-sm px-md text-on-surface">{log.timestamp}</td>
-                      <td className="py-sm px-md text-secondary font-mono">{log.ip}</td>
-                      <td className="py-sm px-md text-on-surface">{log.device}</td>
-                      <td className="py-sm px-md text-on-surface">{log.duration}</td>
-                      <td className="py-sm px-md text-on-surface">{log.workspace}</td>
-                      <td className="py-sm px-md">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-label-sm font-bold ${
-                          log.status === 'Success'
-                            ? 'bg-success/10 text-success'
-                            : log.status === 'Failed'
-                            ? 'bg-[#FF5630]/10 text-[#FF5630]'
-                            : 'bg-[#FFAB00]/10 text-[#FFAB00]'
-                        }`}>
-                          {log.status}
-                        </span>
+                  {logsLoading ? (
+                    <tr>
+                      <td colSpan={6} className="py-lg px-md text-center text-secondary">
+                        Loading login history...
                       </td>
                     </tr>
-                  ))}
+                  ) : loginLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-lg px-md text-center text-secondary">
+                        No login history recorded for this staff member yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    loginLogs.map((log, index) => (
+                      <tr key={index} className="border-b border-border-subtle hover:bg-row-hover transition-colors">
+                        <td className="py-sm px-md text-on-surface">{log.timestamp}</td>
+                        <td className="py-sm px-md text-secondary font-mono">{log.ip}</td>
+                        <td className="py-sm px-md text-on-surface">{log.device}</td>
+                        <td className="py-sm px-md text-on-surface">{log.duration}</td>
+                        <td className="py-sm px-md text-on-surface">{log.workspace}</td>
+                        <td className="py-sm px-md">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-label-sm font-bold ${
+                            log.status === 'Success'
+                              ? 'bg-success/10 text-success'
+                              : log.status === 'Failed'
+                              ? 'bg-[#FF5630]/10 text-[#FF5630]'
+                              : 'bg-[#FFAB00]/10 text-[#FFAB00]'
+                          }`}>
+                            {log.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
 
-            {/* Table pagination footer */}
             <div className="p-md border-t border-border-subtle flex justify-between items-center bg-surface-white">
-              <span className="font-body-sm text-body-sm text-secondary">Showing 1 to 5 of 42 entries</span>
-              <div className="flex gap-xs">
-                <button className="h-[32px] px-3 border border-border-subtle rounded font-label-sm text-label-sm text-secondary hover:bg-surface-container disabled:opacity-50 bg-white" disabled>Prev</button>
-                <button className="h-[32px] w-[32px] bg-primary text-surface-white rounded font-label-sm text-label-sm flex items-center justify-center">1</button>
-                <button className="h-[32px] w-[32px] border border-border-subtle rounded font-label-sm text-label-sm text-secondary hover:bg-surface-container flex items-center justify-center bg-white">2</button>
-                <button className="h-[32px] px-3 border border-border-subtle rounded font-label-sm text-label-sm text-secondary hover:bg-surface-container bg-white">Next</button>
-              </div>
+              <span className="font-body-sm text-body-sm text-secondary">
+                Showing {loginLogs.length} login event{loginLogs.length === 1 ? '' : 's'} (last 30 days)
+              </span>
             </div>
           </div>
         )}
@@ -390,26 +393,18 @@ export function StaffDetailPage() {
                     onChange={(e) => setSelectedModule(e.target.value)}
                   >
                     <option>All Modules</option>
-                    <option>Laboratory</option>
-                    <option>Patient Records</option>
-                    <option>Prescriptions</option>
+                    {moduleOptions.map((mod) => (
+                      <option key={mod}>{mod}</option>
+                    ))}
                   </select>
                   <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[18px]">expand_more</span>
                 </div>
               </div>
-              <div className="flex flex-col gap-xs flex-1 max-w-xs w-full">
-                <label className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Date Range</label>
-                <div className="relative">
-                  <input
-                    className="w-full h-[32px] pl-3 pr-8 rounded border border-border-subtle bg-surface-white text-body-sm font-body-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer"
-                    placeholder="Last 30 Days"
-                    readOnly
-                    type="text"
-                  />
-                  <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[18px]">calendar_today</span>
-                </div>
-              </div>
-              <button className="h-[32px] px-md rounded bg-surface-white border border-border-subtle text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors sm:ml-auto flex items-center gap-xs cursor-pointer">
+              <button
+                onClick={handleExportActivity}
+                disabled={filteredActivities.length === 0}
+                className="h-[32px] px-md rounded bg-surface-white border border-border-subtle text-secondary font-label-md text-label-md hover:bg-surface-container-low transition-colors sm:ml-auto flex items-center gap-xs cursor-pointer disabled:opacity-60"
+              >
                 <span className="material-symbols-outlined text-[16px]">download</span>Export CSV
               </button>
             </div>
@@ -427,18 +422,18 @@ export function StaffDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="font-body-sm text-body-sm text-on-surface">
-                  {filteredActivities.length > 0 ? (
+                  {logsLoading ? (
+                    <tr>
+                      <td colSpan={5} className="p-xl text-center text-outline font-body-sm text-sm">
+                        Loading activity log...
+                      </td>
+                    </tr>
+                  ) : filteredActivities.length > 0 ? (
                     filteredActivities.map((act, index) => (
                       <tr key={index} className="border-b border-border-subtle hover:bg-row-hover transition-colors group cursor-pointer">
                         <td className="py-md px-md whitespace-nowrap text-secondary">{act.timestamp}</td>
                         <td className="py-md px-md">
-                          <span className={`inline-flex items-center px-2 py-1 rounded font-medium ${
-                            act.action === 'Updated Record'
-                              ? 'bg-secondary-fixed text-on-secondary-fixed'
-                              : act.action === 'Viewed Lab Result'
-                              ? 'bg-surface-container-high text-on-surface'
-                              : 'bg-tertiary-fixed text-on-tertiary-fixed'
-                          }`}>
+                          <span className="inline-flex items-center px-2 py-1 rounded font-medium bg-surface-container-high text-on-surface">
                             {act.action}
                           </span>
                         </td>
@@ -450,7 +445,7 @@ export function StaffDetailPage() {
                   ) : (
                     <tr>
                       <td colSpan={5} className="p-xl text-center text-outline font-body-sm text-sm">
-                        No activity records found for the selected module.
+                        No activity records found for this staff member.
                       </td>
                     </tr>
                   )}
@@ -458,14 +453,10 @@ export function StaffDetailPage() {
               </table>
             </div>
 
-            {/* Activity table pagination footer */}
             <div className="p-md flex justify-between items-center bg-surface-white border-t border-border-subtle text-body-sm font-body-sm text-secondary">
-              <span>Showing 1 to {filteredActivities.length} of {filteredActivities.length} entries</span>
-              <div className="flex gap-xs">
-                <button className="px-2 py-1 border border-border-subtle rounded hover:bg-surface-container-low disabled:opacity-50 bg-white" disabled>Prev</button>
-                <button className="px-2 py-1 border border-border-subtle rounded bg-primary-container text-on-primary">1</button>
-                <button className="px-2 py-1 border border-border-subtle rounded hover:bg-surface-container-low bg-white" disabled>Next</button>
-              </div>
+              <span>
+                Showing {filteredActivities.length} activit{filteredActivities.length === 1 ? 'y' : 'ies'}
+              </span>
             </div>
           </div>
         )}

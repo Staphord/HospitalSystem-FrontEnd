@@ -1,11 +1,25 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { FeeItem } from '@/api/types/admin';
+import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
+import { AdminModal, AdminModalButton, AdminModalFooter } from '@/components/ui/AdminModal';
+
+const FEE_CATEGORIES = ['Consultation', 'Lab', 'Radiology', 'Pharmacy', 'Procedure', 'Ward', 'Other'];
 
 // Renders the fee schedule list layout, category filtering, and metrics dashboard
 export function FeesPage() {
   const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFee, setEditingFee] = useState<FeeItem | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formCategory, setFormCategory] = useState('Consultation');
+  const [formAmount, setFormAmount] = useState('');
+  const [formInsuranceCovered, setFormInsuranceCovered] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [feeToDelete, setFeeToDelete] = useState<FeeItem | null>(null);
 
   const fetchFees = () => {
     setLoading(true);
@@ -29,6 +43,88 @@ export function FeesPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('All Categories');
   const [currencyFilter, setCurrencyFilter] = useState<string>('TZS');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const openCreateModal = () => {
+    setEditingFee(null);
+    setFormName('');
+    setFormCategory('Consultation');
+    setFormAmount('');
+    setFormInsuranceCovered(false);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item: FeeItem) => {
+    setEditingFee(item);
+    setFormName(item.name);
+    const matchedCategory = FEE_CATEGORIES.find(
+      (c) => c.toUpperCase() === item.category.toUpperCase(),
+    );
+    setFormCategory(matchedCategory || 'Other');
+    setFormAmount(item.amount.replace(/[^0-9.]/g, ''));
+    setFormInsuranceCovered(item.insuranceCovered);
+    setIsModalOpen(true);
+  };
+
+  const closeFeeModal = () => {
+    setIsModalOpen(false);
+    setEditingFee(null);
+  };
+
+  const handleSaveFee = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formName.trim() || !formAmount.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+
+    const name = formName.trim();
+    const request = editingFee
+      ? adminService
+          .updateFeeSchedule(editingFee.id, {
+            name,
+            category: formCategory,
+            amount: formAmount,
+            insuranceCovered: formInsuranceCovered,
+          })
+          .then(() => toast.success(`Fee item "${name}" updated.`))
+      : adminService
+          .createFeeSchedule({
+            name,
+            category: formCategory,
+            amount: formAmount,
+            currency: 'TZS',
+            insuranceCovered: formInsuranceCovered,
+            active: true,
+          })
+          .then(() => toast.success(`Fee item "${name}" created.`));
+
+    request
+      .then(() => {
+        closeFeeModal();
+        fetchFees();
+      })
+      .catch((err) => {
+        toast.error(
+          err.response?.data?.detail ||
+            (editingFee ? 'Failed to update fee item.' : 'Failed to create fee item.'),
+        );
+      })
+      .finally(() => setIsSubmitting(false));
+  };
+
+  const handleDeleteFee = () => {
+    if (!feeToDelete || deletingId) return;
+    setDeletingId(feeToDelete.id);
+    adminService
+      .deleteFeeSchedule(feeToDelete.id)
+      .then(() => {
+        toast.success(`Fee item "${feeToDelete.name}" deleted.`);
+        setFeeToDelete(null);
+        fetchFees();
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to delete fee item.');
+      })
+      .finally(() => setDeletingId(null));
+  };
 
   // Toggle insurance covered state value (amount passed so backend can set insurance price)
   const toggleInsuranceCovered = (id: string) => {
@@ -54,14 +150,25 @@ export function FeesPage() {
   const filteredItems = feeItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           item.category.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = categoryFilter === 'All Categories' || 
+
+    const matchesCategory = categoryFilter === 'All Categories' ||
                             item.category === categoryFilter.toUpperCase();
-    
+
     const matchesCurrency = item.currency === currencyFilter;
 
     return matchesSearch && matchesCategory && matchesCurrency;
   });
+
+  const numericAmounts = feeItems
+    .map((item) => Number(item.amount.replace(/[^0-9.]/g, '')))
+    .filter((n) => Number.isFinite(n));
+  const averageFee = numericAmounts.length
+    ? Math.round(numericAmounts.reduce((sum, n) => sum + n, 0) / numericAmounts.length)
+    : 0;
+  const insuranceCoveragePct = feeItems.length
+    ? Math.round((feeItems.filter((f) => f.insuranceCovered).length / feeItems.length) * 100 * 10) / 10
+    : 0;
+  const inactiveCount = feeItems.filter((f) => !f.active).length;
 
   return (
     <div className="max-w-[1024px] mx-auto space-y-lg pb-32">
@@ -75,11 +182,10 @@ export function FeesPage() {
           </nav>
         </div>
         <div className="flex items-center gap-md">
-          <button className="flex items-center gap-sm px-md py-2 border border-border-subtle rounded-lg text-secondary font-label-md bg-white hover:bg-surface-container transition-colors cursor-pointer">
-            <span className="material-symbols-outlined">download</span>
-            Import CSV
-          </button>
-          <button className="flex items-center gap-sm px-md py-2 bg-primary-container text-white rounded-lg font-label-md hover:opacity-90 shadow-sm transition-all active:scale-[0.98] border-0 cursor-pointer">
+          <button
+            onClick={openCreateModal}
+            className="flex items-center gap-sm px-md py-2 bg-primary-container text-white rounded-lg font-label-md hover:opacity-90 shadow-sm transition-all active:scale-[0.98] border-0 cursor-pointer"
+          >
             <span className="material-symbols-outlined">add</span>
             Add Fee Item
           </button>
@@ -135,7 +241,7 @@ export function FeesPage() {
         </div>
 
         <div className="self-end pb-1">
-          <button 
+          <button
             onClick={() => {
               setSearchQuery('');
               setCategoryFilter('All Categories');
@@ -220,11 +326,24 @@ export function FeesPage() {
                   </td>
                   <td className="px-xl py-md text-right">
                     <div className="flex justify-end gap-sm">
-                      <button className="p-1.5 text-on-secondary-container hover:bg-surface-container rounded transition-colors bg-transparent border-0 cursor-pointer" title="Edit Item">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="p-1.5 text-on-secondary-container hover:bg-surface-container rounded transition-colors bg-transparent border-0 cursor-pointer"
+                        title="Edit Item"
+                      >
                         <span className="material-symbols-outlined text-[20px]">edit</span>
                       </button>
-                      <button className="p-1.5 text-on-secondary-container hover:bg-error/10 hover:text-error rounded transition-colors bg-transparent border-0 cursor-pointer" title="Delete Item">
-                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                      <button
+                        type="button"
+                        onClick={() => setFeeToDelete(item)}
+                        disabled={deletingId === item.id}
+                        className="p-1.5 text-on-secondary-container hover:bg-error/10 hover:text-error rounded transition-colors bg-transparent border-0 cursor-pointer disabled:opacity-60"
+                        title="Delete Item"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">
+                          {deletingId === item.id ? 'hourglass_empty' : 'delete'}
+                        </span>
                       </button>
                     </div>
                   </td>
@@ -247,22 +366,11 @@ export function FeesPage() {
           </table>
         </div>
 
-        {/* Table Pagination controls */}
+        {/* Table footer summary */}
         <div className="px-xl py-md border-t border-border-subtle flex items-center justify-between bg-surface-container-low">
           <p className="font-body-sm text-secondary">
-            Showing <span className="font-bold text-on-surface">1 - {filteredItems.length}</span> of <span className="font-bold text-on-surface">128</span> entries
+            Showing <span className="font-bold text-on-surface">{filteredItems.length}</span> of <span className="font-bold text-on-surface">{feeItems.length}</span> entries
           </p>
-          <div className="flex gap-base">
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-white text-secondary hover:bg-surface-container transition-colors disabled:opacity-50" disabled>
-              <span className="material-symbols-outlined text-md">chevron_left</span>
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded bg-primary-container text-white font-label-md border-0">1</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-white text-on-surface hover:bg-surface-container font-label-md">2</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-white text-on-surface hover:bg-surface-container font-label-md">3</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-white text-secondary hover:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined text-md">chevron_right</span>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -274,7 +382,7 @@ export function FeesPage() {
           </div>
           <div>
             <p className="font-label-md text-secondary uppercase tracking-wider">Average Fee</p>
-            <p className="font-headline-sm text-on-surface">21,750 TZS</p>
+            <p className="font-headline-sm text-on-surface">{averageFee.toLocaleString('en-US')} TZS</p>
           </div>
         </div>
 
@@ -284,7 +392,7 @@ export function FeesPage() {
           </div>
           <div>
             <p className="font-label-md text-secondary uppercase tracking-wider">Insurance Coverage</p>
-            <p className="font-headline-sm text-on-surface">82.4% Services</p>
+            <p className="font-headline-sm text-on-surface">{insuranceCoveragePct}% Services</p>
           </div>
         </div>
 
@@ -293,8 +401,8 @@ export function FeesPage() {
             <span className="material-symbols-outlined">warning</span>
           </div>
           <div className="relative z-10">
-            <p className="font-label-md text-secondary uppercase tracking-wider">Pending Updates</p>
-            <p className="font-headline-sm text-on-surface">14 Items</p>
+            <p className="font-label-md text-secondary uppercase tracking-wider">Inactive Items</p>
+            <p className="font-headline-sm text-on-surface">{inactiveCount} Items</p>
           </div>
           <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4 group-hover:translate-x-2 group-hover:translate-y-2 transition-transform duration-300">
             <span className="material-symbols-outlined" style={{ fontSize: '80px' }}>
@@ -303,6 +411,86 @@ export function FeesPage() {
           </div>
         </div>
       </div>
+
+      <AdminModal
+        isOpen={isModalOpen}
+        title={editingFee ? 'Edit Fee Item' : 'Add Fee Item'}
+        onClose={closeFeeModal}
+      >
+        <form onSubmit={handleSaveFee}>
+          <div className="px-lg py-lg space-y-md">
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Service Name</label>
+              <input
+                type="text"
+                required
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                placeholder="e.g. General Consultation"
+              />
+            </div>
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Category</label>
+              <select
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              >
+                {FEE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Fee Amount (TZS)</label>
+              <input
+                type="number"
+                required
+                min={0}
+                step="0.01"
+                value={formAmount}
+                onChange={(e) => setFormAmount(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                placeholder="e.g. 25000"
+              />
+            </div>
+            <label className="flex items-center gap-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formInsuranceCovered}
+                onChange={(e) => setFormInsuranceCovered(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="font-label-md text-label-md text-secondary">Insurance covered</span>
+            </label>
+          </div>
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={closeFeeModal}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : editingFee ? 'Update Fee Item' : 'Save Fee Item'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
+
+      <DeleteConfirmationModal
+        isOpen={!!feeToDelete}
+        title="Delete Fee Item"
+        message={
+          <>
+            Are you sure you want to permanently delete fee item{' '}
+            <strong>{feeToDelete?.name}</strong>? This action cannot be undone.
+          </>
+        }
+        onClose={() => {
+          if (!deletingId) setFeeToDelete(null);
+        }}
+        onConfirm={handleDeleteFee}
+        isLoading={!!deletingId}
+      />
     </div>
   );
 }

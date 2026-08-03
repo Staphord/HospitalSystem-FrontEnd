@@ -12,6 +12,7 @@ export interface WardBed {
   diagnosis?: string
   admittingDoctorId?: string
   admissionDate?: string
+  condition?: AdmissionCondition
 }
 
 export interface BedBoardWard {
@@ -25,6 +26,8 @@ export interface BedBoardWard {
   }>
 }
 
+export type AdmissionCondition = 'stable' | 'monitoring' | 'critical'
+
 export interface Admission {
   admissionId: string
   visitId: string
@@ -32,6 +35,7 @@ export interface Admission {
   bedId: string
   admittingDoctorId: string
   admittingDiagnosis: string
+  condition: AdmissionCondition
   admissionDate: string
   dischargeDate?: string | null
   lengthOfStayDays?: number | null
@@ -88,6 +92,7 @@ export interface NursingNote {
   vitalsTemp?: number | null
   vitalsPulse?: number | null
   vitalsSpo2?: number | null
+  vitalsRespRate?: number | null
   authoredBy: string
   authoredAt: string
 }
@@ -99,4 +104,59 @@ export interface NursingNoteCreate {
   vitalsTemp?: number
   vitalsPulse?: number
   vitalsSpo2?: number
+  vitalsRespRate?: number
+}
+
+export interface WardVisitor {
+  visitorId: string
+  admissionId?: string | null
+  patientId?: string | null
+  patientName: string
+  bedLabel: string
+  visitorName: string
+  visitorPhone?: string | null
+  relationship: string
+  nationalId?: string | null
+  checkInAt: string
+  checkOutAt?: string | null
+  approvedBy: string
+  status: 'active' | 'departed' | 'denied' | 'overstay' | string
+  denialReason?: string | null
+  allowedDurationMinutes: number
+  wardName?: string | null
+  timeLeftSeconds?: number | null
+}
+
+export interface VisitorCreate {
+  admissionId?: string
+  patientName: string
+  bedLabel: string
+  visitorName: string
+  visitorPhone?: string
+  relationship: string
+  nationalId?: string
+  approved: boolean
+  denialReason?: string
+  allowedDurationMinutes?: number
+  wardName?: string
+}
+
+export interface ShiftHandover {
+  handoverId: string
+  shiftLabel: string
+  submittedBy: string
+  overallSummary: string
+  incidentsSummary?: string | null
+  patientCount: number
+  patientNotes?: Record<string, string> | null
+  wardName?: string | null
+  createdAt: string
+}
+
+export interface HandoverCreate {
+  shiftLabel: string
+  overallSummary: string
+  incidentsSummary?: string
+  patientNotes: Record<string, string>
+  wardName?: string
 }

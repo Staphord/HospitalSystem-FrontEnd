@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { adminService } from '@/api/services/admin';
+import type { Department } from '@/api/types/admin';
 
 // Wizard view handling creation and modification of staff personnel records
 export function AddStaffPage() {
@@ -19,27 +21,37 @@ export function AddStaffPage() {
     staffMember ? staffMember.role : 'doctor'
   );
   const [landingDepartment, setLandingDepartment] = useState(
-    staffMember ? staffMember.landingDepartment : 'Cardiology'
+    staffMember ? staffMember.landingDepartment : ''
   );
   const [additionalDepts, setAdditionalDepts] = useState<string[]>(
-    staffMember ? staffMember.additionalDepartments : ['Radiology']
+    staffMember ? staffMember.additionalDepartments : []
   );
   const [mfaEnabled, setMfaEnabled] = useState(
     staffMember ? staffMember.mfaEnabled : true
   );
-  const [tempPassword, setTempPassword] = useState('Hk9#mP2L');
-  const [forcePasswordChange, setForcePasswordChange] = useState(true);
-  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
+  const [tempPassword, setTempPassword] = useState('');
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   // Generates randomized temporary passwords for staff account setups
   const generatePassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     let pass = '';
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
       pass += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setTempPassword(pass);
   };
+
+  useEffect(() => {
+    generatePassword();
+    adminService.listDepartments().then((depts) => {
+      setDepartments(depts);
+      if (!staffMember && depts.length > 0) {
+        setLandingDepartment((prev) => prev || depts[0].name);
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Triggers navigation back to the directory grid
   const handleCancel = () => {
@@ -79,7 +91,7 @@ export function AddStaffPage() {
       updateStaff(selectedStaffId, payload);
       setActiveView('staff');
     } else {
-      const success = addStaff(payload);
+      const success = addStaff({ ...payload, password: tempPassword });
       if (success) {
         setActiveView('staff');
       }
@@ -220,20 +232,24 @@ export function AddStaffPage() {
                 Staff will land on this department automatically after login.
               </p>
               <div className="space-y-3">
-                {['Cardiology', 'Pediatrics', 'General Surgery'].map((dept) => (
-                  <label key={dept} className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      checked={landingDepartment === dept}
-                      className="mt-0.5 w-4 h-4 text-primary bg-surface-white border-border-subtle focus:ring-primary"
-                      name="dept_landing"
-                      type="radio"
-                      onChange={() => setLandingDepartment(dept)}
-                    />
-                    <span className="block font-body-sm font-medium text-xs text-on-surface">
-                      {dept}
-                    </span>
-                  </label>
-                ))}
+                {departments.length === 0 ? (
+                  <p className="text-[11px] text-secondary">No departments configured yet.</p>
+                ) : (
+                  departments.map((dept) => (
+                    <label key={dept.id} className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        checked={landingDepartment === dept.name}
+                        className="mt-0.5 w-4 h-4 text-primary bg-surface-white border-border-subtle focus:ring-primary"
+                        name="dept_landing"
+                        type="radio"
+                        onChange={() => setLandingDepartment(dept.name)}
+                      />
+                      <span className="block font-body-sm font-medium text-xs text-on-surface">
+                        {dept.name}
+                      </span>
+                    </label>
+                  ))
+                )}
               </div>
             </div>
 
@@ -243,27 +259,29 @@ export function AddStaffPage() {
                 Read-only access to additional departments (optional)
               </label>
               <div className="border border-border-subtle rounded-md bg-surface-white max-h-40 overflow-y-auto">
-                {['Emergency Department', 'Radiology', 'Neurology', 'Oncology'].map((dept) => {
-                  const isChecked = additionalDepts.includes(dept);
-                  return (
-                    <div
-                      key={dept}
-                      className={`px-3 py-2 border-b border-border-subtle last:border-b-0 hover:bg-surface-bright flex items-center gap-2 ${
-                        isChecked ? 'bg-row-hover' : ''
-                      }`}
-                    >
-                      <input
-                        checked={isChecked}
-                        onChange={() => handleDeptCheckChange(dept)}
-                        className="w-4 h-4 text-primary border-border-subtle rounded focus:ring-primary"
-                        type="checkbox"
-                      />
-                      <span className={`text-xs ${isChecked ? 'text-primary font-semibold' : 'text-on-surface'}`}>
-                        {dept}
-                      </span>
-                    </div>
-                  );
-                })}
+                {departments
+                  .filter((dept) => dept.name !== landingDepartment)
+                  .map((dept) => {
+                    const isChecked = additionalDepts.includes(dept.name);
+                    return (
+                      <div
+                        key={dept.id}
+                        className={`px-3 py-2 border-b border-border-subtle last:border-b-0 hover:bg-surface-bright flex items-center gap-2 ${
+                          isChecked ? 'bg-row-hover' : ''
+                        }`}
+                      >
+                        <input
+                          checked={isChecked}
+                          onChange={() => handleDeptCheckChange(dept.name)}
+                          className="w-4 h-4 text-primary border-border-subtle rounded focus:ring-primary"
+                          type="checkbox"
+                        />
+                        <span className={`text-xs ${isChecked ? 'text-primary font-semibold' : 'text-on-surface'}`}>
+                          {dept.name}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 
@@ -334,43 +352,9 @@ export function AddStaffPage() {
                   </button>
                 </div>
               </div>
-
-              {/* Force Password Change switch */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  checked={forcePasswordChange}
-                  onChange={(e) => setForcePasswordChange(e.target.checked)}
-                  className="w-4 h-4 text-primary border-border-subtle rounded focus:ring-primary"
-                  type="checkbox"
-                />
-                <span className="text-xs text-on-surface">
-                  Force password change on first login
-                </span>
-              </label>
-
-              {/* Send Welcome Email Toggle switch */}
-              <div className="flex items-start gap-4 bg-surface-bright p-4 rounded-lg border border-border-subtle">
-                <div className="mt-0.5 text-primary">
-                  <span className="material-symbols-outlined">mark_email_read</span>
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-body-sm font-medium text-xs text-on-surface mb-1">
-                    Send Welcome Email
-                  </h3>
-                  <p className="text-[10px] text-secondary">
-                    An automated email containing instructions will be sent to the address above.
-                  </p>
-                </div>
-                <label className="relative inline-flex inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    checked={sendWelcomeEmail}
-                    onChange={(e) => setSendWelcomeEmail(e.target.checked)}
-                    className="sr-only peer"
-                    type="checkbox"
-                  />
-                  <div className="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
-                </label>
-              </div>
+              <p className="text-[10px] text-secondary">
+                A password reset will be required on first login. Share this temporary password with the new staff member securely.
+              </p>
             </div>
           </section>
         )}

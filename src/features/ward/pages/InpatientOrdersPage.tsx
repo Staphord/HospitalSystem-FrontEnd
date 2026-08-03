@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { IssueOrderModal } from '../components/IssueOrderModal'
 import { wardService } from '@/api/services/ward'
-import type { Admission } from '@/api/types/ward'
+import type { Admission, AdmissionCondition } from '@/api/types/ward'
 
-const isTestEnv =
-  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
-  import.meta.env.MODE === 'test'
+const conditionLabel = (c: AdmissionCondition): 'Stable' | 'Monitoring' | 'Critical' =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
 
 interface Order {
   id: string
@@ -31,118 +29,10 @@ const capitalizeType = (t: string): Order['type'] => {
   return 'Investigation'
 }
 
-const DEFAULT_ORDERS: Order[] = [
-  {
-    id: 'o1',
-    patientId: 'p1',
-    patientName: 'Fatuma Said',
-    bed: 'Bed 12',
-    type: 'Medication',
-    detail: 'Paracetamol 1g PO QID',
-    orderedBy: 'Dr. Mwakasege',
-    orderedAt: '08:00 AM',
-    dueTime: '10:00 AM',
-    overdue: true,
-    status: 'Pending'
-  },
-  {
-    id: 'o2',
-    patientId: 'p1',
-    patientName: 'Fatuma Said',
-    bed: 'Bed 12',
-    type: 'Nursing',
-    detail: 'Hourly Vital Signs Observation',
-    orderedBy: 'Unit Manager',
-    orderedAt: '11:30 AM',
-    dueTime: '12:30 PM',
-    overdue: false,
-    status: 'Pending'
-  },
-  {
-    id: 'o3',
-    patientId: 'p3',
-    patientName: 'John Mwangi',
-    bed: 'Bed 14',
-    type: 'Diet',
-    detail: 'NPO - Clear Liquids Only',
-    orderedBy: 'Dr. Kimaro',
-    orderedAt: '09:15 AM',
-    dueTime: 'Continuous',
-    overdue: false,
-    status: 'Pending'
-  },
-  {
-    id: 'o4',
-    patientId: 'p3',
-    patientName: 'John Mwangi',
-    bed: 'Bed 14',
-    type: 'Investigation',
-    detail: 'Stat Serum Electrolytes',
-    orderedBy: 'Dr. Kimaro',
-    orderedAt: '11:55 AM',
-    dueTime: 'ASAP (Immediate)',
-    overdue: false,
-    status: 'Pending'
-  },
-  // Test suite orders
-  {
-    id: 'o-test1',
-    patientId: 'p-test1',
-    patientName: 'Juma Hamisi',
-    bed: 'Bed 03',
-    type: 'Medication',
-    detail: 'IV Artesunate 120mg stat',
-    orderedBy: 'Dr. Joseph Lema',
-    orderedAt: '08:00 AM',
-    dueTime: 'Stat',
-    overdue: false,
-    status: 'Pending'
-  },
-  {
-    id: 'o-test2',
-    patientId: 'p-test2',
-    patientName: 'Zuwena Said',
-    bed: 'Bed 04',
-    type: 'Investigation',
-    detail: 'Stat Blood Glucose check & electrolytes panel',
-    orderedBy: 'Dr. Joseph Lema',
-    orderedAt: '09:30 AM',
-    dueTime: 'Stat',
-    overdue: false,
-    status: 'Pending'
-  },
-  // Seed completed orders to make "Completed Today" equal 12
-  ...Array.from({ length: 12 }, (_, i) => ({
-    id: `o-done-${i}`,
-    patientId: `p-done-${i}`,
-    patientName: 'Completed Patient',
-    bed: 'Bed 99',
-    type: 'Nursing' as const,
-    detail: `Completed Directive ${i + 1}`,
-    orderedBy: 'Unit Manager',
-    orderedAt: '09:00 AM',
-    dueTime: 'Completed',
-    overdue: false,
-    status: 'Done' as const
-  }))
-]
-
-function loadMockOrders(): Order[] {
-  const existing = localStorage.getItem('hf_mock_inpatient_orders')
-  if (existing) {
-    const parsed = JSON.parse(existing)
-    if (parsed.length === DEFAULT_ORDERS.length) {
-      return parsed
-    }
-  }
-  localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify(DEFAULT_ORDERS))
-  return DEFAULT_ORDERS
-}
-
 export function InpatientOrdersPage() {
-  const [isLoading, setIsLoading] = useState(() => (isTestEnv ? false : true))
+  const [isLoading, setIsLoading] = useState(true)
   const [admissions, setAdmissions] = useState<Admission[]>([])
-  const [orders, setOrders] = useState<Order[]>(() => (isTestEnv ? loadMockOrders() : []))
+  const [orders, setOrders] = useState<Order[]>([])
 
   const [selectedPatient, setSelectedPatient] = useState('All Patients')
   const [selectedType, setSelectedType] = useState('All Types')
@@ -172,7 +62,6 @@ export function InpatientOrdersPage() {
     })
 
   useEffect(() => {
-    if (isTestEnv) return
     Promise.all([
       wardService.listAdmissions({ status: 'active', limit: 200 }),
       reloadOrders(),
@@ -194,50 +83,19 @@ export function InpatientOrdersPage() {
     dueTime: string
     overdue: boolean
   }) => {
-    if (!isTestEnv) {
-      wardService
-        .createOrder(orderData.patientId, {
-          orderType: orderData.type.toLowerCase(),
-          orderDetail: orderData.detail,
-          frequency: orderData.dueTime,
-        })
-        .then(() => {
-          toast.success('Inpatient order issued successfully')
-          return reloadOrders()
-        })
-        .catch((err) => {
-          toast.error(err.response?.data?.detail || 'Failed to create order.')
-        })
-      return
-    }
-
-    const now = new Date()
-    let hours = now.getHours()
-    const minutes = now.getMinutes()
-    const ampm = hours >= 12 ? 'PM' : 'AM'
-    hours = hours % 12
-    hours = hours ? hours : 12
-    const strMinutes = minutes < 10 ? '0' + minutes : minutes
-    const orderedAt = `${hours}:${strMinutes} ${ampm}`
-
-    const newOrder: Order = {
-      id: `o-new-${Date.now()}`,
-      patientId: orderData.patientId,
-      patientName: orderData.patientName,
-      bed: orderData.bed,
-      type: orderData.type,
-      detail: orderData.detail,
-      orderedBy: 'Dr. Amina Hassan',
-      orderedAt: orderedAt,
-      dueTime: orderData.dueTime,
-      overdue: orderData.overdue,
-      status: 'Pending',
-    }
-
-    const updated = [newOrder, ...orders]
-    setOrders(updated)
-    localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify(updated))
-    toast.success('Inpatient order issued successfully')
+    wardService
+      .createOrder(orderData.patientId, {
+        orderType: orderData.type.toLowerCase(),
+        orderDetail: orderData.detail,
+        frequency: orderData.dueTime,
+      })
+      .then(() => {
+        toast.success('Inpatient order issued successfully')
+        return reloadOrders()
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to create order.')
+      })
   }
 
   const activeOrders = orders.filter((o) => o.status === 'Pending')
@@ -245,48 +103,25 @@ export function InpatientOrdersPage() {
 
   const handleToggleStatus = (orderId: string) => {
     const target = orders.find((o) => o.id === orderId)
-    if (!isTestEnv && target) {
-      const nextStatus = target.status === 'Pending' ? 'completed' : 'active'
-      wardService
-        .updateOrder(target.patientId, orderId, { status: nextStatus })
-        .then(() => {
-          toast.success(
-            `Order marked as ${nextStatus === 'completed' ? 'completed' : 'pending'}`,
-          )
-          return reloadOrders()
-        })
-        .catch((err) => {
-          toast.error(err.response?.data?.detail || 'Failed to update order.')
-        })
-      return
-    }
-
-    const updated = orders.map((o) => {
-      if (o.id === orderId) {
-        const newStatus = o.status === 'Pending' ? 'Done' : 'Pending'
-        toast.success(`Order marked as ${newStatus === 'Done' ? 'completed' : 'pending'}`)
-        return {
-          ...o,
-          status: newStatus as Order['status'],
-          dueTime: newStatus === 'Done' ? 'Completed' : 'Due now',
-          overdue: false,
-        }
-      }
-      return o
-    })
-    setOrders(updated)
-    localStorage.setItem('hf_mock_inpatient_orders', JSON.stringify(updated))
+    if (!target) return
+    const nextStatus = target.status === 'Pending' ? 'completed' : 'active'
+    wardService
+      .updateOrder(target.patientId, orderId, { status: nextStatus })
+      .then(() => {
+        toast.success(
+          `Order marked as ${nextStatus === 'completed' ? 'completed' : 'pending'}`,
+        )
+        return reloadOrders()
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update order.')
+      })
   }
 
   // Filter orders
   const filteredOrders = orders.filter((o) => {
     // Patient filter
-    if (selectedPatient !== 'All Patients') {
-      // Handle design select options ("Fatuma Said (Bed 12)")
-      if (selectedPatient.startsWith('Fatuma Said') && o.patientName !== 'Fatuma Said') return false
-      if (selectedPatient.startsWith('John Mwangi') && o.patientName !== 'John Mwangi') return false
-      if (!selectedPatient.startsWith('Fatuma Said') && !selectedPatient.startsWith('John Mwangi') && o.patientName !== selectedPatient) return false
-    }
+    if (selectedPatient !== 'All Patients' && o.patientName !== selectedPatient) return false
 
     // Order Type filter
     if (selectedType !== 'All Types') {
@@ -414,9 +249,7 @@ export function InpatientOrdersPage() {
                 className="border-0 bg-transparent font-body-md text-body-md text-on-surface focus:ring-0 cursor-pointer outline-none"
               >
                 <option value="All Patients">All Patients</option>
-                <option value="Fatuma Said (Bed 12)">Fatuma Said (Bed 12)</option>
-                <option value="John Mwangi (Bed 14)">John Mwangi (Bed 14)</option>
-                {uniquePatients.filter(name => name !== 'Fatuma Said' && name !== 'John Mwangi' && name !== 'Completed Patient').map(name => (
+                {uniquePatients.map(name => (
                   <option key={name} value={name}>{name}</option>
                 ))}
               </select>
@@ -615,17 +448,13 @@ export function InpatientOrdersPage() {
         isOpen={isOrderModalOpen}
         onClose={() => setIsOrderModalOpen(false)}
         onAddOrder={handleAddOrder}
-        patients={
-          isTestEnv
-            ? undefined
-            : admissions.map((a) => ({
-                id: a.admissionId,
-                name: `Patient ${a.patientId.slice(0, 8)}`,
-                bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
-                condition: 'Stable' as const,
-                diagnosis: a.admittingDiagnosis,
-              }))
-        }
+        patients={admissions.map((a) => ({
+          id: a.admissionId,
+          name: `Patient ${a.patientId.slice(0, 8)}`,
+          bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+          condition: conditionLabel(a.condition),
+          diagnosis: a.admittingDiagnosis,
+        }))}
       />
     </div>
   )

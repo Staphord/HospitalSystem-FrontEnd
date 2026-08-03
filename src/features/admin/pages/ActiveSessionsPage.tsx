@@ -3,16 +3,22 @@ import { useApp } from '../context/AppContext';
 
 // Renders the active session monitor with bento metrics, table, chart, and security panel
 export const ActiveSessionsPage: React.FC = () => {
-  const { sessions, revokeSession, setActiveView } = useApp();
+  const { sessions, revokeSession, refreshSessions, setActiveView } = useApp();
   const [countdown, setCountdown] = useState(30);
 
-  // Counts down refresh indicator every second
+  // Re-polls active sessions every 30s and counts down the indicator each second
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => (prev <= 1 ? 30 : prev - 1));
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          refreshSessions();
+          return 30;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [refreshSessions]);
 
   // Revoke individual session with confirmation
   const handleRevoke = (id: string, staffName: string) => {
@@ -31,7 +37,6 @@ export const ActiveSessionsPage: React.FC = () => {
   // Session distribution counts
   const doctorSessions = sessions.filter((s) => s.staffRole === 'doctor').length;
   const nurseSessions = sessions.filter((s) => s.staffRole === 'nurse').length;
-  const idleCount = Math.max(0, sessions.length - doctorSessions - nurseSessions);
 
   return (
     <div className="max-w-container-max mx-auto flex flex-col gap-lg">
@@ -61,7 +66,7 @@ export const ActiveSessionsPage: React.FC = () => {
       </div>
 
       {/* Bento summary grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-md">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
         {/* Online Now */}
         <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between">
           <div className="flex justify-between items-start">
@@ -72,10 +77,6 @@ export const ActiveSessionsPage: React.FC = () => {
             <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_play</span>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-success">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span className="text-[11px] font-medium">+12% vs last hr</span>
           </div>
         </div>
 
@@ -90,10 +91,6 @@ export const ActiveSessionsPage: React.FC = () => {
               <span className="material-symbols-outlined text-[24px]">medical_information</span>
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-1 text-success">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span className="text-[11px] font-medium">Stable load</span>
-          </div>
         </div>
 
         {/* In Laboratory */}
@@ -106,27 +103,6 @@ export const ActiveSessionsPage: React.FC = () => {
             <div className="w-10 h-10 rounded bg-secondary-container/30 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-[24px]">biotech</span>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-error">
-            <span className="material-symbols-outlined text-[16px]">trending_down</span>
-            <span className="text-[11px] font-medium">-2 from peak</span>
-          </div>
-        </div>
-
-        {/* Idle */}
-        <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-outline font-label-md uppercase tracking-wider mb-1">Idle (&gt;10min)</p>
-              <h3 className="font-headline-md text-[28px] text-on-surface">{idleCount}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-warning/10 flex items-center justify-center text-warning">
-              <span className="material-symbols-outlined text-[24px]">hourglass_empty</span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-warning">
-            <span className="material-symbols-outlined text-[16px]">priority_high</span>
-            <span className="text-[11px] font-medium">Requires attention</span>
           </div>
         </div>
       </div>
@@ -254,53 +230,23 @@ export const ActiveSessionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Monitoring chart + security audit bento row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-lg">
-        {/* Concurrent sessions chart */}
-        <div className="md:col-span-2 bg-surface-white border border-border-subtle rounded-[16px] p-lg">
-          <div className="flex justify-between items-center mb-md">
-            <h4 className="font-headline-sm text-headline-sm text-on-surface">Concurrent Sessions (24h)</h4>
-            <div className="flex items-center gap-md">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-primary" />
-                <span className="font-label-md text-outline">Total</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-success" />
-                <span className="font-label-md text-outline">Mobile</span>
-              </div>
-            </div>
-          </div>
-          <div className="h-48 flex items-end justify-between gap-1 mt-md">
-            {[20, 25, 15, 40, 65, 85, 95, 100, 80, 60, 30, 15].map((h, i) => (
-              <div
-                key={i}
-                className={`w-full rounded-t-sm ${h > 50 ? 'bg-primary' : 'bg-surface-container-low'}`}
-                style={{ height: `${h}%`, opacity: h > 50 ? Math.min(1, 0.5 + h / 200) : 1 }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Security audit card */}
-        <div className="bg-primary-container text-white rounded-[16px] p-lg flex flex-col justify-between">
+      {/* Security audit link card */}
+      <div className="bg-primary-container text-white rounded-[16px] p-lg flex flex-col md:flex-row items-center justify-between gap-md">
+        <div className="flex items-center gap-md">
+          <span className="material-symbols-outlined text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield_lock</span>
           <div>
-            <div className="flex justify-between items-start mb-md">
-              <span className="material-symbols-outlined text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield_lock</span>
-              <span className="px-2 py-0.5 rounded bg-white/20 text-[10px] font-bold uppercase">System Stable</span>
-            </div>
-            <h4 className="font-headline-sm text-headline-sm mb-2">Security Audit</h4>
+            <h4 className="font-headline-sm text-headline-sm mb-1">Security Audit</h4>
             <p className="text-white/80 font-body-sm">
-              No suspicious IP movements or multiple logins detected in the last 4 hours.
+              Review the full audit trail for login activity and session revocations.
             </p>
           </div>
-          <button
-            onClick={() => setActiveView('audit')}
-            className="mt-md w-full py-2 bg-white text-primary font-label-md rounded hover:bg-white/90 transition-all"
-          >
-            View Audit Log
-          </button>
         </div>
+        <button
+          onClick={() => setActiveView('audit')}
+          className="py-2 px-lg bg-white text-primary font-label-md rounded hover:bg-white/90 transition-all whitespace-nowrap"
+        >
+          View Audit Log
+        </button>
       </div>
     </div>
   );

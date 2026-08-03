@@ -1,9 +1,9 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { BedMapPage } from '../BedMapPage'
+import { wardService } from '@/api/services/ward'
 
-// Mock toast notifications
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -12,25 +12,57 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('@/api/services/ward', () => ({
+  wardService: {
+    listBedsWithAdmissions: vi.fn(),
+    createAdmission: vi.fn(),
+    updateCondition: vi.fn(),
+  },
+}))
+
+const mockBeds = [
+  {
+    bedId: 'bed-301a',
+    wardName: 'General Ward',
+    bedNumber: '301-A',
+    bedType: 'general',
+    isAvailable: false,
+    isActive: true,
+    admissionId: 'adm-juma',
+    patientId: 'juma0000-aaaa-bbbb-cccc-000000000000',
+    diagnosis: 'Severe Malaria w/ Complications',
+    admittingDoctorId: 'Dr. Joseph Lema',
+    admissionDate: '2026-07-15T00:00:00Z',
+    condition: 'critical' as const,
+  },
+  {
+    bedId: 'bed-302b',
+    wardName: 'General Ward',
+    bedNumber: '302-B',
+    bedType: 'general',
+    isAvailable: true,
+    isActive: true,
+  },
+]
+
 describe('BedMapPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(wardService.listBedsWithAdmissions).mockResolvedValue(mockBeds as any)
   })
 
-  it('renders bed layout grid with status legend', () => {
+  it('renders bed layout grid with status legend', async () => {
     render(
       <MemoryRouter>
         <BedMapPage />
       </MemoryRouter>
     )
 
-    // Verify page heading and legend are visible
     expect(screen.getByText('Bed Map — General Ward')).toBeInTheDocument()
     expect(screen.getByText('Stable')).toBeInTheDocument()
     expect(screen.getByText('Critical')).toBeInTheDocument()
 
-    // Verify critical and available beds are visible
-    expect(screen.getByText('Bed 301-A')).toBeInTheDocument()
+    expect(await screen.findByText('Bed 301-A')).toBeInTheDocument()
     expect(screen.getByText('Bed 302-B')).toBeInTheDocument()
   })
 
@@ -41,40 +73,44 @@ describe('BedMapPage', () => {
       </MemoryRouter>
     )
 
-    // Click on Bed 301-A which is occupied by Juma Hamisi
-    const occupiedBedCard = screen.getByText('Bed 301-A')
+    const occupiedBedCard = await screen.findByText('Bed 301-A')
     fireEvent.click(occupiedBedCard)
 
-    // Verify popover details appear
-    expect(screen.getAllByText('Juma Hamisi').length).toBe(2)
-    expect(screen.getByText(/HN-9821/)).toBeInTheDocument()
+    expect(screen.getAllByText('Patient juma0000').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/juma0000/).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Severe Malaria w/ Complications').length).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: /record notes/i })).toBeInTheDocument()
   })
 
-  it('opens assignment search popover when available bed is clicked', () => {
+  it('opens assignment form when available bed is clicked', async () => {
     render(
       <MemoryRouter>
         <BedMapPage />
       </MemoryRouter>
     )
 
-    // Click on Bed 302-B which is available
-    const availableBedCard = screen.getByText('Bed 302-B')
+    const availableBedCard = await screen.findByText('Bed 302-B')
     fireEvent.click(availableBedCard)
 
-    // Verify assignment panel is visible
-    expect(screen.getByRole('heading', { name: /assign bed/i })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search patient name...')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /assign bed 302-b/i })).toBeInTheDocument()
+    const [visitInput, diagnosisInput] = screen.getAllByRole('textbox')
+    expect(visitInput).toBeInTheDocument()
 
-    // Search and select a patient to assign
-    const searchInput = screen.getByPlaceholderText('Search patient name...')
-    fireEvent.change(searchInput, { target: { value: 'Aisha' } })
+    fireEvent.change(visitInput, { target: { value: 'visit-123' } })
+    fireEvent.change(diagnosisInput, { target: { value: 'Post-op observation' } })
 
-    const patientRow = screen.getByText('Aisha Rashid')
-    fireEvent.click(patientRow)
+    vi.mocked(wardService.createAdmission).mockResolvedValue({} as any)
 
-    // Verify bed status changes and patient name is rendered on the bed
-    expect(screen.getByText('Aisha Rashid')).toBeInTheDocument()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /confirm assignment/i }))
+    })
+
+    await waitFor(() => {
+      expect(wardService.createAdmission).toHaveBeenCalledWith({
+        visitId: 'visit-123',
+        bedId: 'bed-302b',
+        admittingDiagnosis: 'Post-op observation',
+      })
+    })
   })
 })
