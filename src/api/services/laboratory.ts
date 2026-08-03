@@ -171,6 +171,11 @@ export const laboratoryService = {
     apiClient
       .get<BackendLabDashboardStats>('/laboratory/dashboard/stats')
       .then((r) => r.data),
+
+  notifyDoctor: (resultId: string) =>
+    apiClient
+      .post<{ message: string }>(`/laboratory/results/${resultId}/notify-doctor`)
+      .then((r) => r.data),
 }
 
 export interface BackendStatRequestItem {
