@@ -839,6 +839,10 @@ apiClient.defaults.adapter = async (config) => {
     url.startsWith('/admin/') ||
     url.startsWith('/ward/') ||
     url.startsWith('/reports/') ||
+    url.includes('/reception') ||
+    url.includes('/triage') ||
+    url.includes('/consultation') ||
+    url.includes('/billing') ||
     url.includes('/auth/login') ||
     url.includes('/auth/superadmin/login') ||
     url.includes('/auth/signup') ||

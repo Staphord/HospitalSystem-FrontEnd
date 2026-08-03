@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, type InputHTMLAttributes } from 'reac
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
+import { adminService } from '@/api/services/admin'
 import type { BackendPatient, BackendInsurancePolicy } from '@/api/types/reception'
+import type { Provider } from '@/api/types/admin'
 
 const FIELD_LABEL = 'block text-label-md font-label-md text-secondary mb-xs'
 const INPUT_CLASS =
@@ -201,6 +203,22 @@ function PatientFoundCard({
   const [insurerName, setInsurerName] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
   const [savingPolicy, setSavingPolicy] = useState(false)
+
+  const [providersList, setProvidersList] = useState<Provider[]>([])
+
+  useEffect(() => {
+    adminService.listInsuranceProviders()
+      .then((providers) => {
+        const active = providers.filter(p => p.active)
+        setProvidersList(active)
+        if (active.length > 0 && !insurerName) {
+          setInsurerName(active[0].name)
+        }
+      })
+      .catch((err) => {
+        toast.error(`Failed to load providers: ${err?.response?.data?.detail || err.message || 'Network error'}`)
+      })
+  }, [])
 
   const loadPatientStatus = async () => {
     setLoadingPolicies(true)
@@ -641,7 +659,8 @@ function PatientFoundCard({
                   <select
                     value={selectedPolicyId}
                     onChange={(e) => setSelectedPolicyId(e.target.value)}
-                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary appearance-none bg-no-repeat bg-right"
+                    style={selectChevronStyle}
                   >
                     <option value="">-- Choose registered policy --</option>
                     {policies.map((p) => (
@@ -678,23 +697,21 @@ function PatientFoundCard({
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-sm">
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Insurer Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Jubilee"
+                  <select
                     value={insurerName}
                     onChange={(e) => setInsurerName(e.target.value)}
-                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
-                    list="insurer-suggestions"
-                  />
-                  <datalist id="insurer-suggestions">
-                    <option value="Aetna International" />
-                    <option value="BlueCross BlueShield" />
-                    <option value="Cigna Healthcare" />
-                    <option value="Jubilee Insurance" />
-                    <option value="NHIF" />
-                  </datalist>
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white appearance-none bg-no-repeat bg-right"
+                    style={selectChevronStyle}
+                  >
+                    <option value="">Select Insurer</option>
+                    {providersList.map((prov) => (
+                      <option key={prov.id} value={prov.name}>
+                        {prov.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Policy Number</label>
