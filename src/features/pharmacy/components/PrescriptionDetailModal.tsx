@@ -57,6 +57,60 @@ function InteractionBanner({
   )
 }
 
+interface PrescriptionDetailModalProps {
+  visitId: string
+  onClose: () => void
+  onDispense: () => void
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function formatDoctorName(prescribedBy?: string | null): string {
+  if (!prescribedBy || !prescribedBy.trim()) {
+    return 'Dr. Staff Doctor'
+  }
+  let name = prescribedBy.trim()
+
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (UUID_REGEX.test(name)) {
+    return 'Dr. Staff Doctor'
+  }
+
+  // Strip technical user prefixes
+  name = name.replace(/^(user_|usr_|doctor_|doc_)/i, '')
+
+  if (name.includes('@')) {
+    name = name.split('@')[0]
+  }
+
+  name = name.replace(/[._-]+/g, ' ').trim()
+
+  if (/^dr\.?\s+/i.test(name)) {
+    name = name.replace(/^dr\.?\s+/i, '')
+  }
+
+  const capitalized = name
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+
+  return capitalized ? `Dr. ${capitalized}` : 'Dr. Staff Doctor'
+}
+
+function formatPrescribedDateTime(prescribedAt?: string | null): string {
+  if (!prescribedAt) return 'N/A'
+  const d = new Date(prescribedAt)
+  if (isNaN(d.getTime())) return 'N/A'
+  return d.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function PrescriptionDetailModal({
   prescriptionId,
   onClose,
@@ -167,7 +221,7 @@ export function PrescriptionDetailModal({
             </div>
             <div className="flex justify-between gap-md sm:flex-col sm:justify-start">
               <span className="font-label-md text-label-md text-outline font-bold">Patient #</span>
-              <span className="font-body-sm text-body-sm">{detail.patient.patient_id}</span>
+              <span className="font-body-sm text-body-sm">{detail.patient.patient_number || detail.patient.patient_id.substring(0, 8)}</span>
             </div>
             <div className="flex justify-between gap-md sm:flex-col sm:justify-start">
               <span className="font-label-md text-label-md text-outline font-bold">Age / Gender</span>
@@ -178,15 +232,13 @@ export function PrescriptionDetailModal({
             <div className="flex justify-between gap-md sm:flex-col sm:justify-start">
               <span className="font-label-md text-label-md text-outline font-bold">Prescribed By</span>
               <span className="font-body-sm text-body-sm">
-                {detail.prescriptions[0]?.prescribed_by || 'Staff Doctor'}
+                {formatDoctorName(detail.prescriptions[0]?.prescribed_by)}
               </span>
             </div>
             <div className="flex justify-between gap-md sm:flex-col sm:justify-start sm:col-span-2">
-              <span className="font-label-md text-label-md text-outline font-bold">Prescribed At</span>
+              <span className="font-label-md text-label-md text-outline font-bold">Prescribed Date & Time</span>
               <span className="font-body-sm text-body-sm">
-                {detail.prescriptions[0]
-                  ? new Date(detail.prescriptions[0].prescribed_at).toLocaleString()
-                  : 'N/A'}
+                {formatPrescribedDateTime(detail.prescriptions[0]?.prescribed_at)}
               </span>
             </div>
           </div>

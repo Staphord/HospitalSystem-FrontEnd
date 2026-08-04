@@ -357,7 +357,17 @@ export function PrescriptionQueueContent() {
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {filteredItems.map((item) => (
-                  <tr key={item.queue_id} className="hover:bg-row-hover transition-colors group">
+                  <tr
+                    key={item.queue_id}
+                    className="hover:bg-row-hover transition-colors group cursor-pointer"
+                    onClick={() => {
+                      if (item.billing_cleared) {
+                        handleDispense(item)
+                      } else {
+                        handleView(item)
+                      }
+                    }}
+                  >
                     <td className="px-lg py-md whitespace-nowrap">
                       <div className="font-body-md font-semibold text-on-surface">{item.patient_name}</div>
                       <div className="text-[11px] text-secondary mt-0.5">Q#{item.queue_number}</div>
@@ -377,7 +387,7 @@ export function PrescriptionQueueContent() {
                     <td className="px-lg py-md whitespace-nowrap text-center">
                       <PriorityBadge priority={item.priority} />
                     </td>
-                    <td className="px-lg py-md whitespace-nowrap">
+                    <td className="px-lg py-md whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-xs">
                         <PrescriptionRowActions
                           item={item}

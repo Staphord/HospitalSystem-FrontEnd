@@ -587,7 +587,12 @@ export function TenantDetailPage() {
                 </thead>
                 <tbody>
                   {subscriptions.map((sub) => (
-                    <tr key={sub.id}>
+                    <tr
+                      key={sub.id}
+                      className="hover:bg-row-hover transition-colors"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/master/subscriptions/${sub.id}`)}
+                    >
                       <td><strong>{sub.plan_name}</strong></td>
                       <td>
                         <span className={getStatusBadgeClass(sub.status)}>{sub.status}</span>
@@ -634,7 +639,12 @@ export function TenantDetailPage() {
                 </thead>
                 <tbody>
                   {invoices.map((inv) => (
-                    <tr key={inv.id}>
+                    <tr
+                      key={inv.id}
+                      className="hover:bg-row-hover transition-colors"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/master/invoices?tenant_id=${tenant.tenant_id}`)}
+                    >
                       <td><code>{inv.invoice_number || `#${inv.id}`}</code></td>
                       <td>{inv.description || 'Subscription invoice'}</td>
                       <td><strong>{formatTenantCurrency(inv.amount, tenant.currency)}</strong></td>

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { masterService } from '@/api/services/master'
 import { monitoringService, type SystemHealthData, type AuditLog, type TenantUsageTelemetry } from '@/api/services/monitoring'
 import type { Tenant, Invoice, SubscriptionPlan } from '@/api/types/master'
 
 export function MasterDashboardPage() {
+  const navigate = useNavigate()
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [health, setHealth] = useState<SystemHealthData | null>(null)
@@ -579,7 +580,12 @@ export function MasterDashboardPage() {
                     const hasAlert = t.status === 'suspended' || t.status === 'terminated' || !!tTelemetry?.error
 
                     return (
-                      <tr key={t.tenant_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <tr
+                        key={t.tenant_id}
+                        className="hover:bg-row-hover transition-colors"
+                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+                        onClick={() => navigate(`/master/tenants/${t.tenant_id}`)}
+                      >
                         <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--color-primary)' }}>{tenantName}</td>
                         <td style={{ padding: '0.75rem 1rem' }}>
                           <span

@@ -58,7 +58,11 @@ export function AnnouncementTable({
             const status = getAnnouncementStatus(ann)
             const pubSched = formatDateTime(ann.publish_at)
             return (
-              <tr key={ann.announcement_id} className="border-0 border-b border-solid border-outline-variant hover:bg-row-hover transition-colors group">
+              <tr
+                key={ann.announcement_id}
+                className="border-0 border-b border-solid border-outline-variant hover:bg-row-hover transition-colors group cursor-pointer"
+                onClick={() => onPreview(ann)}
+              >
                 <td className="p-md max-w-xs sm:max-w-md">
                   <div className="font-medium text-primary-fixed-variant group-hover:text-primary-container truncate mb-1">
                     {ann.title}
@@ -91,7 +95,7 @@ export function AnnouncementTable({
                     </span>
                   )}
                 </td>
-                <td className="p-md text-right whitespace-nowrap">
+                <td className="p-md text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-xs">
                     {/* Preview Button */}
                     <button 
