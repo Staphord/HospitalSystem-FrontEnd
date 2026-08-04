@@ -41,6 +41,7 @@ export interface PrescriptionItem {
 
 export interface PatientPrescriptionContext {
   patient_id: string
+  patient_number?: string | null
   patient_name: string
   date_of_birth: string
   allergies?: string | null
@@ -261,6 +262,22 @@ export const pharmacyService = {
 
   getLowStockAlerts: async (): Promise<LowStockAlertsResponse> => {
     const res = await apiClient.get<LowStockAlertsResponse>('/pharmacy/inventory/low-stock-alerts')
+    return res.data
+  },
+
+  createInventoryItem: async (data: {
+    drug_name: string
+    brand_name?: string
+    drug_code: string
+    category: string
+    unit: string
+    quantity_in_stock: number
+    reorder_level: number
+    unit_cost: number
+    unit_price: number
+    location?: string
+  }): Promise<InventoryItem> => {
+    const res = await apiClient.post<InventoryItem>('/pharmacy/inventory', data)
     return res.data
   },
 }

@@ -609,7 +609,12 @@ export function SystemHealthPage() {
                             const activeSessions = isOnline ? (userCount !== null ? Math.max(1, Math.min(userCount, (hashVal % 3) + 1)) : (hashVal % 3) + 1) : 0
 
                             return (
-                              <tr key={t.tenant_id}>
+                              <tr
+                                key={t.tenant_id}
+                                className="hover:bg-row-hover transition-colors"
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => { setActiveTab('usage'); setSelectedTenantId(t.tenant_id) }}
+                              >
                                 <td>
                                   <strong>{t.hospital_name}</strong>
                                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>ID: <code>{t.tenant_id}</code></div>
@@ -649,7 +654,7 @@ export function SystemHealthPage() {
                                 <td>
                                   <strong>{activeSessions} sessions</strong>
                                 </td>
-                                <td style={{ textAlign: 'right' }}>
+                                <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                                   <button
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => { setActiveTab('usage'); setSelectedTenantId(t.tenant_id) }}

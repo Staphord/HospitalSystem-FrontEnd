@@ -490,7 +490,12 @@ export function SubscriptionManagementPage() {
                   </thead>
                   <tbody>
                     {paginatedRequests.map((req, idx) => (
-                      <tr key={req.tenant_id + '-' + idx}>
+                      <tr
+                        key={req.tenant_id + '-' + idx}
+                        style={{ cursor: 'pointer' }}
+                        className="hover:bg-row-hover transition-colors"
+                        onClick={() => navigate(`/master/tenants/${req.tenant_id}`)}
+                      >
                         <td style={{ fontWeight: 600 }}>
                           {req.hospital_name || req.tenant_id}
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
@@ -542,7 +547,7 @@ export function SubscriptionManagementPage() {
                           </span>
                         </td>
                         <td>{new Date(req.requested_at).toLocaleDateString()}</td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           {(!req.status || req.status === 'pending') ? (
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexDirection: 'column' }}>
                               <div style={{ display: 'flex', gap: '8px' }}>

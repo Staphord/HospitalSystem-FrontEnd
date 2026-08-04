@@ -206,7 +206,11 @@ export function MasterAdminsPage() {
                 </thead>
                 <tbody className="font-body-sm text-body-sm text-on-surface">
                   {admins.map((admin) => (
-                    <tr key={admin.super_admin_id || admin.username} className="border-0 border-b border-solid border-outline-variant hover:bg-row-hover transition-colors">
+                    <tr 
+                      key={admin.super_admin_id || admin.username} 
+                      className="border-0 border-b border-solid border-outline-variant hover:bg-row-hover transition-colors cursor-pointer"
+                      onClick={() => handleEditClick(admin)}
+                    >
                       <td className="p-md whitespace-nowrap">
                         <div className="flex items-center gap-sm">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
@@ -243,7 +247,7 @@ export function MasterAdminsPage() {
                       <td className="p-md whitespace-nowrap text-secondary">
                         {formatDateTime(admin.last_login_at)}
                       </td>
-                      <td className="p-md text-right whitespace-nowrap">
+                      <td className="p-md text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-xs">
                           <button 
                             className={`p-xs rounded hover:bg-surface-container-high transition-colors bg-transparent border-0 cursor-pointer flex items-center ${
@@ -308,11 +312,12 @@ export function MasterAdminsPage() {
                   {sessions.map((session) => (
                     <tr 
                       key={session.id} 
-                      className={`border-0 border-b border-solid border-outline-variant transition-colors ${
+                      className={`border-0 border-b border-solid border-outline-variant transition-colors cursor-pointer ${
                         session.is_impersonation 
                           ? 'bg-purple-50/70 hover:bg-purple-100/70 dark:bg-purple-950/20 dark:hover:bg-purple-900/20' 
                           : 'hover:bg-row-hover'
                       }`}
+                      onClick={() => setSessionToRevoke({ id: session.id, name: session.full_name || session.username })}
                     >
                       <td className="p-md whitespace-nowrap">
                         <div className="flex items-center gap-sm">
@@ -369,7 +374,7 @@ export function MasterAdminsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="p-md text-right whitespace-nowrap">
+                      <td className="p-md text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button 
                           className="text-primary hover:underline font-label-md bg-transparent border-0 cursor-pointer"
                           onClick={() => setSessionToRevoke({ id: session.id, name: session.full_name || session.username })}

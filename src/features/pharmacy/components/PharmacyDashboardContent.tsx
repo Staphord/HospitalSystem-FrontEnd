@@ -100,7 +100,11 @@ function PrescriptionQueuePreview({ queue, onDispense }: PrescriptionQueuePrevie
             {previewList.map((rx) => {
               const canDispense = rx.billing_cleared
               return (
-                <tr key={rx.queue_id} className="hover:bg-primary-container/5 transition-colors">
+                <tr
+                  key={rx.queue_id}
+                  className={`hover:bg-primary-container/5 transition-colors ${canDispense ? 'cursor-pointer' : ''}`}
+                  onClick={() => canDispense && onDispense(rx)}
+                >
                   <td className="px-lg py-md font-body-sm text-body-sm font-semibold">{rx.patient_name}</td>
                   <td className="px-lg py-md font-body-sm text-body-sm">
                     {rx.prescription_count} med{rx.prescription_count !== 1 ? 's' : ''}
@@ -108,7 +112,7 @@ function PrescriptionQueuePreview({ queue, onDispense }: PrescriptionQueuePrevie
                   <td className="px-lg py-md">
                     <BillingBadge status={rx.billing_cleared} />
                   </td>
-                  <td className="px-lg py-md text-right">
+                  <td className="px-lg py-md text-right" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       disabled={!canDispense}

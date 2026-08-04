@@ -16,6 +16,73 @@ interface LineItemState {
   dispense: boolean
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function formatDoctorName(prescribedBy?: string | null): string {
+  if (!prescribedBy || !prescribedBy.trim()) {
+    return 'Dr. Staff Doctor'
+  }
+  let name = prescribedBy.trim()
+
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (UUID_REGEX.test(name)) {
+    return 'Dr. Staff Doctor'
+  }
+
+  // Strip common technical user prefixes if followed by user identifiers
+  name = name.replace(/^(user_|usr_|doctor_|doc_)/i, '')
+
+  // Handle email usernames e.g. "mwaka@hospital.org" -> "mwaka"
+  if (name.includes('@')) {
+    name = name.split('@')[0]
+  }
+
+  // Convert dots, underscores, dashes to spaces
+  name = name.replace(/[._-]+/g, ' ').trim()
+
+  // Handle existing "dr." or "dr " prefix
+  if (/^dr\.?\s+/i.test(name)) {
+    name = name.replace(/^dr\.?\s+/i, '')
+  }
+
+  const capitalized = name
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+
+  return capitalized ? `Dr. ${capitalized}` : 'Dr. Staff Doctor'
+}
+
+function formatPrescribedDateTime(prescribedAt?: string | null): string {
+  if (!prescribedAt) {
+    return new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+  const d = new Date(prescribedAt)
+  if (isNaN(d.getTime())) {
+    return new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+  return d.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function BillingHeaderBadge({ cleared }: { cleared: boolean }) {
   if (!cleared) {
     return (
@@ -132,7 +199,10 @@ export function DispensePrescriptionContent() {
   const dispensedBy = user?.full_name || user?.username || 'Pharmacist'
 
   useEffect(() => {
-    if (!prescriptionId) return
+    if (!prescriptionId || prescriptionId === 'undefined') {
+      setLoading(false)
+      return
+    }
     const loadWorkspace = async () => {
       try {
         setLoading(true)
@@ -286,7 +356,9 @@ export function DispensePrescriptionContent() {
             </div>
             <div className="min-w-[100px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">PATIENT #</label>
-              <p className="font-body-sm font-semibold text-on-surface m-0">{prescription.patient.patient_id.substring(0, 8)}</p>
+              <p className="font-body-sm font-semibold text-on-surface m-0">
+                {prescription.patient.patient_number || prescription.patient.patient_id.substring(0, 8)}
+              </p>
             </div>
             <div className="min-w-[100px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">AGE/GENDER</label>
@@ -298,16 +370,16 @@ export function DispensePrescriptionContent() {
               <label className="font-label-md text-label-md text-secondary block mb-0.5">BILLING STATUS</label>
               <BillingHeaderBadge cleared={prescription.billing_cleared} />
             </div>
-            <div className="min-w-[120px]">
+            <div className="min-w-[140px]">
               <label className="font-label-md text-label-md text-secondary block mb-0.5">PRESCRIBED BY</label>
-              <p className="font-body-sm text-on-surface m-0">{prescription.prescriptions[0]?.prescribed_by || 'Staff Doctor'}</p>
+              <p className="font-body-sm font-semibold text-on-surface m-0">
+                {formatDoctorName(prescription.prescriptions[0]?.prescribed_by)}
+              </p>
             </div>
-            <div className="min-w-[100px]">
-              <label className="font-label-md text-label-md text-secondary block mb-0.5">TIME</label>
+            <div className="min-w-[160px]">
+              <label className="font-label-md text-label-md text-secondary block mb-0.5">PRESCRIBED DATE & TIME</label>
               <p className="font-body-sm text-on-surface m-0">
-                {prescription.prescriptions[0]
-                  ? new Date(prescription.prescriptions[0].prescribed_at).toLocaleTimeString()
-                  : new Date().toLocaleTimeString()}
+                {formatPrescribedDateTime(prescription.prescriptions[0]?.prescribed_at)}
               </p>
             </div>
           </section>

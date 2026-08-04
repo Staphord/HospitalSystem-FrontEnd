@@ -1,11 +1,13 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
 import type { Invoice, Tenant } from '@/api/types/master'
 
 export function PaymentsPage() {
+  const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
@@ -384,7 +386,12 @@ export function PaymentsPage() {
                         const currency = getHospitalCurrency(p.tenant_id)
                         const isPartial = p.status === 'partially_paid'
                         return (
-                          <tr key={p.id}>
+                          <tr
+                            key={p.id}
+                            className="hover:bg-row-hover transition-colors"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => navigate(`/master/tenants/${p.tenant_id}`)}
+                          >
                             <td>{p.payment_date ? new Date(p.payment_date).toLocaleDateString() : 'N/A'}</td>
                             <td>
                               <strong><code>#{p.reference_number || `PAY-${p.id}`}</code></strong>

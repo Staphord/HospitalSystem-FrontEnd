@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { AddDrugModal } from '@/features/pharmacy/components/AddDrugModal'
 import { StockInModal } from '@/features/pharmacy/components/StockInModal'
 import { StockOutModal } from '@/features/pharmacy/components/StockOutModal'
 import {
@@ -138,6 +139,7 @@ export function StockManagementContent() {
 
   const [stockInItem, setStockInItem] = useState<StockItem | null>(null)
   const [stockOutItem, setStockOutItem] = useState<StockItem | null>(null)
+  const [isAddDrugModalOpen, setIsAddDrugModalOpen] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
 
@@ -273,6 +275,30 @@ export function StockManagementContent() {
     }
   }
 
+  const handleCreateDrug = async (payload: {
+    drug_name: string
+    brand_name?: string
+    drug_code: string
+    category: string
+    unit: string
+    quantity_in_stock: number
+    reorder_level: number
+    unit_cost: number
+    unit_price: number
+    location?: string
+  }) => {
+    try {
+      await pharmacyService.createInventoryItem(payload)
+      setIsAddDrugModalOpen(false)
+      fetchInventory()
+      toast.success(`Successfully onboarded "${payload.drug_name}" to drug inventory catalog!`)
+    } catch (err: any) {
+      console.error(err)
+      const errorMsg = err.response?.data?.detail || 'Failed to add new drug.'
+      toast.error(errorMsg)
+    }
+  }
+
   const rangeStart = totalCount === 0 ? 0 : (page - 1) * STOCK_PAGE_SIZE + 1
   const rangeEnd = Math.min(page * STOCK_PAGE_SIZE, totalCount)
   const showWarningBanner = stats.lowStock > 0 || stats.outOfStock > 0
@@ -306,7 +332,18 @@ export function StockManagementContent() {
 
       <div className="bg-surface-white rounded-xl border border-border-subtle shadow-sm overflow-hidden w-full">
         <div className="px-lg py-md border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md">
-          <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Drug Inventory</h2>
+          <div>
+            <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Drug Inventory</h2>
+            <p className="font-body-sm text-body-sm text-secondary m-0 mt-0.5">Manage hospital drug catalog, stock levels, and intake transactions</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAddDrugModalOpen(true)}
+            className="inline-flex items-center justify-center gap-xs px-lg h-9 bg-primary text-white rounded-lg font-bold text-body-sm hover:brightness-110 active:opacity-80 transition-all shadow-sm border-0 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">add_circle</span>
+            <span>Add New Drug</span>
+          </button>
         </div>
 
         <div className="px-lg py-sm bg-surface-container-low border-b border-border-subtle flex flex-wrap gap-md items-center">
@@ -401,7 +438,14 @@ export function StockManagementContent() {
                 {mappedStockItems.map((item) => {
                   const status = getStockStatus(item.stock, item.minThreshold)
                   return (
-                    <tr key={item.id} className={getRowClass(status)}>
+                    <tr
+                      key={item.id}
+                      className={`${getRowClass(status)} cursor-pointer`}
+                      onClick={(e) => {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        handleMenuToggle(item.id, rect)
+                      }}
+                    >
                       <td className="px-lg py-md font-semibold text-on-surface whitespace-nowrap">
                         {item.drugName}
                       </td>
@@ -431,7 +475,7 @@ export function StockManagementContent() {
                         <StockStatusBadge status={status} />
                       </td>
                       <td className="px-lg py-md whitespace-nowrap">{item.expiry}</td>
-                      <td className="px-lg py-md text-right whitespace-nowrap">
+                      <td className="px-lg py-md text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-sm">
                           <StockRowActionsMenu
                             item={item}
@@ -533,6 +577,13 @@ export function StockManagementContent() {
           item={stockOutItem}
           onClose={() => setStockOutItem(null)}
           onConfirm={handleStockOut}
+        />
+      )}
+
+      {isAddDrugModalOpen && (
+        <AddDrugModal
+          onClose={() => setIsAddDrugModalOpen(false)}
+          onConfirm={handleCreateDrug}
         />
       )}
     </div>
