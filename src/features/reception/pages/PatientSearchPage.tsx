@@ -2,9 +2,16 @@ import { useState, useEffect, useCallback, type InputHTMLAttributes } from 'reac
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
+import { adminService } from '@/api/services/admin'
 import type { BackendPatient, BackendInsurancePolicy } from '@/api/types/reception'
+import type { Provider } from '@/api/types/admin'
 
 const FIELD_LABEL = 'block text-label-md font-label-md text-secondary mb-xs'
+const selectChevronStyle = {
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%234f5f7b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+  backgroundPosition: 'right 8px center',
+  backgroundRepeat: 'no-repeat' as const,
+}
 const INPUT_CLASS =
   'w-full h-10 py-0 pl-10 pr-4 border border-border-subtle rounded focus:border-primary focus:ring-1 focus:ring-primary text-body-md font-body-md bg-white outline-none placeholder:text-outline'
 const INPUT_ICON_WRAPPER =
@@ -202,6 +209,22 @@ function PatientFoundCard({
   const [policyNumber, setPolicyNumber] = useState('')
   const [savingPolicy, setSavingPolicy] = useState(false)
 
+  const [providersList, setProvidersList] = useState<Provider[]>([])
+
+  useEffect(() => {
+    adminService.listInsuranceProviders()
+      .then((providers) => {
+        const active = providers.filter(p => p.active)
+        setProvidersList(active)
+        if (active.length > 0 && !insurerName) {
+          setInsurerName(active[0].name)
+        }
+      })
+      .catch((err) => {
+        toast.error(`Failed to load providers: ${err?.response?.data?.detail || err.message || 'Network error'}`)
+      })
+  }, [])
+
   const loadPatientStatus = async () => {
     setLoadingPolicies(true)
     setLoadingQueue(true)
@@ -263,7 +286,7 @@ function PatientFoundCard({
   const handleAddPolicy = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!insurerName.trim() || !policyNumber.trim()) {
-      toast.error('Please enter insurer name and policy number.')
+      toast.error('Please select an insurer and enter a policy number.')
       return
     }
     setSavingPolicy(true)
@@ -641,7 +664,8 @@ function PatientFoundCard({
                   <select
                     value={selectedPolicyId}
                     onChange={(e) => setSelectedPolicyId(e.target.value)}
-                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary"
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white focus:border-primary focus:ring-1 focus:ring-primary appearance-none bg-no-repeat bg-right"
+                    style={selectChevronStyle}
                   >
                     <option value="">-- Choose registered policy --</option>
                     {policies.map((p) => (
@@ -678,23 +702,37 @@ function PatientFoundCard({
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-sm">
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Insurer Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Jubilee"
+                  <select
                     value={insurerName}
                     onChange={(e) => setInsurerName(e.target.value)}
-                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white"
-                    list="insurer-suggestions"
-                  />
-                  <datalist id="insurer-suggestions">
-                    <option value="Aetna International" />
-                    <option value="BlueCross BlueShield" />
-                    <option value="Cigna Healthcare" />
-                    <option value="Jubilee Insurance" />
-                    <option value="NHIF" />
-                  </datalist>
+                    className="w-full h-10 px-md border border-border-subtle rounded-lg outline-none font-body-sm bg-white appearance-none bg-no-repeat bg-right"
+                    style={selectChevronStyle}
+                  >
+                    <option value="">Select Insurer</option>
+                    {providersList.map((prov) => (
+                      <option key={prov.id} value={prov.name}>
+                        {prov.name}
+                      </option>
+                    ))}
+                  </select>
+                  {(() => {
+                    const selectedProvider = providersList.find(p => p.name === insurerName)
+                    if (selectedProvider && selectedProvider.policies && selectedProvider.policies.length > 0) {
+                      return (
+                        <div className="mt-xs flex flex-wrap gap-xs items-center">
+                          <span className="text-label-sm text-secondary font-label-sm font-medium">Covered Policies:</span>
+                          {selectedProvider.policies.map((policy) => (
+                            <span key={policy} className="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              {policy}
+                            </span>
+                          ))}
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
                 </div>
                 <div>
                   <label className="block text-label-sm font-label-sm text-secondary mb-xs uppercase">Policy Number</label>

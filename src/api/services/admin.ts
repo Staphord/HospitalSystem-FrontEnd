@@ -57,6 +57,8 @@ interface BackendFee {
 interface BackendProvider {
   provider_id: string
   name: string
+  contact_person: string | null
+  policies: string[] | null
   contact_email: string | null
   contact_phone: string | null
   notes: string | null
@@ -163,7 +165,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
   if (!landingDepartment) return null
   if (isUuid(landingDepartment)) return landingDepartment
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/departments')
+    .get<BackendDepartment[]>('/admin/shared/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   const match = departments.find(
@@ -174,7 +176,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
 
 const loadDepartmentNameMap = async (): Promise<Map<string, string>> => {
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/departments')
+    .get<BackendDepartment[]>('/admin/shared/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   return new Map(departments.map((d) => [d.department_id, d.department_name]))
@@ -215,8 +217,8 @@ const mapFee = (f: BackendFee): FeeItem => ({
 const mapProvider = (p: BackendProvider): Provider => ({
   id: p.provider_id,
   name: p.name,
-  policies: [],
-  contactPerson: '—',
+  policies: p.policies || [],
+  contactPerson: p.contact_person || '—',
   email: p.contact_email || '—',
   phone: p.contact_phone || '—',
   active: p.is_active,
@@ -352,7 +354,7 @@ export const adminService = {
   // Users (FR-53)
   listUsers: async (): Promise<HospitalUser[]> => {
     const [users, deptMap] = await Promise.all([
-      apiClient.get<BackendUser[]>('/admin/users').then((r) => r.data),
+      apiClient.get<BackendUser[]>('/admin/shared/users').then((r) => r.data),
       loadDepartmentNameMap(),
     ])
     return users.map((u) =>
@@ -408,9 +410,9 @@ export const adminService = {
   // Departments (FR-55)
   listDepartments: async (): Promise<Department[]> => {
     const [departments, users] = await Promise.all([
-      apiClient.get<BackendDepartment[]>('/admin/departments').then((r) => r.data),
+      apiClient.get<BackendDepartment[]>('/admin/shared/departments').then((r) => r.data),
       apiClient
-        .get<BackendUser[]>('/admin/users')
+        .get<BackendUser[]>('/admin/shared/users')
         .then((r) => r.data)
         .catch(() => [] as BackendUser[]),
     ])
@@ -488,13 +490,15 @@ export const adminService = {
   // Insurance providers (FR-55)
   listInsuranceProviders: (): Promise<Provider[]> =>
     apiClient
-      .get<BackendProvider[]>('/admin/insurance-providers')
+      .get<BackendProvider[]>('/admin/shared/insurance-providers')
       .then((r) => r.data.map(mapProvider)),
 
   createInsuranceProvider: (data: Omit<Provider, 'id'>): Promise<Provider> =>
     apiClient
       .post<BackendProvider>('/admin/insurance-providers', {
         name: data.name,
+        contact_person: cleanText(data.contactPerson),
+        policies: data.policies,
         contact_email: cleanEmail(data.email),
         contact_phone: cleanText(data.phone),
         notes: cleanText(data.notes),
@@ -504,6 +508,8 @@ export const adminService = {
   updateInsuranceProvider: (id: string, data: Partial<Provider>): Promise<Provider> => {
     const payload: Record<string, unknown> = {}
     if (data.name !== undefined) payload.name = data.name
+    if (data.contactPerson !== undefined) payload.contact_person = cleanText(data.contactPerson)
+    if (data.policies !== undefined) payload.policies = data.policies
     if (data.email !== undefined) payload.contact_email = cleanEmail(data.email)
     if (data.phone !== undefined) payload.contact_phone = cleanText(data.phone)
     if (data.notes !== undefined) payload.notes = cleanText(data.notes)
