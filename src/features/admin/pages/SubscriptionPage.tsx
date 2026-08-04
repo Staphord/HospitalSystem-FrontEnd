@@ -46,28 +46,6 @@ export const SubscriptionPage: React.FC = () => {
   const [requestsCurrentPage, setRequestsCurrentPage] = useState(1);
   const [requestsPageSize, setRequestsPageSize] = useState(25);
 
-  // Write audit log entry to hospital tenant's local log
-  const logHospitalAudit = (action: string, details: string) => {
-    try {
-      const logs = JSON.parse(localStorage.getItem('hf_mock_hospital_audit_logs') || '[]');
-      logs.unshift({
-        id: `log-${Date.now()}`,
-        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
-        staffName: 'Admin Portal',
-        staffRole: 'Hospital Admin',
-        action: action,
-        department: 'Billing',
-        recordId: 'Subscription',
-        ipAddress: '192.168.1.1',
-        details: details,
-        signature: `SHA-256: ${Math.random().toString(16).substring(2, 10)}`
-      });
-      localStorage.setItem('hf_mock_hospital_audit_logs', JSON.stringify(logs));
-    } catch {
-      // ignore silently
-    }
-  };
-
   // Load tenant subscription, plans, invoices, pending request, and request history
   const fetchSubscriptionData = React.useCallback(async () => {
     try {
@@ -136,11 +114,6 @@ export const SubscriptionPage: React.FC = () => {
         effective_at_end: requestEffectiveAtEnd,
       });
 
-      logHospitalAudit(
-        'SUBSCRIPTION_CHANGE_REQUESTED',
-        `Requested plan change to ${selectedPlanForChange.plan_name} (${cycleLabel}, ${timingLabel}). Awaiting super admin approval.`
-      );
-
       toast.success(`Plan change request submitted to ${selectedPlanForChange.plan_name}. Awaiting approval.`);
       setIsConfirmChangeModalOpen(false);
       setIsUpgradeModalOpen(false);
@@ -167,11 +140,6 @@ export const SubscriptionPage: React.FC = () => {
     try {
       await masterService.requestCancellation({ reason: cancelReason });
 
-      logHospitalAudit(
-        'SUBSCRIPTION_CANCEL_REQUESTED',
-        `Cancellation requested: ${cancelReason}. Awaiting super admin approval.`
-      );
-
       toast.success('Cancellation request submitted. Awaiting super admin confirmation.');
       setIsCancelModalOpen(false);
       setCancelReason('');
@@ -190,11 +158,6 @@ export const SubscriptionPage: React.FC = () => {
     try {
       await masterService.toggleAutoRenew(true);
 
-      logHospitalAudit(
-        'AUTO_RENEW_ENABLED',
-        `Enabled subscription auto-renewal.`
-      );
-
       toast.success('Subscription auto-renew reactivated.');
       fetchSubscriptionData();
     } catch {
@@ -210,11 +173,6 @@ export const SubscriptionPage: React.FC = () => {
     try {
       await masterService.toggleAutoRenew(checked);
 
-      logHospitalAudit(
-        checked ? 'AUTO_RENEW_ENABLED' : 'AUTO_RENEW_DISABLED',
-        `${checked ? 'Enabled' : 'Disabled'} subscription auto-renewal.`
-      );
-
       toast.success(checked ? 'Auto-renewal enabled.' : 'Auto-renewal disabled.');
       fetchSubscriptionData();
     } catch {
@@ -229,11 +187,6 @@ export const SubscriptionPage: React.FC = () => {
     setSubmitting(true);
     try {
       await masterService.toggleAutoRenew(true);
-
-      logHospitalAudit(
-        'SUBSCRIPTION_REACTIVATE',
-        `Reactivated subscription.`
-      );
 
       toast.success('Subscription reactivated successfully.');
       fetchSubscriptionData();

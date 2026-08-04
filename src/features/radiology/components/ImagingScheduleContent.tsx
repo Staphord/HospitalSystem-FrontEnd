@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { IMAGING_SCHEDULE_APPOINTMENTS } from '@/features/radiology/data/mockImagingSchedule'
-import { getImagingRequestById } from '@/features/radiology/utils/imagingRequestStore'
+import { radiologyService } from '@/api/services/radiology'
+import type { ImagingRequest } from '@/api/types/radiology'
+import type {
+  ImagingScheduleAppointment,
+  ScheduleWeekDay,
+} from '@/features/radiology/types/radiology'
+import { MODALITY_LABELS } from '@/features/radiology/utils/imagingRequestUtils'
 import {
   formatAppointmentDateTime,
   formatAppointmentModalityLine,
@@ -11,7 +16,6 @@ import {
   getAppointmentTopPx,
   SCHEDULE_MODALITY_COLORS,
 } from '@/features/radiology/utils/imagingScheduleUtils'
-import type { ImagingScheduleAppointment, ScheduleWeekDay } from '@/features/radiology/types/radiology'
 
 type ViewMode = 'calendar' | 'list'
 
@@ -195,7 +199,7 @@ interface AddModalProps {
   prefillRequestId?: string
   weekDays: ScheduleWeekDay[]
   onClose: () => void
-  onSave: (appt: ImagingScheduleAppointment) => void
+  onSave: (appt: ImagingScheduleAppointment) => void | Promise<void>
 }
 
 function AddAppointmentModal({
@@ -233,7 +237,7 @@ function AddAppointmentModal({
     ultrasound: 'ultrasound',
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!patientName.trim() || !date || !time) {
       toast.error('Please fill in patient, date and time.')
@@ -262,8 +266,7 @@ function AddAppointmentModal({
       priority,
       requestId: prefillRequestId,
     }
-    onSave(newAppt)
-    toast.success(`Appointment scheduled for ${patientName.trim()}.`)
+    await onSave(newAppt)
     onClose()
   }
 
@@ -292,7 +295,7 @@ function AddAppointmentModal({
             close
           </button>
         </div>
-        <form className="p-lg space-y-lg" onSubmit={handleSubmit}>
+        <form className="p-lg space-y-lg" onSubmit={(e) => void handleSubmit(e)}>
           {prefillPatientNumber && (
             <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
               <span className="material-symbols-outlined text-primary text-[18px]">link</span>
@@ -624,9 +627,8 @@ export function ImagingScheduleContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [weekOffset, setWeekOffset] = useState(0)
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
-  const [appointments, setAppointments] = useState<ImagingScheduleAppointment[]>(
-    IMAGING_SCHEDULE_APPOINTMENTS,
-  )
+  const [appointments, setAppointments] = useState<ImagingScheduleAppointment[]>([])
+  const [prefillRequest, setPrefillRequest] = useState<ImagingRequest | undefined>()
   const [selectedAppointment, setSelectedAppointment] = useState<ImagingScheduleAppointment | null>(
     null,
   )
@@ -636,10 +638,69 @@ export function ImagingScheduleContent() {
   const weekLabel = useMemo(() => computeWeekLabel(weekDays), [weekDays])
 
   const prefillRequestId = searchParams.get('prefill') ?? undefined
-  const prefillRequest = prefillRequestId ? getImagingRequestById(prefillRequestId) : undefined
+
+  const requestToAppointment = useCallback(
+    (req: ImagingRequest, days: ScheduleWeekDay[]): ImagingScheduleAppointment | null => {
+      if (!req.scheduledAt) return null
+      const scheduled = new Date(req.scheduledAt)
+      if (Number.isNaN(scheduled.getTime())) return null
+      const dayIndex = days.findIndex(
+        (d) =>
+          d.year === scheduled.getFullYear() &&
+          d.month === scheduled.getMonth() + 1 &&
+          d.date === scheduled.getDate(),
+      )
+      if (dayIndex < 0) return null
+      return {
+        id: req.reportId || req.id,
+        patientName: req.patientName,
+        dateOfBirth: '—',
+        age: req.age,
+        modality: req.modality,
+        bodyPart: req.bodyPart,
+        departmentLabel: `${MODALITY_LABELS[req.modality]} Dept`,
+        dayIndex,
+        startHour: scheduled.getHours(),
+        startMinute: scheduled.getMinutes(),
+        durationMinutes: 30,
+        clinicalIndication: req.clinicalIndication,
+        priority: req.urgency || 'routine',
+        requestId: req.id,
+      }
+    },
+    [],
+  )
+
+  const loadAppointments = useCallback(async () => {
+    try {
+      const { requests } = await radiologyService.listRequests({ limit: 200 })
+      const mapped = requests
+        .map((r) => requestToAppointment(r, weekDays))
+        .filter((a): a is ImagingScheduleAppointment => !!a)
+      setAppointments(mapped)
+    } catch {
+      toast.error('Failed to load imaging schedule.')
+      setAppointments([])
+    }
+  }, [requestToAppointment, weekDays])
 
   useEffect(() => {
-    if (prefillRequestId) setAddModalOpen(true)
+    void loadAppointments()
+  }, [loadAppointments])
+
+  useEffect(() => {
+    if (!prefillRequestId) {
+      setPrefillRequest(undefined)
+      return
+    }
+    setAddModalOpen(true)
+    radiologyService
+      .getRequest(prefillRequestId)
+      .then(setPrefillRequest)
+      .catch(() => {
+        toast.error('Could not load request to schedule.')
+        setPrefillRequest(undefined)
+      })
   }, [prefillRequestId])
 
   const handleCloseAddModal = () => {
@@ -647,18 +708,53 @@ export function ImagingScheduleContent() {
     if (prefillRequestId) setSearchParams({}, { replace: true })
   }
 
-  const handleSaveAppointment = (appt: ImagingScheduleAppointment) => {
-    setAppointments((prev) => [...prev, appt])
-  }
-
-  const handleCheckIn = (appointment: ImagingScheduleAppointment) => {
-    setSelectedAppointment(null)
-    if (appointment.requestId) {
-      toast.success(`Checking in ${appointment.patientName}`)
-      navigate(`/radiology/requests/${appointment.requestId}/report`)
+  const handleSaveAppointment = async (appt: ImagingScheduleAppointment) => {
+    if (appt.requestId) {
+      try {
+        const day = weekDays[appt.dayIndex]
+        const scheduledAt = new Date(
+          day.year,
+          day.month - 1,
+          day.date,
+          appt.startHour,
+          appt.startMinute,
+        ).toISOString()
+        await radiologyService.scheduleRequest(appt.requestId, {
+          modality: appt.modality,
+          bodyPart: appt.bodyPart === '—' ? undefined : appt.bodyPart,
+          scheduledAt,
+        })
+        toast.success(`Appointment scheduled for ${appt.patientName}.`)
+        await loadAppointments()
+      } catch (err: unknown) {
+        const detail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          'Failed to schedule imaging.'
+        toast.error(typeof detail === 'string' ? detail : 'Failed to schedule imaging.')
+        throw err
+      }
       return
     }
-    toast.success(`${appointment.patientName} checked in. Create a report from Imaging Requests.`)
+    setAppointments((prev) => [...prev, appt])
+    toast.success(`Local appointment added for ${appt.patientName}.`)
+  }
+
+  const handleCheckIn = async (appointment: ImagingScheduleAppointment) => {
+    setSelectedAppointment(null)
+    if (!appointment.requestId) {
+      toast.success(`${appointment.patientName} checked in. Create a report from Imaging Requests.`)
+      return
+    }
+    try {
+      await radiologyService.performRequest(appointment.requestId)
+      toast.success(`Checking in ${appointment.patientName}`)
+      navigate(`/radiology/requests/${appointment.requestId}/report`)
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Check-in failed.'
+      toast.error(typeof detail === 'string' ? detail : 'Check-in failed.')
+    }
   }
 
   return (
@@ -725,7 +821,9 @@ export function ImagingScheduleContent() {
         appointment={selectedAppointment}
         weekDays={weekDays}
         onClose={() => setSelectedAppointment(null)}
-        onCheckIn={handleCheckIn}
+        onCheckIn={(appt) => {
+          void handleCheckIn(appt)
+        }}
       />
       <AddAppointmentModal
         open={addModalOpen}

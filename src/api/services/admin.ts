@@ -12,6 +12,12 @@ import type {
   AuditLogRow,
   WardItem,
   BackupItem,
+  StaffLoginLog,
+  StaffActivityLog,
+  RealmRole,
+  GlobalRole,
+  TenantRole,
+  RolePermission,
 } from '@/api/types/admin'
 
 // ---------------------------------------------------------------------------
@@ -57,6 +63,8 @@ interface BackendFee {
 interface BackendProvider {
   provider_id: string
   name: string
+  contact_person: string | null
+  policies: string[] | null
   contact_email: string | null
   contact_phone: string | null
   notes: string | null
@@ -88,6 +96,42 @@ interface BackendWard {
   available: number
 }
 
+interface BackendRealmRole {
+  id: string
+  name: string
+  description: string | null
+  composite?: boolean | null
+  clientRole?: boolean | null
+  containerId?: string | null
+}
+
+interface BackendGlobalRole {
+  global_role_id: string
+  name: string
+  description: string | null
+  scope: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+interface BackendTenantRole {
+  tenant_role_id: string
+  tenant_id: string
+  name: string
+  description: string | null
+  scope: Record<string, unknown> | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface BackendPermission {
+  role_name: string
+  modules: string[]
+  actions: string[]
+  updated_at: string
+}
+
 interface BackendDashboardReport {
   active_users: number
   visits_today: number
@@ -98,22 +142,51 @@ interface BackendDashboardReport {
 
 interface BackendAuditLog {
   log_id: string
-  user_sub: string
-  username: string | null
+  user_id: string
   action: string
   table_name: string
   record_id: string | null
   old_values: Record<string, unknown> | null
   new_values: Record<string, unknown> | null
   ip_address: string | null
+  session_id?: string | null
   created_at: string
 }
 
 interface BackendAuditLogPage {
   items: BackendAuditLog[]
   total: number
-  page: number
-  page_size: number
+  limit: number
+  offset: number
+}
+
+interface BackendSetting {
+  key: string
+  value: string | null
+  updated_by?: string | null
+  updated_at?: string | null
+}
+
+interface BackendSession {
+  id: string
+  staff_id: string
+  staff_name: string
+  staff_role: string
+  department?: string | null
+  login_time: string
+  device: string
+  ip_address: string
+  avatar_url?: string
+}
+
+interface BackendLoginHistory {
+  timestamp: string
+  ip?: string | null
+  device?: string
+  duration?: string
+  workspace?: string
+  status?: string
+  detail?: string | null
 }
 
 interface BackendBackup {
@@ -163,7 +236,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
   if (!landingDepartment) return null
   if (isUuid(landingDepartment)) return landingDepartment
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/departments')
+    .get<BackendDepartment[]>('/admin/shared/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   const match = departments.find(
@@ -174,7 +247,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
 
 const loadDepartmentNameMap = async (): Promise<Map<string, string>> => {
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/departments')
+    .get<BackendDepartment[]>('/admin/shared/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   return new Map(departments.map((d) => [d.department_id, d.department_name]))
@@ -215,8 +288,8 @@ const mapFee = (f: BackendFee): FeeItem => ({
 const mapProvider = (p: BackendProvider): Provider => ({
   id: p.provider_id,
   name: p.name,
-  policies: [],
-  contactPerson: '—',
+  policies: p.policies || [],
+  contactPerson: p.contact_person || '—',
   email: p.contact_email || '—',
   phone: p.contact_phone || '—',
   active: p.is_active,
@@ -234,6 +307,33 @@ const mapWard = (w: BackendWard): WardItem => {
     isUrgent: occupancy >= 0.9,
   }
 }
+
+const mapRealmRole = (r: BackendRealmRole): RealmRole => ({
+  id: r.id,
+  name: r.name,
+  description: r.description,
+})
+
+const mapGlobalRole = (r: BackendGlobalRole): GlobalRole => ({
+  id: r.global_role_id,
+  name: r.name,
+  description: r.description,
+})
+
+const mapTenantRole = (r: BackendTenantRole): TenantRole => ({
+  id: r.tenant_role_id,
+  name: r.name,
+  description: r.description,
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+})
+
+const mapPermission = (p: BackendPermission): RolePermission => ({
+  roleName: p.role_name,
+  modules: p.modules,
+  actions: p.actions,
+  updatedAt: p.updated_at,
+})
 
 const profileToSettingsMap = (p: BackendHospitalProfile): Record<string, string | null> => ({
   hospital_name: p.hospital_name,
@@ -313,7 +413,7 @@ const summarizeAuditLog = (log: BackendAuditLog): string => {
 const mapAuditLog = (log: BackendAuditLog): AuditLogRow => ({
   id: log.log_id,
   timestamp: new Date(log.created_at).toLocaleString(),
-  staffName: log.username || log.user_sub,
+  staffName: log.user_id,
   staffRole: 'Staff',
   action: log.action,
   department: capitalize(log.table_name.replace(/_/g, ' ')),
@@ -321,6 +421,45 @@ const mapAuditLog = (log: BackendAuditLog): AuditLogRow => ({
   ipAddress: log.ip_address || '—',
   details: summarizeAuditLog(log),
   signature: `LOG-${log.log_id.slice(0, 8)}`,
+})
+
+const PROFILE_KEYS = new Set([
+  'hospital_name',
+  'address',
+  'city',
+  'country',
+  'phone',
+  'email',
+  'primary_contact_name',
+  'primary_contact_email',
+  'primary_contact_phone',
+  'timezone',
+  'currency',
+  'date_format',
+  'logo_url',
+])
+
+const formatDuration = (loginTime: string): string => {
+  const start = new Date(loginTime).getTime()
+  if (!Number.isFinite(start)) return '—'
+  const mins = Math.max(0, Math.floor((Date.now() - start) / 60000))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h <= 0) return `${m}m`
+  return `${h}h ${m}m`
+}
+
+const mapSession = (s: BackendSession): ActiveSession => ({
+  id: s.id,
+  staffId: s.staff_id,
+  staffName: s.staff_name,
+  staffRole: s.staff_role,
+  avatarUrl: s.avatar_url || '',
+  department: s.department || '—',
+  loginTime: new Date(s.login_time).toLocaleString(),
+  duration: formatDuration(s.login_time),
+  device: s.device || 'Web Browser',
+  ipAddress: s.ip_address || '—',
 })
 
 const formatBytes = (bytes: number | null): string => {
@@ -352,7 +491,7 @@ export const adminService = {
   // Users (FR-53)
   listUsers: async (): Promise<HospitalUser[]> => {
     const [users, deptMap] = await Promise.all([
-      apiClient.get<BackendUser[]>('/admin/users').then((r) => r.data),
+      apiClient.get<BackendUser[]>('/admin/shared/users').then((r) => r.data),
       loadDepartmentNameMap(),
     ])
     return users.map((u) =>
@@ -390,6 +529,8 @@ export const adminService = {
       payload.department_id = await resolveDepartmentId(data.landingDepartment)
     }
     if (data.status !== undefined) payload.is_active = data.status === 'active'
+    if (data.password !== undefined) payload.password = data.password
+    if (data.forcePasswordChange !== undefined) payload.force_password_change = data.forcePasswordChange
     const updated = await apiClient
       .patch<BackendUser>(`/admin/users/${sub}`, payload)
       .then((r) => r.data)
@@ -408,9 +549,9 @@ export const adminService = {
   // Departments (FR-55)
   listDepartments: async (): Promise<Department[]> => {
     const [departments, users] = await Promise.all([
-      apiClient.get<BackendDepartment[]>('/admin/departments').then((r) => r.data),
+      apiClient.get<BackendDepartment[]>('/admin/shared/departments').then((r) => r.data),
       apiClient
-        .get<BackendUser[]>('/admin/users')
+        .get<BackendUser[]>('/admin/shared/users')
         .then((r) => r.data)
         .catch(() => [] as BackendUser[]),
     ])
@@ -447,6 +588,8 @@ export const adminService = {
     if (data.active !== undefined) payload.is_active = data.active
     return apiClient.patch<BackendDepartment>(`/admin/departments/${id}`, payload).then((r) => r.data)
   },
+
+  deleteDepartment: (id: string) => apiClient.delete(`/admin/departments/${id}`),
 
   // Fee schedules (FR-55) — backend path is /admin/fee-schedules
   listFeeSchedules: (): Promise<FeeItem[]> =>
@@ -488,13 +631,15 @@ export const adminService = {
   // Insurance providers (FR-55)
   listInsuranceProviders: (): Promise<Provider[]> =>
     apiClient
-      .get<BackendProvider[]>('/admin/insurance-providers')
+      .get<BackendProvider[]>('/admin/shared/insurance-providers')
       .then((r) => r.data.map(mapProvider)),
 
   createInsuranceProvider: (data: Omit<Provider, 'id'>): Promise<Provider> =>
     apiClient
       .post<BackendProvider>('/admin/insurance-providers', {
         name: data.name,
+        contact_person: cleanText(data.contactPerson),
+        policies: data.policies,
         contact_email: cleanEmail(data.email),
         contact_phone: cleanText(data.phone),
         notes: cleanText(data.notes),
@@ -504,6 +649,8 @@ export const adminService = {
   updateInsuranceProvider: (id: string, data: Partial<Provider>): Promise<Provider> => {
     const payload: Record<string, unknown> = {}
     if (data.name !== undefined) payload.name = data.name
+    if (data.contactPerson !== undefined) payload.contact_person = cleanText(data.contactPerson)
+    if (data.policies !== undefined) payload.policies = data.policies
     if (data.email !== undefined) payload.contact_email = cleanEmail(data.email)
     if (data.phone !== undefined) payload.contact_phone = cleanText(data.phone)
     if (data.notes !== undefined) payload.notes = cleanText(data.notes)
@@ -516,29 +663,127 @@ export const adminService = {
   deleteInsuranceProvider: (id: string) =>
     apiClient.delete(`/admin/insurance-providers/${id}`),
 
-  // Hospital profile (FR-55) — maps settings UI onto /admin/hospital-profile
-  getSettings: (): Promise<Record<string, string | null>> =>
-    apiClient
-      .get<BackendHospitalProfile>('/admin/hospital-profile')
-      .then((r) => profileToSettingsMap(r.data)),
+  // Hospital profile + KV settings (FR-55)
+  getSettings: async (): Promise<Record<string, string | null>> => {
+    const [profile, kv] = await Promise.all([
+      apiClient
+        .get<BackendHospitalProfile>('/admin/hospital-profile')
+        .then((r) => profileToSettingsMap(r.data))
+        .catch(() => ({}) as Record<string, string | null>),
+      apiClient
+        .get<BackendSetting[]>('/admin/settings')
+        .then((r) => Object.fromEntries(r.data.map((s) => [s.key, s.value])))
+        .catch(() => ({}) as Record<string, string | null>),
+    ])
+    return { ...profile, ...kv }
+  },
 
-  updateSettings: (settings: Record<string, string | null>) =>
-    apiClient
-      .patch<BackendHospitalProfile>('/admin/hospital-profile', settingsToProfilePatch(settings))
-      .then((r) => profileToSettingsMap(r.data)),
+  updateSettings: async (settings: Record<string, string | null>) => {
+    const profilePatch = settingsToProfilePatch(settings)
+    const kvEntries = Object.fromEntries(
+      Object.entries(settings).filter(([key]) => !PROFILE_KEYS.has(key)),
+    )
+    const [profile, kv] = await Promise.all([
+      Object.keys(profilePatch).length > 0
+        ? apiClient
+            .patch<BackendHospitalProfile>('/admin/hospital-profile', profilePatch)
+            .then((r) => profileToSettingsMap(r.data))
+        : Promise.resolve({} as Record<string, string | null>),
+      Object.keys(kvEntries).length > 0
+        ? apiClient
+            .put<BackendSetting[]>('/admin/settings', { settings: kvEntries })
+            .then((r) => Object.fromEntries(r.data.map((s) => [s.key, s.value])))
+        : Promise.resolve({} as Record<string, string | null>),
+    ])
+    return { ...profile, ...kv }
+  },
 
   // Audit logs (FR-56)
   listHospitalAuditLogs: (params?: {
-    page?: number
-    page_size?: number
+    limit?: number
+    offset?: number
     action?: string
     table_name?: string
+    user_id?: string
+    from?: string
+    to?: string
   }): Promise<AuditLogRow[]> =>
     apiClient
       .get<BackendAuditLogPage>('/admin/audit-logs', {
-        params: { page: 1, page_size: 100, ...params },
+        params: { limit: 100, offset: 0, ...params },
       })
       .then((r) => r.data.items.map(mapAuditLog)),
+
+  listHospitalAuditLogsPage: (params?: {
+    limit?: number
+    offset?: number
+    action?: string
+    table_name?: string
+    user_id?: string
+    from?: string
+    to?: string
+  }): Promise<{ items: AuditLogRow[]; total: number }> =>
+    apiClient
+      .get<BackendAuditLogPage>('/admin/audit-logs', {
+        params: { limit: 25, offset: 0, ...params },
+      })
+      .then((r) => ({ items: r.data.items.map(mapAuditLog), total: r.data.total })),
+
+  exportAuditLogs: async (
+    params: {
+      action?: string
+      table_name?: string
+      user_id?: string
+      from?: string
+      to?: string
+    },
+    format: 'csv' | 'json' = 'csv',
+  ): Promise<void> => {
+    const response = await apiClient.get('/admin/audit-logs/export', {
+      params: { ...params, format },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `audit-logs.${format}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  },
+
+  listStaffActivityLogs: (userSub: string): Promise<StaffActivityLog[]> =>
+    adminService.listHospitalAuditLogs({ user_id: userSub, limit: 100 }).then((rows) =>
+      rows.map((row) => ({
+        timestamp: row.timestamp,
+        action: row.action,
+        module: row.department,
+        targetId: row.recordId,
+        details: row.details,
+      })),
+    ),
+
+  listStaffLoginHistory: (userSub: string): Promise<StaffLoginLog[]> =>
+    apiClient
+      .get<BackendLoginHistory[]>(`/admin/users/${userSub}/login-history`, {
+        params: { days: 30, limit: 50 },
+      })
+      .then((r) =>
+        r.data.map((row) => {
+          const statusRaw = (row.status || 'Success').toLowerCase()
+          const status: StaffLoginLog['status'] =
+            statusRaw === 'failed' ? 'Failed' : statusRaw === 'expired' ? 'Expired' : 'Success'
+          return {
+            timestamp: new Date(row.timestamp).toLocaleString(),
+            ip: row.ip || '—',
+            device: row.device || 'Web Browser',
+            duration: row.duration || '—',
+            workspace: row.workspace || 'Hospital Portal',
+            status,
+          }
+        }),
+      ),
 
   // Backups (FR-58)
   listBackups: (): Promise<BackupItem[]> =>
@@ -609,12 +854,69 @@ export const adminService = {
     }
   },
 
-  // Sessions — no admin-service endpoint yet; still mock-backed
-  listActiveSessions: () =>
-    apiClient.get<ActiveSession[]>('/sessions').then((r) => r.data),
+  // Active sessions (admin-service)
+  listActiveSessions: (): Promise<ActiveSession[]> =>
+    apiClient
+      .get<BackendSession[]>('/admin/sessions')
+      .then((r) => r.data.map(mapSession)),
 
-  revokeSession: (id: string) =>
-    apiClient.delete(`/sessions/${id}`),
+  revokeSession: (id: string) => apiClient.delete(`/admin/sessions/${id}`),
+
+  // Roles (FR-53/54) — Keycloak realm roles
+  listRealmRoles: (): Promise<RealmRole[]> =>
+    apiClient.get<BackendRealmRole[]>('/admin/roles').then((r) => r.data.map(mapRealmRole)),
+
+  createRealmRole: (name: string): Promise<void> =>
+    apiClient.post('/admin/roles', { name }).then(() => undefined),
+
+  updateRealmRole: (oldName: string, newName: string): Promise<void> =>
+    apiClient.put(`/admin/roles/${encodeURIComponent(oldName)}`, { name: newName }).then(() => undefined),
+
+  deleteRealmRole: (name: string): Promise<void> =>
+    apiClient.delete(`/admin/roles/${encodeURIComponent(name)}`).then(() => undefined),
+
+  listAssignableRoles: (): Promise<string[]> =>
+    apiClient.get<string[]>('/admin/users/assignable-roles').then((r) => r.data),
+
+  // Global roles (master DB, read-only here)
+  listGlobalRoles: (): Promise<GlobalRole[]> =>
+    apiClient.get<BackendGlobalRole[]>('/admin/global-roles').then((r) => r.data.map(mapGlobalRole)),
+
+  // Tenant custom roles (master DB, synced to Keycloak)
+  listTenantRoles: (): Promise<TenantRole[]> =>
+    apiClient.get<BackendTenantRole[]>('/admin/tenant-roles').then((r) => r.data.map(mapTenantRole)),
+
+  createTenantRole: (data: { name: string; description?: string }): Promise<TenantRole> =>
+    apiClient
+      .post<BackendTenantRole>('/admin/tenant-roles', {
+        name: data.name,
+        description: data.description || null,
+      })
+      .then((r) => mapTenantRole(r.data)),
+
+  updateTenantRole: (id: string, data: { name?: string; description?: string }): Promise<TenantRole> => {
+    const payload: Record<string, unknown> = {}
+    if (data.name !== undefined) payload.name = data.name
+    if (data.description !== undefined) payload.description = data.description
+    return apiClient
+      .patch<BackendTenantRole>(`/admin/tenant-roles/${id}`, payload)
+      .then((r) => mapTenantRole(r.data))
+  },
+
+  deleteTenantRole: (id: string): Promise<void> =>
+    apiClient.delete(`/admin/tenant-roles/${id}`).then(() => undefined),
+
+  // Permissions (FR-54) — per-role module/action ACL matrix
+  listPermissions: (): Promise<RolePermission[]> =>
+    apiClient.get<BackendPermission[]>('/admin/permissions').then((r) => r.data.map(mapPermission)),
+
+  updatePermissions: (
+    roleName: string,
+    data: { modules: string[]; actions: string[] },
+  ): Promise<RolePermission> =>
+    apiClient
+      .put<BackendPermission>(`/admin/permissions/${encodeURIComponent(roleName)}`, data)
+      .then((r) => mapPermission(r.data)),
 
   // Wards & beds (catalog owned by admin-service)
   listWards: (): Promise<WardItem[]> =>
@@ -646,23 +948,44 @@ export const adminService = {
   },
 
   updateWard: async (id: string, data: Partial<WardItem>): Promise<WardItem> => {
+    const targetName = data.name ?? id
     // Wards are derived from beds; renaming updates all beds in that ward.
+    let beds = await apiClient
+      .get<Array<{ bed_id: string; ward_name: string; bed_number: string }>>('/admin/beds')
+      .then((r) => r.data)
     if (data.name && data.name !== id) {
-      const beds = await apiClient
-        .get<Array<{ bed_id: string; ward_name: string }>>('/admin/beds')
-        .then((r) => r.data)
       await Promise.all(
         beds
           .filter((b) => b.ward_name === id)
           .map((b) => apiClient.patch(`/admin/beds/${b.bed_id}`, { ward_name: data.name })),
       )
+      beds = beds.map((b) => (b.ward_name === id ? { ...b, ward_name: data.name! } : b))
+    }
+    // Growing bed count adds new beds; shrinking is not supported (beds may be occupied).
+    if (data.totalBeds !== undefined) {
+      const wardBeds = beds.filter((b) => b.ward_name === targetName)
+      const existingNumbers = new Set(wardBeds.map((b) => b.bed_number))
+      let nextNumber = wardBeds.length + 1
+      const toAdd = Math.max(0, data.totalBeds - wardBeds.length)
+      for (let i = 0; i < toAdd; i++) {
+        while (existingNumbers.has(String(nextNumber).padStart(2, '0'))) nextNumber++
+        const bedNumber = String(nextNumber).padStart(2, '0')
+        existingNumbers.add(bedNumber)
+        await apiClient.post('/admin/beds', {
+          ward_name: targetName,
+          bed_number: bedNumber,
+          bed_type: 'general',
+          is_available: true,
+          is_active: true,
+        })
+        nextNumber++
+      }
     }
     const wards = await adminService.listWards()
-    const name = data.name ?? id
     return (
-      wards.find((w) => w.name === name) ?? {
-        id: name,
-        name,
+      wards.find((w) => w.name === targetName) ?? {
+        id: targetName,
+        name: targetName,
         occupiedBeds: data.occupiedBeds ?? 0,
         totalBeds: data.totalBeds ?? 0,
         isUrgent: data.isUrgent,

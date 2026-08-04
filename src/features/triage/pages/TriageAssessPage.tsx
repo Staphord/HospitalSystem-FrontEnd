@@ -2,6 +2,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { triageService } from '@/api/services/triage'
 import type { TriageVisit } from '@/features/triage/types/triageAssessment'
+import { formatPatientAge } from '@/lib/localization'
 import { TriageAssessContent } from '@/features/triage/components/TriageAssessContent'
 import { TriageVisitNotFound } from '@/features/triage/components/TriageVisitNotFound'
 import {
@@ -41,10 +42,7 @@ export function TriageAssessPage() {
             .toUpperCase()
             .slice(0, 2)
           
-          const dob = new Date(foundItem.patient.date_of_birth)
-          const age = isNaN(dob.getTime())
-            ? 0
-            : Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)
+          const age = formatPatientAge(foundItem.patient.date_of_birth)
             
           const arrivalDate = new Date(foundItem.created_at)
           const arrival = isNaN(arrivalDate.getTime())

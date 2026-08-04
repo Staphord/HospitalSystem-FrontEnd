@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { Department, WardItem } from '@/api/types/admin';
+import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
+import { AdminModal, AdminModalButton, AdminModalFooter } from '@/components/ui/AdminModal';
 
 const DEPARTMENT_TYPES = [
   'Reception', 'Triage', 'Consultation', 'Laboratory', 'Radiology',
@@ -14,12 +16,43 @@ export function DepartmentsPage() {
   const [wards, setWards] = useState<WardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [isWardModalOpen, setIsWardModalOpen] = useState(false);
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState('Consultation');
   const [wardName, setWardName] = useState('');
   const [wardBeds, setWardBeds] = useState(4);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deptToDelete, setDeptToDelete] = useState<Department | null>(null);
+  const [editingWard, setEditingWard] = useState<WardItem | null>(null);
+  const [editWardName, setEditWardName] = useState('');
+  const [editWardBeds, setEditWardBeds] = useState(4);
+  const [isSavingWard, setIsSavingWard] = useState(false);
+
+  const openCreateModal = () => {
+    setEditingDept(null);
+    setFormName('');
+    setFormType('Consultation');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (dept: Department) => {
+    setEditingDept(dept);
+    setFormName(dept.name);
+    const matchedType = DEPARTMENT_TYPES.find(
+      (t) => t.toLowerCase() === (dept.type || '').toLowerCase(),
+    );
+    setFormType(matchedType || 'Consultation');
+    setIsModalOpen(true);
+  };
+
+  const closeDeptModal = () => {
+    setIsModalOpen(false);
+    setEditingDept(null);
+    setFormName('');
+    setFormType('Consultation');
+  };
 
   const fetchData = () => {
     setLoading(true);
@@ -57,22 +90,77 @@ export function DepartmentsPage() {
       });
   };
 
-  // Create a new department via admin-service
-  const handleCreateDepartment = (e: React.FormEvent) => {
+  const handleSaveDepartment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || isSubmitting) return;
     setIsSubmitting(true);
-    adminService.createDepartment({ name: formName.trim(), type: formType })
+
+    const name = formName.trim();
+    const request = editingDept
+      ? adminService.updateDepartment(editingDept.id, { name, type: formType }).then(() => {
+          toast.success(`Department "${name}" updated.`);
+        })
+      : adminService.createDepartment({ name, type: formType }).then(() => {
+          toast.success(`Department "${name}" created.`);
+        });
+
+    request
       .then(() => {
-        toast.success(`Department "${formName.trim()}" created.`);
-        setIsModalOpen(false);
-        setFormName('');
+        closeDeptModal();
         fetchData();
       })
       .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to create department.');
+        toast.error(
+          err.response?.data?.detail ||
+            (editingDept ? 'Failed to update department.' : 'Failed to create department.'),
+        );
       })
       .finally(() => setIsSubmitting(false));
+  };
+
+  const handleDeleteDepartment = () => {
+    if (!deptToDelete || deletingId) return;
+
+    setDeletingId(deptToDelete.id);
+    adminService
+      .deleteDepartment(deptToDelete.id)
+      .then(() => {
+        toast.success(`Department "${deptToDelete.name}" deleted.`);
+        setDeptToDelete(null);
+        fetchData();
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to delete department.');
+      })
+      .finally(() => setDeletingId(null));
+  };
+
+  const openEditWardModal = (ward: WardItem) => {
+    setEditingWard(ward);
+    setEditWardName(ward.name);
+    setEditWardBeds(ward.totalBeds);
+  };
+
+  const closeEditWardModal = () => {
+    setEditingWard(null);
+  };
+
+  const handleUpdateWard = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWard || !editWardName.trim() || isSavingWard) return;
+    setIsSavingWard(true);
+    const name = editWardName.trim();
+    adminService
+      .updateWard(editingWard.id, { name, totalBeds: Math.max(editWardBeds, editingWard.totalBeds) })
+      .then(() => {
+        toast.success(`Ward "${name}" updated.`);
+        closeEditWardModal();
+        fetchData();
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update ward.');
+      })
+      .finally(() => setIsSavingWard(false));
   };
 
   const handleCreateWard = (e: React.FormEvent) => {
@@ -110,7 +198,7 @@ export function DepartmentsPage() {
           </nav>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="bg-primary-container hover:bg-primary-container/90 text-white px-md h-[40px] rounded-lg flex items-center gap-sm font-label-md transition-colors shadow-sm border-0 cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
@@ -179,9 +267,27 @@ export function DepartmentsPage() {
                         </button>
                       </td>
                       <td className="px-md py-md text-right">
-                        <button className="h-[32px] px-sm border border-border-subtle rounded-md font-label-md text-secondary hover:border-primary hover:text-primary transition-all bg-surface-white cursor-pointer">
-                          Edit
-                        </button>
+                        <div className="flex items-center justify-end gap-xs">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(dept)}
+                            className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-border-subtle text-secondary hover:text-primary hover:border-primary transition-all cursor-pointer"
+                            aria-label={`Edit ${dept.name}`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeptToDelete(dept)}
+                            disabled={deletingId === dept.id}
+                            className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-error/30 text-error hover:bg-error/10 hover:border-error transition-all cursor-pointer disabled:opacity-60"
+                            aria-label={`Delete ${dept.name}`}
+                          >
+                            <span className="material-symbols-outlined text-[18px] text-error">
+                              {deletingId === dept.id ? 'hourglass_empty' : 'delete'}
+                            </span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -236,7 +342,12 @@ export function DepartmentsPage() {
                           <span className="font-body-sm text-on-surface font-medium">
                             {ward.occupiedBeds} / {ward.totalBeds} <span className="text-secondary font-normal">Beds</span>
                           </span>
-                          <button className="text-outline hover:text-primary transition-colors p-1 rounded hover:bg-row-hover bg-transparent border-0 cursor-pointer" aria-label={`Edit ${ward.name}`}>
+                          <button
+                            type="button"
+                            onClick={() => openEditWardModal(ward)}
+                            className="text-outline hover:text-primary transition-colors p-1 rounded hover:bg-row-hover bg-transparent border-0 cursor-pointer"
+                            aria-label={`Edit ${ward.name}`}
+                          >
                             <span className="material-symbols-outlined text-[16px]">edit</span>
                           </button>
                         </div>
@@ -262,127 +373,148 @@ export function DepartmentsPage() {
         </section>
       </div>
 
-      {/* Add Department modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-surface-white w-full max-w-[420px] rounded-xl shadow-xl overflow-hidden">
-            <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
-              <h3 className="font-headline-sm text-[18px] font-semibold text-on-surface">Add Department</h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-xs hover:bg-surface-container-low rounded-full transition-colors text-outline bg-transparent border-0 cursor-pointer"
-                aria-label="Close modal"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
+      <AdminModal
+        isOpen={isModalOpen}
+        title={editingDept ? 'Edit Department' : 'Add Department'}
+        onClose={closeDeptModal}
+      >
+        <form onSubmit={handleSaveDepartment}>
+          <div className="px-lg py-lg space-y-md">
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Department Name</label>
+              <input
+                type="text"
+                required
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                placeholder="e.g. Emergency Department"
+              />
             </div>
-            <form onSubmit={handleCreateDepartment}>
-              <div className="px-lg py-lg space-y-md">
-                <div className="space-y-xs">
-                  <label className="block font-label-md text-label-md text-secondary">Department Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
-                    placeholder="e.g. Emergency Department"
-                  />
-                </div>
-                <div className="space-y-xs">
-                  <label className="block font-label-md text-label-md text-secondary">Department Type</label>
-                  <select
-                    value={formType}
-                    onChange={(e) => setFormType(e.target.value)}
-                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
-                  >
-                    {DEPARTMENT_TYPES.map((t) => (
-                      <option key={t} value={t}>{t === 'Icu' ? 'ICU' : t}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-end gap-md">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-lg py-sm rounded border border-border-subtle text-secondary font-label-md hover:bg-surface-container transition-colors bg-transparent cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-lg py-sm rounded bg-primary-container text-white font-label-md hover:bg-[#0040a2] transition-all shadow-sm border-0 cursor-pointer disabled:opacity-60"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Department'}
-                </button>
-              </div>
-            </form>
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Department Type</label>
+              <select
+                value={formType}
+                onChange={(e) => setFormType(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              >
+                {DEPARTMENT_TYPES.map((t) => (
+                  <option key={t} value={t}>{t === 'Icu' ? 'ICU' : t}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={closeDeptModal}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : editingDept ? 'Update Department' : 'Save Department'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
 
-      {/* Add Ward modal — creates beds under a ward_name via admin-service */}
-      {isWardModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-surface-white w-full max-w-[420px] rounded-xl shadow-xl overflow-hidden">
-            <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
-              <h3 className="font-headline-sm text-[18px] font-semibold text-on-surface">Add Ward</h3>
-              <button
-                onClick={() => setIsWardModalOpen(false)}
-                className="p-xs hover:bg-surface-container-low rounded-full transition-colors text-outline bg-transparent border-0 cursor-pointer"
-                aria-label="Close ward modal"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
+      <AdminModal
+        isOpen={isWardModalOpen}
+        title="Add Ward"
+        onClose={() => setIsWardModalOpen(false)}
+      >
+        <form onSubmit={handleCreateWard}>
+          <div className="px-lg py-lg space-y-md">
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Ward Name</label>
+              <input
+                type="text"
+                required
+                value={wardName}
+                onChange={(e) => setWardName(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                placeholder="e.g. General Ward A"
+              />
             </div>
-            <form onSubmit={handleCreateWard}>
-              <div className="px-lg py-lg space-y-md">
-                <div className="space-y-xs">
-                  <label className="block font-label-md text-label-md text-secondary">Ward Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={wardName}
-                    onChange={(e) => setWardName(e.target.value)}
-                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
-                    placeholder="e.g. General Ward A"
-                  />
-                </div>
-                <div className="space-y-xs">
-                  <label className="block font-label-md text-label-md text-secondary">Number of Beds</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    required
-                    value={wardBeds}
-                    onChange={(e) => setWardBeds(Number(e.target.value))}
-                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
-                  />
-                </div>
-              </div>
-              <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-end gap-md">
-                <button
-                  type="button"
-                  onClick={() => setIsWardModalOpen(false)}
-                  className="px-lg py-sm rounded border border-border-subtle text-secondary font-label-md hover:bg-surface-container transition-colors bg-transparent cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-lg py-sm rounded bg-primary-container text-white font-label-md hover:bg-[#0040a2] transition-all shadow-sm border-0 cursor-pointer disabled:opacity-60"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Ward'}
-                </button>
-              </div>
-            </form>
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Number of Beds</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                required
+                value={wardBeds}
+                onChange={(e) => setWardBeds(Number(e.target.value))}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              />
+            </div>
           </div>
-        </div>
-      )}
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={() => setIsWardModalOpen(false)}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Ward'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
+      <AdminModal
+        isOpen={!!editingWard}
+        title="Edit Ward"
+        onClose={closeEditWardModal}
+      >
+        <form onSubmit={handleUpdateWard}>
+          <div className="px-lg py-lg space-y-md">
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Ward Name</label>
+              <input
+                type="text"
+                required
+                value={editWardName}
+                onChange={(e) => setEditWardName(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              />
+            </div>
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Number of Beds</label>
+              <input
+                type="number"
+                min={editingWard?.totalBeds ?? 1}
+                max={100}
+                required
+                value={editWardBeds}
+                onChange={(e) => setEditWardBeds(Number(e.target.value))}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              />
+              <p className="text-label-sm text-secondary">
+                Existing beds can't be removed here since they may be occupied; increasing this adds new beds.
+              </p>
+            </div>
+          </div>
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={closeEditWardModal}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSavingWard}>
+              {isSavingWard ? 'Saving...' : 'Update Ward'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
+
+      <DeleteConfirmationModal
+        isOpen={!!deptToDelete}
+        title="Delete Department"
+        message={
+          <>
+            Are you sure you want to permanently delete department{' '}
+            <strong>{deptToDelete?.name}</strong>? This action cannot be undone.
+          </>
+        }
+        onClose={() => {
+          if (!deletingId) setDeptToDelete(null);
+        }}
+        onConfirm={handleDeleteDepartment}
+        isLoading={!!deletingId}
+      />
 
       {/* System Footer info */}
       <footer className="mt-xl flex flex-col md:flex-row justify-between items-center text-label-sm text-secondary gap-md border-t border-border-subtle pt-md">

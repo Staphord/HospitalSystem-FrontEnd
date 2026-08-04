@@ -29,7 +29,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 export function NotificationsPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
   const { markAsRead, markAllAsRead, refreshNotifications } = useNotifications()
 
   const isSuperAdmin = user?.role === 'super_admin'
@@ -304,7 +304,11 @@ export function NotificationsPage() {
                         type="button"
                         onClick={() => {
                           if (isUnread) handleMarkItemRead(item.notification_id)
-                          navigate(item.action_url!)
+                          const isDoctor = (roles || []).some((r) => String(r).toLowerCase().includes('doctor')) || user?.role === 'doctor'
+                          const targetUrl = (isDoctor && (item.action_url!.startsWith('/laboratory') || item.action_url!.startsWith('/radiology')))
+                            ? '/consultation/results'
+                            : item.action_url!
+                          navigate(targetUrl)
                         }}
                         className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:brightness-95 transition-all border-0 cursor-pointer flex items-center gap-xs"
                       >

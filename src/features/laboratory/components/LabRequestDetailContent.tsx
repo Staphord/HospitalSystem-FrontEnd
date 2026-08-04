@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { formatDoctorName } from '@/lib/localization'
 import { laboratoryService, type BackendLabRequestDetail } from '@/api/services/laboratory'
+import { CollectSpecimenModal } from '@/features/laboratory/components/CollectSpecimenModal'
 
 export function LabRequestDetailContent() {
   const { requestId } = useParams<{ requestId: string }>()
@@ -9,6 +11,7 @@ export function LabRequestDetailContent() {
 
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<BackendLabRequestDetail | null>(null)
+  const [collectModalOpen, setCollectModalOpen] = useState(false)
 
   // Result entry state
   const [resultValue, setResultValue] = useState('')
@@ -18,8 +21,6 @@ export function LabRequestDetailContent() {
   const [resultNotes, setResultNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [billing, setBilling] = useState(false)
-  const [billCreated, setBillCreated] = useState(false)
 
   const loadDetail = async () => {
     if (!requestId) return
@@ -125,25 +126,9 @@ export function LabRequestDetailContent() {
     }
   }
 
-  const handleGenerateBill = async () => {
-    setBilling(true)
-    try {
-      await laboratoryService.createBill(detail.request_id, {
-        unit_price: 15000,
-        description: `Lab Charge: ${detail.test_name}`,
-      })
-      toast.success('Billing item generated successfully')
-      setBillCreated(true)
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to generate bill item')
-    } finally {
-      setBilling(false)
-    }
-  }
 
-  const handlePrintReport = () => {
-    window.print()
-  }
+
+
 
   return (
     <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg print:p-0 print:m-0 print:max-w-none">
@@ -174,14 +159,14 @@ export function LabRequestDetailContent() {
         </div>
 
         <div className="flex items-center gap-sm">
-          {isVerified && (
+          {!detail.specimen && (
             <button
               type="button"
-              onClick={handlePrintReport}
-              className="h-10 px-md border border-border-subtle rounded-lg text-on-surface hover:bg-surface-container font-label-md flex items-center gap-xs cursor-pointer bg-surface-white"
+              onClick={() => setCollectModalOpen(true)}
+              className="h-10 px-md bg-primary text-on-primary hover:bg-primary-hover rounded-lg font-label-md flex items-center gap-xs cursor-pointer border-0 shadow-xs transition-colors"
             >
-              <span className="material-symbols-outlined text-[20px]">print</span>
-              Print Report
+              <span className="material-symbols-outlined text-[20px]">science</span>
+              Collect Specimen
             </button>
           )}
 
@@ -242,7 +227,7 @@ export function LabRequestDetailContent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-secondary">Requested By:</span>
-                <span className="font-medium text-on-surface">{detail.requested_by_name || 'Doctor'}</span>
+                <span className="font-medium text-on-surface">{formatDoctorName(detail.requested_by_name)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-secondary">Requested At:</span>
@@ -297,8 +282,8 @@ export function LabRequestDetailContent() {
                 No active specimen collected yet.
                 <button
                   type="button"
-                  onClick={() => navigate('/laboratory/specimens', { state: { requestId: detail.request_id, openModal: true } })}
-                  className="mt-xs text-primary font-label-md hover:underline block cursor-pointer"
+                  onClick={() => setCollectModalOpen(true)}
+                  className="mt-xs text-primary font-label-md hover:underline block cursor-pointer bg-transparent border-0 p-0"
                 >
                   + Collect Specimen Now
                 </button>
@@ -427,26 +412,6 @@ export function LabRequestDetailContent() {
                 </div>
               </div>
 
-              {/* Report Actions Footer (Hidden on print) */}
-              <div className="flex items-center justify-between pt-md border-t border-border-subtle print:hidden">
-                <button
-                  type="button"
-                  onClick={handlePrintReport}
-                  className="h-10 px-md border border-border-subtle rounded-lg text-on-surface hover:bg-surface-container font-label-md flex items-center gap-xs cursor-pointer bg-surface-white"
-                >
-                  <span className="material-symbols-outlined text-[20px]">print</span>
-                  Print Official Certificate
-                </button>
-
-                <button
-                  type="button"
-                  disabled={billing || billCreated}
-                  onClick={handleGenerateBill}
-                  className="h-10 px-md bg-secondary text-on-secondary rounded-lg font-label-md hover:bg-secondary/90 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {billing ? 'Generating Bill...' : billCreated ? 'Bill Item Generated' : 'Generate Lab Bill Item'}
-                </button>
-              </div>
             </div>
           ) : (
             /* Draft Result Entry & Verification Panel */
@@ -551,6 +516,19 @@ export function LabRequestDetailContent() {
           )}
         </div>
       </div>
+
+      {collectModalOpen && detail && (
+        <CollectSpecimenModal
+          requestId={detail.request_id}
+          patientName={detail.patient.full_name}
+          testName={detail.test_name}
+          onClose={() => setCollectModalOpen(false)}
+          onSuccess={() => {
+            setCollectModalOpen(false)
+            loadDetail()
+          }}
+        />
+      )}
     </div>
   )
 }

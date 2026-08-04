@@ -108,6 +108,16 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.hospitalAdmin],
   },
   {
+    label: 'Roles',
+    path: '/admin/roles',
+    roles: [ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Permissions',
+    path: '/admin/permissions',
+    roles: [ROLES.hospitalAdmin],
+  },
+  {
     label: 'Audit Logs',
     path: '/admin/audit-logs',
     roles: [ROLES.hospitalAdmin],

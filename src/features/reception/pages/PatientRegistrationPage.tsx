@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
+import { adminService } from '@/api/services/admin'
 import type { BackendPatient } from '@/api/types/reception'
+import type { Provider } from '@/api/types/admin'
 
 const FIELD_LABEL = 'block font-label-md text-label-md text-secondary mb-xs uppercase'
 const INLINE_ERROR = 'text-error font-label-sm text-label-sm font-semibold mt-xs m-0'
@@ -22,6 +24,7 @@ type FormField =
   | 'nokName'
   | 'nokRelationship'
   | 'nokPhone'
+  | 'insurerName'
   | 'policyNumber'
 
 type FormErrors = Partial<Record<FormField, string>>
@@ -67,6 +70,26 @@ export function PatientRegistrationPage() {
   const [paymentType, setPaymentType] = useState<'cash' | 'insurance'>('insurance')
   const [insurerName, setInsurerName] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
+
+  const [providersList, setProvidersList] = useState<Provider[]>([])
+
+  useEffect(() => {
+    adminService.listInsuranceProviders()
+      .then((providers) => {
+        const active = providers.filter(p => p.active)
+        setProvidersList(active)
+        if (active.length > 0 && !insurerName) {
+          setInsurerName(active[0].name)
+        }
+        // toast.success(`Loaded ${active.length} active insurance providers`)
+      })
+      .catch((err) => {
+        console.error('Failed to load insurance providers:', err)
+        toast.error(`Failed to load providers: ${err?.response?.data?.detail || err.message || 'Network error'}`)
+      })
+  }, [])
+
+  const selectedProvider = providersList.find(p => p.name === insurerName)
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
@@ -114,8 +137,13 @@ export function PatientRegistrationPage() {
       next.nokRelationship = 'Please select a relationship'
     }
     if (!nokPhone.trim()) next.nokPhone = 'Next of kin phone number is required'
-    if (paymentType === 'insurance' && !policyNumber.trim()) {
-      next.policyNumber = 'Policy number is required'
+    if (paymentType === 'insurance') {
+      if (!insurerName.trim()) {
+        next.insurerName = 'Please select an insurance provider'
+      }
+      if (!policyNumber.trim()) {
+        next.policyNumber = 'Policy number is required'
+      }
     }
 
     return next
@@ -710,23 +738,37 @@ export function PatientRegistrationPage() {
             <div className="p-md bg-surface-container-lowest rounded-lg border border-border-subtle space-y-md">
               <div className="grid grid-cols-2 gap-md">
                 <div className="col-span-2">
-                  <label className={FIELD_LABEL}>Insurer Name</label>
-                  <input
-                    type="text"
-                    placeholder="Enter or select insurer (e.g. Jubilee Insurance)"
-                    className={fieldInputClass(false)}
+                  <RequiredLabel>Insurer Name</RequiredLabel>
+                  <select
+                    className={`w-full h-10 px-md border rounded-lg outline-none transition-all font-body-md bg-white appearance-none bg-no-repeat bg-right ${
+                      errors.insurerName ? 'border-error' : 'border-border-subtle focus:border-primary'
+                    }`}
+                    style={selectChevronStyle}
                     value={insurerName}
-                    onChange={(e) => setInsurerName(e.target.value)}
+                    onChange={(e) => {
+                      setInsurerName(e.target.value)
+                      clearError('insurerName')
+                    }}
                     disabled={Boolean(duplicateQueueStatus)}
-                    list="insurer-suggestions"
-                  />
-                  <datalist id="insurer-suggestions">
-                    <option value="Aetna International" />
-                    <option value="BlueCross BlueShield" />
-                    <option value="Cigna Healthcare" />
-                    <option value="Jubilee Insurance" />
-                    <option value="NHIF" />
-                  </datalist>
+                  >
+                    <option value="">Select Insurance Provider</option>
+                    {providersList.map((prov) => (
+                      <option key={prov.id} value={prov.name}>
+                        {prov.name}
+                      </option>
+                    ))}
+                  </select>
+                  <InlineError message={errors.insurerName} />
+                  {selectedProvider && selectedProvider.policies && selectedProvider.policies.length > 0 && (
+                    <div className="mt-xs flex flex-wrap gap-xs items-center">
+                      <span className="text-label-sm text-secondary font-label-sm font-medium">Covered Policies:</span>
+                      {selectedProvider.policies.map((policy) => (
+                        <span key={policy} className="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          {policy}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <RequiredLabel>Policy Number</RequiredLabel>

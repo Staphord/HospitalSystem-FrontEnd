@@ -1,13 +1,17 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  EQUIPMENT_STATUS,
-  MODALITY_BREAKDOWN,
-  RADIOLOGY_DASHBOARD_STATS,
-  REPORTS_DUE,
-  TODAYS_IMAGING_SCHEDULE,
-} from '@/features/radiology/data/mockRadiologyDashboard'
-import type { EquipmentStatus } from '@/features/radiology/types/radiology'
+import { radiologyService } from '@/api/services/radiology'
+import { EQUIPMENT_STATUS } from '@/features/radiology/data/mockRadiologyDashboard'
+import type {
+  EquipmentStatus,
+  ImagingRequest,
+  ImagingScheduleItem,
+  ModalityBreakdownItem,
+  RadiologyDashboardStats,
+  ReportDueItem,
+} from '@/features/radiology/types/radiology'
+import { MODALITY_LABELS } from '@/features/radiology/utils/imagingRequestUtils'
 
 const EQUIPMENT_STATUS_CONFIG: Record<
   EquipmentStatus,
@@ -30,8 +34,8 @@ const EQUIPMENT_STATUS_CONFIG: Record<
   },
 }
 
-function StatCards() {
-  const { pending, scheduledToday, inProgress, reportsDue } = RADIOLOGY_DASHBOARD_STATS
+function StatCards({ stats }: { stats: RadiologyDashboardStats }) {
+  const { pending, scheduledToday, inProgress, reportsDue } = stats
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-md">
@@ -71,7 +75,13 @@ function StatCards() {
   )
 }
 
-function TodaysImagingSchedule({ onStart }: { onStart: (id: string) => void }) {
+function TodaysImagingSchedule({
+  items,
+  onStart,
+}: {
+  items: ImagingScheduleItem[]
+  onStart: (id: string) => void
+}) {
   return (
     <section className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
       <div className="px-md py-md flex justify-between items-center">
@@ -85,40 +95,44 @@ function TodaysImagingSchedule({ onStart }: { onStart: (id: string) => void }) {
       </div>
       <div className="h-px bg-border-subtle" />
       <div className="divide-y divide-border-subtle overflow-y-auto">
-        {TODAYS_IMAGING_SCHEDULE.map((item) => (
-          <div
-            key={item.id}
-            className="p-md flex flex-col sm:flex-row sm:items-center justify-between gap-md hover:bg-surface-container-low transition-colors"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-md flex-1 items-center">
-              <div className="flex items-center gap-sm">
-                <span className="text-label-md font-bold text-primary">{item.time}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-body-md font-semibold">{item.patientName}</span>
-                <span className="text-label-sm text-secondary">{item.patientNumber}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="px-sm py-xs bg-surface-container text-on-surface-variant text-label-sm rounded font-medium truncate">
-                  Modality: {item.modality}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onStart(item.id)}
-              className="sm:ml-lg px-md h-8 bg-primary-container text-white text-label-md font-label-md rounded hover:bg-primary transition-colors flex-shrink-0 border-0 cursor-pointer"
+        {items.length === 0 ? (
+          <p className="p-md text-body-sm text-secondary m-0">No imaging scheduled for today.</p>
+        ) : (
+          items.map((item) => (
+            <div
+              key={item.id}
+              className="p-md flex flex-col sm:flex-row sm:items-center justify-between gap-md hover:bg-surface-container-low transition-colors"
             >
-              Start →
-            </button>
-          </div>
-        ))}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-md flex-1 items-center">
+                <div className="flex items-center gap-sm">
+                  <span className="text-label-md font-bold text-primary">{item.time}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-body-md font-semibold">{item.patientName}</span>
+                  <span className="text-label-sm text-secondary">{item.patientNumber}</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="px-sm py-xs bg-surface-container text-on-surface-variant text-label-sm rounded font-medium truncate">
+                    Modality: {item.modality}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onStart(item.id)}
+                className="sm:ml-lg px-md h-8 bg-primary-container text-white text-label-md font-label-md rounded hover:bg-primary transition-colors flex-shrink-0 border-0 cursor-pointer"
+              >
+                Start →
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </section>
   )
 }
 
-function ReportsDueCard() {
+function ReportsDueCard({ items }: { items: ReportDueItem[] }) {
   return (
     <section className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden relative">
       <div className="absolute left-0 top-0 bottom-0 w-2 bg-warning" />
@@ -127,41 +141,45 @@ function ReportsDueCard() {
         <h2 className="text-headline-sm font-headline-sm text-on-surface m-0">Reports Due</h2>
       </div>
       <div className="px-md pb-md overflow-x-auto">
-        <table className="w-full text-left min-w-[500px]">
-          <thead>
-            <tr className="border-b border-border-subtle">
-              <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold">Patient</th>
-              <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold">Modality</th>
-              <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold">Completed</th>
-              <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold text-right">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {REPORTS_DUE.map((item) => (
-              <tr key={item.id} className="hover:bg-primary/5 transition-colors">
-                <td className="py-md text-body-sm font-medium">{item.patientName}</td>
-                <td className="py-md text-body-sm">{item.modality}</td>
-                <td className="py-md text-body-sm">{item.completedAt}</td>
-                <td className="py-md text-right">
-                  <Link
-                    to={`/radiology/requests/${item.requestId}/report`}
-                    className="text-primary text-label-md font-bold hover:underline no-underline"
-                  >
-                    Write Report →
-                  </Link>
-                </td>
+        {items.length === 0 ? (
+          <p className="text-body-sm text-secondary m-0 py-sm">No reports waiting.</p>
+        ) : (
+          <table className="w-full text-left min-w-[500px]">
+            <thead>
+              <tr className="border-b border-border-subtle">
+                <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold">Patient</th>
+                <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold">Modality</th>
+                <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold">Completed</th>
+                <th className="py-sm text-label-md text-secondary uppercase tracking-wider font-bold text-right">
+                  Action
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-primary/5 transition-colors">
+                  <td className="py-md text-body-sm font-medium">{item.patientName}</td>
+                  <td className="py-md text-body-sm">{item.modality}</td>
+                  <td className="py-md text-body-sm">{item.completedAt}</td>
+                  <td className="py-md text-right">
+                    <Link
+                      to={`/radiology/requests/${item.requestId}/report`}
+                      className="text-primary text-label-md font-bold hover:underline no-underline"
+                    >
+                      Write Report →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </section>
   )
 }
 
-function ModalityBreakdownCard() {
+function ModalityBreakdownCard({ items }: { items: ModalityBreakdownItem[] }) {
   return (
     <section className="bg-surface-white border border-border-subtle rounded-xl p-md">
       <div className="flex items-center gap-sm mb-lg">
@@ -169,22 +187,26 @@ function ModalityBreakdownCard() {
         <h2 className="text-headline-sm font-headline-sm text-on-surface m-0">Modality Breakdown Today</h2>
       </div>
       <div className="space-y-md">
-        {MODALITY_BREAKDOWN.map((item) => (
-          <div key={item.modality}>
-            <div className="flex justify-between text-label-sm mb-xs">
-              <span className="text-secondary">{item.modality}</span>
-              <span className="font-bold">
-                {item.sessions} Session{item.sessions !== 1 ? 's' : ''}
-              </span>
+        {items.length === 0 ? (
+          <p className="text-body-sm text-secondary m-0">No studies yet today.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item.modality}>
+              <div className="flex justify-between text-label-sm mb-xs">
+                <span className="text-secondary">{item.modality}</span>
+                <span className="font-bold">
+                  {item.sessions} Session{item.sessions !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="w-full bg-surface-container rounded-full h-2">
+                <div
+                  className="bg-primary-container h-2 rounded-full"
+                  style={{ width: `${item.barPercent}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full bg-surface-container rounded-full h-2">
-              <div
-                className="bg-primary-container h-2 rounded-full"
-                style={{ width: `${item.barPercent}%` }}
-              />
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </section>
   )
@@ -217,17 +239,88 @@ function EquipmentMonitoringCard() {
   )
 }
 
+function buildDashboard(requests: ImagingRequest[]) {
+  const today = new Date().toISOString().slice(0, 10)
+  const isToday = (iso?: string) => !!iso && iso.slice(0, 10) === today
+
+  const stats: RadiologyDashboardStats = {
+    pending: requests.filter((r) => r.status === 'requested').length,
+    scheduledToday: requests.filter((r) => r.status === 'scheduled' && isToday(r.scheduledAt)).length,
+    inProgress: requests.filter((r) => r.status === 'in-progress').length,
+    reportsDue: requests.filter((r) => r.status === 'in-progress').length,
+  }
+
+  const todaySchedule: ImagingScheduleItem[] = requests
+    .filter((r) => (r.status === 'scheduled' || r.status === 'in-progress') && isToday(r.scheduledAt))
+    .map((r) => ({
+      id: r.id,
+      time: r.scheduledAt
+        ? new Date(r.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '—',
+      patientName: r.patientName,
+      patientNumber: r.patientNumber,
+      modality: MODALITY_LABELS[r.modality],
+      requestId: r.id,
+    }))
+
+  const reportsDue: ReportDueItem[] = requests
+    .filter((r) => r.status === 'in-progress')
+    .map((r) => ({
+      id: r.id,
+      requestId: r.id,
+      patientName: r.patientName,
+      modality: MODALITY_LABELS[r.modality],
+      completedAt: 'Awaiting report',
+    }))
+
+  const counts: Record<string, number> = {}
+  for (const r of requests) {
+    if (!isToday(r.scheduledAt) && r.requestedDate !== today) continue
+    const label = MODALITY_LABELS[r.modality]
+    counts[label] = (counts[label] || 0) + 1
+  }
+  const max = Math.max(1, ...Object.values(counts), 1)
+  const modalityBreakdown: ModalityBreakdownItem[] = Object.entries(counts).map(
+    ([modality, sessions]) => ({
+      modality,
+      sessions,
+      barPercent: Math.round((sessions / max) * 100),
+    }),
+  )
+
+  return { stats, todaySchedule, reportsDue, modalityBreakdown }
+}
+
 export function RadiologyDashboardContent() {
   const navigate = useNavigate()
+  const [requests, setRequests] = useState<ImagingRequest[]>([])
+
+  const load = useCallback(async () => {
+    try {
+      const data = await radiologyService.listRequests({ limit: 200 })
+      setRequests(data.requests)
+    } catch {
+      toast.error('Failed to load radiology dashboard.')
+      setRequests([])
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const { stats, todaySchedule, reportsDue, modalityBreakdown } = useMemo(
+    () => buildDashboard(requests),
+    [requests],
+  )
 
   const handleStart = (id: string) => {
-    const item = TODAYS_IMAGING_SCHEDULE.find((s) => s.id === id)
+    const item = todaySchedule.find((s) => s.id === id)
     if (item?.requestId) {
       toast.success(`Opening report for ${item.patientName}`)
       navigate(`/radiology/requests/${item.requestId}/report`)
       return
     }
-    toast.success(item ? `Starting imaging for ${item.patientName}` : 'Imaging session started.')
     navigate('/radiology/schedule')
   }
 
@@ -235,13 +328,13 @@ export function RadiologyDashboardContent() {
     <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
       <div className="flex flex-col lg:flex-row gap-lg">
         <div className="w-full lg:w-[65%] flex flex-col gap-lg">
-          <StatCards />
-          <TodaysImagingSchedule onStart={handleStart} />
-          <ReportsDueCard />
+          <StatCards stats={stats} />
+          <TodaysImagingSchedule items={todaySchedule} onStart={handleStart} />
+          <ReportsDueCard items={reportsDue} />
         </div>
 
         <div className="w-full lg:w-[35%] flex flex-col gap-lg">
-          <ModalityBreakdownCard />
+          <ModalityBreakdownCard items={modalityBreakdown} />
           <EquipmentMonitoringCard />
         </div>
       </div>

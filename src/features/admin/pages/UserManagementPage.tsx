@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+
+const PAGE_SIZE = 10;
+
+// Escapes a value for safe inclusion in a CSV cell
+const csvCell = (value: string): string => `"${value.replace(/"/g, '""')}"`;
 
 // Renders the staff directory with plan-limit alerts, stat cards, filters, and table
 export const UserManagementPage: React.FC = () => {
@@ -7,6 +12,7 @@ export const UserManagementPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'doctor' | 'nurse' | 'admin'>('all');
   const [deptFilter, setDeptFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   const PLAN_LIMIT = 20;
   const isAtLimit = staffList.length >= PLAN_LIMIT;
@@ -52,6 +58,34 @@ export const UserManagementPage: React.FC = () => {
   const activeCount = staffList.filter((s) => s.status === 'active').length;
   const inactiveCount = staffList.filter((s) => s.status !== 'active').length;
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, roleFilter, deptFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
+  const pagedStaff = filteredStaff.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handleExport = () => {
+    const header = ['Name', 'ID', 'Role', 'Department', 'Status', 'Created At'];
+    const rows = filteredStaff.map((s) => [
+      s.name,
+      s.id,
+      s.role,
+      s.landingDepartment || '',
+      s.status || '',
+      s.createdAt || '',
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'staff-directory.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="max-w-container-max mx-auto flex flex-col gap-lg">
 
@@ -77,7 +111,10 @@ export const UserManagementPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div />
         <div className="flex gap-2">
-          <button className="h-10 px-4 rounded border border-border-subtle bg-surface-white text-secondary font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+          <button
+            onClick={handleExport}
+            className="h-10 px-4 rounded border border-border-subtle bg-surface-white text-secondary font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-low transition-colors cursor-pointer"
+          >
             <span className="material-symbols-outlined text-[18px]">download</span>
             Export
           </button>
@@ -199,8 +236,8 @@ export const UserManagementPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {filteredStaff.length > 0 ? (
-                filteredStaff.map((staff) => (
+              {pagedStaff.length > 0 ? (
+                pagedStaff.map((staff) => (
                   <tr
                     key={staff.id}
                     onClick={() => handleRowClick(staff.id)}
@@ -280,14 +317,25 @@ export const UserManagementPage: React.FC = () => {
         {/* Pagination footer */}
         <div className="p-4 border-t border-border-subtle bg-surface-white flex items-center justify-between">
           <p className="font-body-sm text-body-sm text-secondary">
-            Showing 1 to {filteredStaff.length} of {filteredStaff.length} entries
+            Showing {filteredStaff.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to{' '}
+            {Math.min(page * PAGE_SIZE, filteredStaff.length)} of {filteredStaff.length} entries
           </p>
           <div className="flex gap-1">
-            <button className="w-8 h-8 rounded flex items-center justify-center border border-border-subtle text-outline cursor-not-allowed" disabled>
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="w-8 h-8 rounded flex items-center justify-center border border-border-subtle text-outline hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            <button className="w-8 h-8 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-label-sm">1</button>
-            <button className="w-8 h-8 rounded flex items-center justify-center border border-border-subtle text-outline cursor-not-allowed" disabled>
+            <span className="w-8 h-8 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-label-sm">
+              {page}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="w-8 h-8 rounded flex items-center justify-center border border-border-subtle text-outline hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>

@@ -70,37 +70,85 @@ describe('PatientSearchPage', () => {
     vi.mocked(receptionService.getActiveVisit).mockResolvedValue({ active: false })
   })
 
-  it('renders search input fields correctly', () => {
+  it('renders unified single search input correctly', () => {
     render(
       <MemoryRouter>
         <PatientSearchPage />
       </MemoryRouter>
     )
 
-    expect(screen.getByPlaceholderText(/enter national id/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/enter full name/i)).toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText(/search by national id \/ nida, phone number, patient #, or name/i)
+    ).toBeInTheDocument()
   })
 
-  it('performs search and displays patient details', async () => {
+  it('performs auto-search when typing into the unified search field', async () => {
     render(
       <MemoryRouter>
         <PatientSearchPage />
       </MemoryRouter>
     )
 
-    const searchInput = screen.getByPlaceholderText(/enter national id/i)
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
     fireEvent.change(searchInput, { target: { value: '12345' } })
-    
+
+    await waitFor(() => {
+      expect(receptionService.searchPatients).toHaveBeenCalledWith('12345')
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
+      expect(screen.getByText('PT-20260713-0003')).toBeInTheDocument()
+    })
+  })
+
+  it('performs manual search on form submission', async () => {
+    render(
+      <MemoryRouter>
+        <PatientSearchPage />
+      </MemoryRouter>
+    )
+
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
+    fireEvent.change(searchInput, { target: { value: '12345' } })
+
     const searchForm = searchInput.closest('form')
     expect(searchForm).toBeInTheDocument()
-    
+
     await act(async () => {
       fireEvent.submit(searchForm!)
     })
 
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
       expect(screen.getByText('PT-20260713-0003')).toBeInTheDocument()
+    })
+  })
+
+  it('selects patient when clicking anywhere on a table row in multi-result search', async () => {
+    const mockMultiplePatients = [
+      mockPatient,
+      { ...mockPatient, id: 'pat-456', full_name: 'Jane Smith', patient_number: 'PT-20260713-0004' },
+    ]
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients })
+
+    render(
+      <MemoryRouter>
+        <PatientSearchPage />
+      </MemoryRouter>
+    )
+
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
+    fireEvent.change(searchInput, { target: { value: 'Jane' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Jane Smith')).toBeInTheDocument()
+    })
+
+    const patientRow = screen.getByText('Jane Smith').closest('tr')
+    expect(patientRow).toBeInTheDocument()
+
+    fireEvent.click(patientRow!)
+
+    await waitFor(() => {
+      expect(screen.getByText('Patient Found')).toBeInTheDocument()
     })
   })
 
@@ -114,7 +162,7 @@ describe('PatientSearchPage', () => {
     )
 
     // Trigger search to load patient card
-    const searchInput = screen.getByPlaceholderText(/enter national id/i)
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
     fireEvent.change(searchInput, { target: { value: '12345' } })
     await act(async () => {
       fireEvent.submit(searchInput.closest('form')!)
@@ -122,7 +170,7 @@ describe('PatientSearchPage', () => {
 
     // Wait for the patient card to load
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
     })
 
     // Click NOK name edit button (third edit pencil in list)
@@ -163,7 +211,7 @@ describe('PatientSearchPage', () => {
     )
 
     // Search patient
-    const searchInput = screen.getByPlaceholderText(/enter national id/i)
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
     fireEvent.change(searchInput, { target: { value: '12345' } })
     await act(async () => {
       fireEvent.submit(searchInput.closest('form')!)
@@ -171,7 +219,7 @@ describe('PatientSearchPage', () => {
 
     // Wait for details card and verify active visit locks are applied
     await waitFor(() => {
-      expect(screen.getByText('John Doe')).toBeInTheDocument()
+      expect(screen.getAllByText('John Doe').length).toBeGreaterThan(0)
     })
 
     // Wait for the asynchronous active visit status update to resolve in UI
@@ -190,5 +238,42 @@ describe('PatientSearchPage', () => {
     // Verify button displays wait state
     const checkinBtn = screen.getByRole('button', { name: /Already Waiting/i })
     expect(checkinBtn).toBeDisabled()
+  })
+
+  it('navigates back to search list when clicking breadcrumb back button', async () => {
+    const mockMultiplePatients = [
+      mockPatient,
+      { ...mockPatient, id: 'pat-456', full_name: 'Jane Smith', patient_number: 'PT-20260713-0004' },
+    ]
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients })
+
+    render(
+      <MemoryRouter>
+        <PatientSearchPage />
+      </MemoryRouter>
+    )
+
+    const searchInput = screen.getByPlaceholderText(/search by national id/i)
+    fireEvent.change(searchInput, { target: { value: 'Jane' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Jane Smith')).toBeInTheDocument()
+    })
+
+    // Click row to select Jane Smith
+    fireEvent.click(screen.getByText('Jane Smith').closest('tr')!)
+
+    await waitFor(() => {
+      expect(screen.getByText('Patient Found')).toBeInTheDocument()
+    })
+
+    // Click "Search Results" breadcrumb button
+    const backBtn = screen.getByRole('button', { name: /search results/i })
+    fireEvent.click(backBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('Jane Smith')).toBeInTheDocument()
+      expect(screen.getByText('2 patients found')).toBeInTheDocument()
+    })
   })
 })

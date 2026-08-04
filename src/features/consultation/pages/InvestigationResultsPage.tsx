@@ -459,10 +459,15 @@ export function InvestigationResultsPage() {
   const [search, setSearch]             = useState('')
   const [deptFilter, setDeptFilter]     = useState<'all' | ResultDept>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | ResultStatus>('all')
-  const [applied, setApplied]           = useState({ search: '', dept: 'all' as 'all' | ResultDept, status: 'all' as 'all' | ResultStatus })
+  const [pageSize, setPageSize]         = useState(10)
   const [currentPage, setCurrentPage]   = useState(1)
   const [openMenuId, setOpenMenuId]     = useState<string | null>(null)
   const [viewingResult, setViewingResult] = useState<InvestigationResult | null>(null)
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setCurrentPage(1)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -478,10 +483,9 @@ export function InvestigationResultsPage() {
       })
   }, [])
 
-  const applyFilters = () => {
-    setApplied({ search: search.trim().toLowerCase(), dept: deptFilter, status: statusFilter })
+  useEffect(() => {
     setCurrentPage(1)
-  }
+  }, [search, deptFilter, statusFilter])
 
   const acknowledgeResult = (id: string) => {
     consultationService.acknowledgeInvestigation(id)
@@ -499,25 +503,31 @@ export function InvestigationResultsPage() {
 
   const filtered = useMemo(() => {
     let data = [...results]
-    if (applied.search) {
+    const q = search.trim().toLowerCase()
+    if (q) {
       data = data.filter(
         (r) =>
-          r.patientName.toLowerCase().includes(applied.search) ||
-          r.patientNumber.toLowerCase().includes(applied.search),
+          r.patientName.toLowerCase().includes(q) ||
+          r.patientNumber.toLowerCase().includes(q) ||
+          r.test.toLowerCase().includes(q),
       )
     }
-    if (applied.dept !== 'all')   data = data.filter((r) => r.dept === applied.dept)
-    if (applied.status !== 'all') data = data.filter((r) => r.status === applied.status)
+    if (deptFilter !== 'all')   data = data.filter((r) => r.dept === deptFilter)
+    if (statusFilter !== 'all') data = data.filter((r) => r.status === statusFilter)
     data.sort((a, b) => {
       if (a.status === 'critical' && b.status !== 'critical') return -1
       if (b.status === 'critical' && a.status !== 'critical') return 1
       return 0
     })
     return data
-  }, [applied, results])
+  }, [search, deptFilter, statusFilter, results])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated  = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage    = Math.min(currentPage, totalPages)
+  const pageStart   = (safePage - 1) * pageSize
+  const paginated   = filtered.slice(pageStart, pageStart + pageSize)
+  const showingFrom = filtered.length === 0 ? 0 : pageStart + 1
+  const showingTo   = Math.min(pageStart + pageSize, filtered.length)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -533,8 +543,7 @@ export function InvestigationResultsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-              placeholder="Name or Patient #"
+              placeholder="Name, Patient # or Test"
               className="flex-1 bg-transparent border-0 outline-none p-0 m-0 font-body-sm text-body-sm text-on-surface placeholder:text-outline"
             />
           </div>
@@ -583,16 +592,6 @@ export function InvestigationResultsPage() {
             />
           </div>
         </div>
-
-        {/* Apply */}
-        <button
-          type="button"
-          onClick={applyFilters}
-          className="h-[42px] bg-primary text-white px-lg rounded-lg font-label-md text-label-md flex items-center gap-sm hover:opacity-90 transition-opacity border-0 cursor-pointer active:scale-95 whitespace-nowrap"
-        >
-          <span className="material-symbols-outlined text-[20px] leading-none">filter_list</span>
-          Apply Filters
-        </button>
       </section>
 
       {/* Results Table Card */}
@@ -720,15 +719,35 @@ export function InvestigationResultsPage() {
         </div>
 
         {/* Pagination footer */}
-        <div className="px-lg py-md bg-surface-container-low border-t border-border-subtle flex items-center justify-between">
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} results
-          </p>
-          <div className="flex gap-xs">
+        <div className="p-md bg-surface-bright border-t border-border-subtle flex flex-col sm:flex-row justify-between items-center gap-md">
+          <div className="flex items-center gap-md">
+            <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
+              {filtered.length === 0
+                ? 'No results match filters'
+                : `Showing ${showingFrom} to ${showingTo} of ${filtered.length} results`}
+            </p>
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-xs">
+                <span className="font-body-sm text-body-sm text-secondary">Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="h-8 px-xs border border-border-subtle rounded font-body-sm bg-white outline-none cursor-pointer text-secondary"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-xs">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={safePage === 1}
               className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-surface-white text-secondary hover:bg-surface-container-highest transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_left</span>
@@ -739,7 +758,7 @@ export function InvestigationResultsPage() {
                 type="button"
                 onClick={() => setCurrentPage(p)}
                 className={`w-8 h-8 flex items-center justify-center rounded border font-label-md text-label-md transition-colors cursor-pointer ${
-                  p === currentPage
+                  p === safePage
                     ? 'bg-primary text-white border-primary'
                     : 'bg-surface-white text-secondary border-border-subtle hover:bg-surface-container-highest'
                 }`}
@@ -750,7 +769,7 @@ export function InvestigationResultsPage() {
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              disabled={safePage === totalPages}
               className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle bg-surface-white text-secondary hover:bg-surface-container-highest transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
             >
               <span className="material-symbols-outlined text-[20px]">chevron_right</span>

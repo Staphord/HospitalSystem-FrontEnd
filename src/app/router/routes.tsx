@@ -27,6 +27,8 @@ import { DepartmentsPage } from '@/features/admin/pages/DepartmentsPage'
 import { FeesPage } from '@/features/admin/pages/FeesPage'
 import { InsurancePage } from '@/features/admin/pages/InsurancePage'
 import { SettingsPage } from '@/features/admin/pages/SettingsPage'
+import { RolesManagementPage } from '@/features/admin/pages/RolesManagementPage'
+import { PermissionsMatrixPage } from '@/features/admin/pages/PermissionsMatrixPage'
 import { AuditLogsPage as AdminAuditLogsPage } from '@/features/admin/pages/AuditLogsPage'
 import { DataBackupPage } from '@/features/admin/pages/DataBackupPage'
 import { SubscriptionPage } from '@/features/admin/pages/SubscriptionPage'
@@ -92,6 +94,8 @@ import { NotificationsPage } from '@/features/notifications/pages/NotificationsP
 import { ProfilePage } from '@/features/profile/pages/ProfilePage'
 import { EmptyState } from '@/components/ui/EmptyState'
 
+import { RootErrorBoundary } from '@/app/router/RootErrorBoundary'
+
 function UnauthorizedPage() {
   return (
     <EmptyState
@@ -105,9 +109,11 @@ export const routes = [
   {
     path: '/',
     element: <Navigate to="/login" replace />,
+    errorElement: <RootErrorBoundary />,
   },
   {
     element: <AuthLayout />,
+    errorElement: <RootErrorBoundary />,
     children: [
       { path: '/login', element: <HospitalLoginPage /> },
       { path: '/master/login', element: <LoginPage /> },
@@ -124,6 +130,7 @@ export const routes = [
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RootErrorBoundary />,
     children: [
       { path: '/impersonation/switching', element: <ImpersonationSwitchPage /> },
       {
@@ -131,6 +138,7 @@ export const routes = [
         children: [
           {
             element: <MasterLayout />,
+            errorElement: <RootErrorBoundary />,
             children: [
               { path: '/master/dashboard', element: <MasterDashboardPage /> },
               { path: '/master/tenants', element: <TenantManagementPage /> },
@@ -154,6 +162,7 @@ export const routes = [
       },
       {
         element: <HospitalLayout />,
+        errorElement: <RootErrorBoundary />,
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           {
@@ -169,6 +178,8 @@ export const routes = [
               { path: '/admin/fees', element: <FeesPage /> },
               { path: '/admin/insurance', element: <InsurancePage /> },
               { path: '/admin/settings', element: <SettingsPage /> },
+              { path: '/admin/roles', element: <RolesManagementPage /> },
+              { path: '/admin/permissions', element: <PermissionsMatrixPage /> },
               { path: '/admin/audit-logs', element: <AdminAuditLogsPage /> },
               { path: '/admin/backup', element: <DataBackupPage /> },
               { path: '/admin/subscription', element: <SubscriptionPage /> },

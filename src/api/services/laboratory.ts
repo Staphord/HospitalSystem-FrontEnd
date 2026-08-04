@@ -166,4 +166,60 @@ export const laboratoryService = {
     apiClient
       .get(`/laboratory/visits/${visitId}/results`)
       .then((r) => r.data),
+
+  getDashboardStats: () =>
+    apiClient
+      .get<BackendLabDashboardStats>('/laboratory/dashboard/stats')
+      .then((r) => r.data),
+
+  notifyDoctor: (resultId: string) =>
+    apiClient
+      .post<{ message: string }>(`/laboratory/results/${resultId}/notify-doctor`)
+      .then((r) => r.data),
 }
+
+export interface BackendStatRequestItem {
+  id: string
+  patientName: string
+  testName: string
+  requestedBy: string
+  requestedAgo: string
+  priority: 'stat' | 'urgent' | 'routine' | string
+  status?: string
+}
+
+export interface BackendCriticalValueItem {
+  id: string
+  patientName: string
+  testName: string
+  result: string
+  refRange?: string
+}
+
+export interface BackendCompletedTestItem {
+  id: string
+  testName: string
+  requestId: string
+  completedAt: string
+}
+
+export interface BackendTurnaroundMetric {
+  department: string
+  minutes: number
+  barPercent: number
+  isStat?: boolean
+  opacity?: string
+}
+
+export interface BackendLabDashboardStats {
+  pendingTests: number
+  inProgress: number
+  completedToday: number
+  criticalValues: number
+  highPriorityRequests?: BackendStatRequestItem[]
+  criticalValuesList?: BackendCriticalValueItem[]
+  completedTodayList?: BackendCompletedTestItem[]
+  turnaroundMetrics?: BackendTurnaroundMetric[]
+}
+
+

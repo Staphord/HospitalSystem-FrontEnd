@@ -3,8 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
-import { isTokenExpired } from '@/lib/token'
+import { getTokenExpiryMs } from '@/lib/token'
 import { authService } from '@/api/services/auth'
+import { refreshAuthToken } from '@/api/client'
+
+// Refresh the token pair once the refresh token is within this long of expiring.
+const PROACTIVE_REFRESH_BUFFER_MS = 2 * 60 * 1000
+// Grace window added on top of the idle-timeout window: only proactively refresh
+// while the user is genuinely active, never for a session that's already idle —
+// that would silently defeat the idle-timeout policy below.
+const IDLE_GRACE_MS = 60 * 1000
 
 export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -129,10 +137,14 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
   }, [showModal, handleTimeout])
 
-  const handleKeepAlive = () => {
+  const handleKeepAlive = async () => {
     setShowModal(false)
     showModalRef.current = false
     resetTimer(true)
+    // Actually rotate the token pair, not just the local idle marker — otherwise
+    // the refresh token's own absolute expiry keeps ticking down regardless of
+    // how many times the user clicks "keep me signed in".
+    await refreshAuthToken()
     toast.success('Session extended.')
   }
 
@@ -204,19 +216,38 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [isAuthenticated, resetTimer])
 
-  // Periodic refresh-token expiry check
+  // Proactive token refresh: while the user is actively using the portal, keep
+  // the access/refresh token pair alive by rotating it shortly before the
+  // refresh token's own absolute expiry — instead of waiting for it to lapse
+  // and force an unannounced logout mid-session (the previous behaviour here
+  // called handleTimeout() directly the instant the refresh token expired,
+  // with no warning and no relation to actual user activity).
+  //
+  // Idle sessions are deliberately excluded so this can't bypass the
+  // idle-timeout policy above: a session that's already past the idle window
+  // is left to that flow (warning modal -> timeout), not silently kept alive.
   useEffect(() => {
     if (!isAuthenticated || isImpersonating) return
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const token = useAuthStore.getState().refreshToken
-      if (token && isTokenExpired(token)) {
-        handleTimeout()
-      }
+      if (!token) return
+
+      const expiryMs = getTokenExpiryMs(token)
+      if (expiryMs === null) return // opaque token — nothing we can proactively check
+
+      const msUntilExpiry = expiryMs - Date.now()
+      if (msUntilExpiry <= 0 || msUntilExpiry > PROACTIVE_REFRESH_BUFFER_MS) return
+
+      const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || '0', 10)
+      const { totalMs } = getDurations()
+      if (Date.now() - lastActivity > totalMs + IDLE_GRACE_MS) return
+
+      await refreshAuthToken()
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [isAuthenticated, isImpersonating, handleTimeout])
+  }, [isAuthenticated, isImpersonating])
 
   return (
     <>

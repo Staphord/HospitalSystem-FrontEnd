@@ -11,6 +11,8 @@ import { LabDashboardContent } from '@/features/laboratory/components/LabDashboa
 import { PharmacyDashboardContent } from '@/features/pharmacy/components/PharmacyDashboardContent'
 import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
+import { toast } from 'sonner'
+import { formatShortDateTime } from '@/lib/localization'
 import { useNavigate } from 'react-router-dom'
 import { receptionService } from '@/api/services/reception'
 import type { BackendPatient } from '@/api/types/reception'
@@ -433,8 +435,8 @@ export function DashboardPage() {
           ticketNumber: entry.queue_number,
           name: entry.patient.full_name,
           patientNumber: entry.patient.patient_number,
-          registeredAt: new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          wait: mins <= 0 ? '--' : `${mins} min`,
+          registeredAt: formatShortDateTime(entry.created_at),
+          wait: `${Math.max(0, mins)} min`,
           waitColor: mins > 30 ? 'text-error' : mins > 15 ? 'text-warning' : 'text-success',
           payment: entry.visit?.payment_type
             ? entry.visit.payment_type.charAt(0).toUpperCase() + entry.visit.payment_type.slice(1)
@@ -499,69 +501,129 @@ export function DashboardPage() {
           <div className="lg:col-span-8 flex flex-col gap-lg h-full">
             {/* KPI Cards Row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full shrink-0">
-              <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/reception/queue')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate('/reception/queue')
+                  }
+                }}
+                aria-label="Patients Today KPI - Click to open Queue Management"
+                className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
-                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Patients Today</p>
+                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Patients Today</p>
                     <h3 className="font-headline-md text-primary font-bold text-2xl">{loading ? '...' : patientsToday}</h3>
                   </div>
-                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
+                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low group-hover:bg-primary/10 group-hover:text-primary rounded-lg transition-colors">
                     <span className="material-symbols-outlined text-[20px]">person_play</span>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-success text-[12px]">
-                  <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                  <span className="font-label-sm">Total checked in today</span>
+                <div className="mt-3 flex items-center justify-between text-success text-[12px]">
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                    <span className="font-label-sm">Total checked in today</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                 </div>
               </div>
 
-              <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/reception/queue')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate('/reception/queue')
+                  }
+                }}
+                aria-label="In Queue KPI - Click to open Queue Management"
+                className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
-                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">In Queue</p>
+                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">In Queue</p>
                     <h3 className="font-headline-md text-primary font-bold text-2xl">{loading ? '...' : inQueueCount}</h3>
                   </div>
-                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
+                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low group-hover:bg-primary/10 group-hover:text-primary rounded-lg transition-colors">
                     <span className="material-symbols-outlined text-[20px]">group</span>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-secondary text-[12px]">
-                  <span className="material-symbols-outlined text-[14px]">horizontal_rule</span>
-                  <span className="font-label-sm">Active waiting patients</span>
+                <div className="mt-3 flex items-center justify-between text-secondary text-[12px]">
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">horizontal_rule</span>
+                    <span className="font-label-sm">Active waiting patients</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                 </div>
               </div>
 
-              <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/reception/queue')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate('/reception/queue')
+                  }
+                }}
+                aria-label="Registered This Hour KPI - Click to open Queue Management"
+                className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
-                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Registered This Hour</p>
+                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Registered This Hour</p>
                     <h3 className="font-headline-md text-primary font-bold text-2xl">{loading ? '...' : registeredThisHour}</h3>
                   </div>
-                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
+                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low group-hover:bg-primary/10 group-hover:text-primary rounded-lg transition-colors">
                     <span className="material-symbols-outlined text-[20px]">how_to_reg</span>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-warning text-[12px]">
-                  <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                  <span className="font-label-sm">Added in last 60m</span>
+                <div className="mt-3 flex items-center justify-between text-warning text-[12px]">
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                    <span className="font-label-sm">Added in last 60m</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                 </div>
               </div>
 
-              <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/reception/queue')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigate('/reception/queue')
+                  }
+                }}
+                aria-label="Avg Wait Time KPI - Click to open Queue Management"
+                className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between shadow-sm cursor-pointer hover:border-primary hover:shadow-md transition-all active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-1">
-                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px]">Avg Wait Time</p>
+                    <p className="text-secondary font-label-md uppercase tracking-wider text-[11px] group-hover:text-primary transition-colors">Avg Wait Time</p>
                     <h3 className="font-headline-md text-primary font-bold text-2xl">
-                      {loading ? '...' : avgWaitTime > 0 ? `${avgWaitTime}m` : '--'}
+                      {loading ? '...' : `${Math.max(0, avgWaitTime)}m`}
                     </h3>
                   </div>
-                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low rounded-lg">
+                  <div className="w-8 h-8 flex items-center justify-center text-secondary bg-surface-container-low group-hover:bg-primary/10 group-hover:text-primary rounded-lg transition-colors">
                     <span className="material-symbols-outlined text-[20px]">hourglass_empty</span>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-error text-[12px]">
-                  <span className="material-symbols-outlined text-[14px]">priority_high</span>
-                  <span className="font-label-sm">Triage wait duration</span>
+                <div className="mt-3 flex items-center justify-between text-error text-[12px]">
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">priority_high</span>
+                    <span className="font-label-sm">Triage wait duration</span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                 </div>
               </div>
             </div>
@@ -745,8 +807,7 @@ export function DashboardPage() {
                       .join('')
                       .substring(0, 2)
                       .toUpperCase()
-                    const regTime = new Date(patient.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    const regDate = new Date(patient.created_at).toLocaleDateString()
+                    const regTime = formatShortDateTime(patient.created_at)
                     return (
                       <div
                         key={patient.id}
@@ -757,7 +818,7 @@ export function DashboardPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-body-sm text-xs font-semibold text-on-surface truncate">{patient.full_name}</p>
-                          <p className="font-body-sm text-[10px] text-outline truncate">{patient.patient_number} • {regDate} {regTime}</p>
+                          <p className="font-body-sm text-[10px] text-outline truncate">{patient.patient_number} • {regTime}</p>
                         </div>
                       </div>
                     )

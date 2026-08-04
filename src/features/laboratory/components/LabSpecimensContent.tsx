@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { formatShortDateTime } from '@/lib/localization'
 import { laboratoryService, type BackendTrackedSpecimenItem } from '@/api/services/laboratory'
 import { UpdateSpecimenStatusModal } from '@/features/laboratory/components/UpdateSpecimenStatusModal'
 import type { SpecimenSummary, SpecimenTrackingStatus, TrackedSpecimen } from '@/features/laboratory/types/laboratory'
@@ -30,14 +31,15 @@ function mapBackendToTrackedSpecimen(item: BackendTrackedSpecimenItem): TrackedS
 
   return {
     id: item.specimen_label || item.specimen_id.slice(0, 8).toUpperCase(),
+    specimenId: item.specimen_id,
     requestId: item.request_id,
     patientName: item.patient_name,
     patientNumber: item.patient_number,
     testName: item.test_name,
+    testType: item.test_name,
     collectedBy: item.collected_by_name || 'Lab Staff',
-    collectedAt: item.collected_at
-      ? new Date(item.collected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : undefined,
+    collectorName: item.collected_by_name || 'Lab Staff',
+    collectedAt: formatShortDateTime(item.collected_at),
     status: trackingStatus,
     location: item.collection_site || 'Main Lab',
     notes: item.rejection_reason ? `Rejection: ${item.rejection_reason}` : undefined,
@@ -126,13 +128,16 @@ function matchesStatusFilter(status: SpecimenTrackingStatus, filter: StatusFilte
 }
 
 export function LabSpecimensContent() {
+  const navigate = useNavigate()
   const location = useLocation()
   const locationState = location.state as SpecimensLocationState | null
 
   const [loading, setLoading] = useState(true)
   const [specimens, setSpecimens] = useState<TrackedSpecimen[]>([])
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [activeSpecimenId, setActiveSpecimenId] = useState<string | null>(null)
   const [modalSpecimen, setModalSpecimen] = useState<TrackedSpecimen | null>(null)
 
@@ -155,15 +160,46 @@ export function LabSpecimensContent() {
   const summary = useMemo(() => computeSpecimenSummary(specimens), [specimens])
 
   const filteredSpecimens = useMemo(() => {
-    return specimens.filter((specimen) => matchesStatusFilter(specimen.status, statusFilter))
-  }, [specimens, statusFilter])
+    return specimens.filter((specimen) => {
+      const statusMatch = matchesStatusFilter(specimen.status, statusFilter)
+      const q = searchQuery.trim().toLowerCase()
+      const searchMatch =
+        !q ||
+        (specimen.id || '').toLowerCase().includes(q) ||
+        (specimen.specimenId || '').toLowerCase().includes(q) ||
+        (specimen.patientName || '').toLowerCase().includes(q) ||
+        (specimen.patientNumber || '').toLowerCase().includes(q) ||
+        (specimen.testType || '').toLowerCase().includes(q) ||
+        (specimen.testName || '').toLowerCase().includes(q) ||
+        (specimen.collectorName || '').toLowerCase().includes(q) ||
+        (specimen.collectedBy || '').toLowerCase().includes(q) ||
+        (specimen.requestId || '').toLowerCase().includes(q)
+      return statusMatch && searchMatch
+    })
+  }, [specimens, statusFilter, searchQuery])
 
-  const totalPages = Math.max(1, Math.ceil(filteredSpecimens.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredSpecimens.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const visibleSpecimens = filteredSpecimens.slice(pageStart, pageStart + PAGE_SIZE)
+  const pageStart = (safePage - 1) * pageSize
+  const visibleSpecimens = filteredSpecimens.slice(pageStart, pageStart + pageSize)
   const showingFrom = filteredSpecimens.length === 0 ? 0 : pageStart + 1
-  const showingTo = Math.min(pageStart + PAGE_SIZE, filteredSpecimens.length)
+  const showingTo = Math.min(pageStart + pageSize, filteredSpecimens.length)
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (safePage > 3) pages.push('...')
+      const start = Math.max(2, safePage - 1)
+      const end = Math.min(totalPages - 1, safePage + 1)
+      for (let i = start; i <= end; i++) pages.push(i)
+      if (safePage < totalPages - 2) pages.push('...')
+      pages.push(totalPages)
+    }
+    return pages
+  }
 
   useEffect(() => {
     if (!locationState?.requestId) return
@@ -182,9 +218,9 @@ export function LabSpecimensContent() {
     if (!activeSpecimenId) return
     const index = filteredSpecimens.findIndex((s) => s.requestId === activeSpecimenId)
     if (index >= 0) {
-      setCurrentPage(Math.floor(index / PAGE_SIZE) + 1)
+      setCurrentPage(Math.floor(index / pageSize) + 1)
     }
-  }, [activeSpecimenId, filteredSpecimens])
+  }, [activeSpecimenId, filteredSpecimens, pageSize])
 
   useEffect(() => {
     if (!activeSpecimenId) return
@@ -194,7 +230,7 @@ export function LabSpecimensContent() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter])
+  }, [statusFilter, searchQuery, pageSize])
 
   const handleSaveStatus = async (
     status: SpecimenTrackingStatus,
@@ -224,7 +260,10 @@ export function LabSpecimensContent() {
   }
 
 
-  const handleClearFilters = () => setStatusFilter('all')
+  const handleClearFilters = () => {
+    setStatusFilter('all')
+    setSearchQuery('')
+  }
 
   if (loading) {
     return (
@@ -241,31 +280,47 @@ export function LabSpecimensContent() {
       <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
         <div className="p-md border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-md bg-background/50">
           <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Specimen Log</h2>
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-40 cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              {(Object.keys(SPECIMEN_TRACKING_STATUS_LABEL) as SpecimenTrackingStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {SPECIMEN_TRACKING_STATUS_LABEL[status]}
-                </option>
-              ))}
-            </select>
-            <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-[18px]">
-              expand_more
-            </span>
+          <div className="flex flex-wrap items-center gap-sm">
+            {/* Live Search Bar */}
+            <div className="relative flex items-center min-w-[240px]">
+              <span className="material-symbols-outlined absolute left-3 text-secondary text-[18px] pointer-events-none select-none">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search specimen, patient, test..."
+                className="w-full pl-9 pr-3 py-2 font-body-sm text-body-sm bg-surface-white border border-border-subtle rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-secondary"
+              />
+            </div>
+
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="appearance-none bg-surface-white border border-border-subtle rounded-lg h-10 pl-sm pr-8 py-0 font-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary w-40 cursor-pointer"
+              >
+                <option value="all">All Statuses</option>
+                {(Object.keys(SPECIMEN_TRACKING_STATUS_LABEL) as SpecimenTrackingStatus[]).map((status) => (
+                  <option key={status} value={status}>
+                    {SPECIMEN_TRACKING_STATUS_LABEL[status]}
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-2.5 text-secondary pointer-events-none text-[20px] leading-none">
+                expand_more
+              </span>
+            </div>
           </div>
         </div>
 
         {filteredSpecimens.length === 0 ? (
           <SpecimensEmptyState onClearFilters={handleClearFilters} />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[580px] overflow-y-auto overflow-x-auto relative">
             <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface-bright shadow-xs">
                 <tr className="bg-surface-container-low border-b border-border-subtle text-secondary font-label-md text-label-md uppercase tracking-wider">
                   <th className="py-sm px-md font-semibold">Specimen ID</th>
                   <th className="py-sm px-md font-semibold">Patient Name</th>
@@ -281,13 +336,18 @@ export function LabSpecimensContent() {
                 {visibleSpecimens.map((specimen) => {
                   const isHighlighted = activeSpecimenId === specimen.requestId
                   const rejected = isSpecimenRejected(specimen)
+                  const isComplete =
+                    specimen.status === 'complete' ||
+                    specimen.status === 'completed' ||
+                    specimen.status === 'resulted' ||
+                    specimen.status === 'verified'
 
                   return (
                     <tr
                       key={specimen.id}
-                      className={`border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors ${
-                        isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : rejected ? 'bg-[#FFF4F4]' : 'bg-surface-white'
-                      }`}
+                      onClick={() => navigate(`/laboratory/requests/${specimen.requestId}`)}
+                      className={`border-b border-border-subtle hover:bg-[#DEEBFF] transition-colors cursor-pointer ${isHighlighted ? 'bg-[#DEEBFF] ring-1 ring-inset ring-primary/30' : rejected ? 'bg-[#FFF4F4]' : 'bg-surface-white'
+                        }`}
                     >
                       <td className="py-sm px-md font-medium text-primary">{specimen.id}</td>
                       <td className="py-sm px-md font-medium">{specimen.patientName}</td>
@@ -322,13 +382,29 @@ export function LabSpecimensContent() {
                         </div>
                       </td>
                       <td className="py-sm px-md text-right">
-                        <button
-                          type="button"
-                          onClick={() => setModalSpecimen(specimen)}
-                          className="h-8 px-3 bg-primary hover:bg-primary-container text-white rounded font-label-md text-label-md cursor-pointer border-0 transition-colors"
-                        >
-                          Update Status
-                        </button>
+                        {isComplete ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(`/laboratory/requests/${specimen.requestId}`)
+                            }}
+                            className="h-8 px-3 bg-surface-container text-on-surface hover:bg-surface-container-high border border-border-subtle rounded font-label-md text-label-md cursor-pointer transition-colors whitespace-nowrap"
+                          >
+                            View Results
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setModalSpecimen(specimen)
+                            }}
+                            className="h-8 px-3 bg-primary hover:bg-primary-hover text-on-primary rounded font-label-md text-label-md cursor-pointer border-0 transition-colors whitespace-nowrap"
+                          >
+                            Update Status
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -339,40 +415,75 @@ export function LabSpecimensContent() {
         )}
 
         {filteredSpecimens.length > 0 && (
-          <div className="p-sm px-md border-t border-border-subtle bg-surface-white flex flex-col sm:flex-row items-center justify-between gap-sm text-body-sm text-secondary">
-            <span>
-              Showing {showingFrom} to {showingTo} of {filteredSpecimens.length} entries
-            </span>
+          <div className="p-md border-t border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-md bg-surface-white font-body-sm text-secondary rounded-b-xl shadow-xs">
+            <div className="flex flex-wrap items-center gap-md">
+              <span>
+                Showing <span className="font-semibold text-on-surface">{showingFrom}</span> to{' '}
+                <span className="font-semibold text-on-surface">{showingTo}</span> of{' '}
+                <span className="font-semibold text-on-surface">{filteredSpecimens.length}</span> entries
+              </span>
+
+              <div className="flex items-center gap-xs">
+                <label htmlFor="spec-rows-per-page" className="text-body-sm text-secondary font-medium">
+                  Rows per page:
+                </label>
+                <select
+                  id="spec-rows-per-page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="h-8 px-2 border border-border-subtle rounded-md bg-surface-white font-body-sm text-on-surface cursor-pointer focus:ring-1 focus:ring-primary focus:border-primary"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
             <div className="flex items-center gap-xs">
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="p-1 rounded hover:bg-surface-variant disabled:opacity-50 border-0 bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="w-8 h-8 border border-border-subtle rounded-md text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed bg-surface-white cursor-pointer flex items-center justify-center transition-colors"
+                title="Previous page"
                 aria-label="Previous page"
               >
                 <span className="material-symbols-outlined text-[20px]">chevron_left</span>
               </button>
-              {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded font-medium border-0 cursor-pointer ${
-                    page === safePage
-                      ? 'bg-primary-container text-white'
-                      : 'hover:bg-surface-variant text-on-surface bg-transparent'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              {totalPages > 3 && <span className="px-1 text-secondary">…</span>}
+
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((page, idx) =>
+                  typeof page === 'number' ? (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-md font-label-md transition-colors cursor-pointer flex items-center justify-center ${page === safePage
+                        ? 'bg-primary text-on-primary font-bold shadow-xs'
+                        : 'bg-transparent text-on-surface hover:bg-surface-container border border-transparent'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  ) : (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-secondary font-label-md">
+                      ...
+                    </span>
+                  )
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="p-1 rounded hover:bg-surface-variant disabled:opacity-50 border-0 bg-transparent cursor-pointer disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="w-8 h-8 border border-border-subtle rounded-md text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed bg-surface-white cursor-pointer flex items-center justify-center transition-colors"
+                title="Next page"
                 aria-label="Next page"
               >
                 <span className="material-symbols-outlined text-[20px]">chevron_right</span>

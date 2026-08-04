@@ -4,16 +4,12 @@ import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
 import type { PatientListItem } from '@/api/services/ward'
 
+import { formatPatientAge } from '@/lib/localization'
+
 // ── Formatting/calculation helpers ───────────────────────────────────────────
 
 function calcAge(dob: string) {
-  try {
-    const b = new Date(dob)
-    const today = new Date()
-    let age = today.getFullYear() - b.getFullYear()
-    if (today < new Date(today.getFullYear(), b.getMonth(), b.getDate())) age--
-    return age
-  } catch { return 0 }
+  return formatPatientAge(dob)
 }
 
 function initials(name: string) {
@@ -231,6 +227,32 @@ export function ConsultationHistoryContent() {
       .catch(() => setLoadingRecent(false))
   }, [])
 
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setHasSearched(false)
+      setResults([])
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setSearching(true)
+      setHasSearched(true)
+      wardService.searchPatients(trimmed, 1, 50)
+        .then((res) => {
+          setResults(res.patients || [])
+          setSearching(false)
+        })
+        .catch((err) => {
+          const msg = err?.response?.data?.detail || err?.message || 'Search failed'
+          toast.error(msg)
+          setSearching(false)
+        })
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [query])
+
   const runSearch = (term: string) => {
     const trimmed = term.trim()
     if (!trimmed) {
@@ -238,19 +260,6 @@ export function ConsultationHistoryContent() {
       return
     }
     setQuery(trimmed)
-    setSearching(true)
-    setHasSearched(true)
-    
-    wardService.searchPatients(trimmed, 1, 50)
-      .then((res) => {
-        setResults(res.patients || [])
-        setSearching(false)
-      })
-      .catch((err) => {
-        const msg = err?.response?.data?.detail || err?.message || 'Search failed'
-        toast.error(msg)
-        setSearching(false)
-      })
   }
 
   const handleSubmit = (e: React.FormEvent) => {

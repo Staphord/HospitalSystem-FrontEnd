@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { IMAGING_REQUEST_SUMMARY } from '@/features/radiology/data/mockImagingRequests'
+import { radiologyService } from '@/api/services/radiology'
 import { ImagingRequestsTable } from '@/features/radiology/components/ImagingRequestsTable'
 import type { ImagingModality, ImagingRequest, ImagingRequestStatus } from '@/features/radiology/types/radiology'
 import type { ImagingRequestSecondaryAction } from '@/features/radiology/utils/imagingRequestUtils'
@@ -10,17 +10,23 @@ import {
   matchesSearchQuery,
   matchesStatusFilter,
 } from '@/features/radiology/utils/imagingRequestUtils'
-import { getAllImagingRequests, patchImagingRequest } from '@/features/radiology/utils/imagingRequestStore'
 
 type ModalityFilter = ImagingModality | 'all'
 type StatusFilter = ImagingRequestStatus | 'all'
 
 const PAGE_SIZE = 5
-const TOTAL_REQUEST_COUNT = 29
 
-function SummaryCards() {
-  const { newRequests, scheduled, inProgress, completedToday } = IMAGING_REQUEST_SUMMARY
-
+function SummaryCards({
+  newRequests,
+  scheduled,
+  inProgress,
+  completedToday,
+}: {
+  newRequests: number
+  scheduled: number
+  inProgress: number
+  completedToday: number
+}) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-md">
       <div className="bg-surface-white border border-border-subtle rounded-lg p-md flex flex-col gap-xs hover:border-outline-variant transition-colors">
@@ -101,25 +107,37 @@ function RequestsEmptyState({ onClearFilters }: { onClearFilters: () => void }) 
 export function ImagingRequestsContent() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [allRequests, setAllRequests] = useState<ImagingRequest[]>([])
+  const [summary, setSummary] = useState({
+    newRequests: 0,
+    scheduled: 0,
+    inProgress: 0,
+    completedToday: 0,
+  })
   const [modalityFilter, setModalityFilter] = useState<ModalityFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [dateFilter, setDateFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  // tick forces re-render after store mutations (e.g. returning from report page)
-  const [tick, setTick] = useState(0)
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setLoading(false), 400)
-    return () => window.clearTimeout(timer)
+  const loadRequests = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await radiologyService.listRequests({ limit: 200 })
+      setAllRequests(data.requests)
+      setSummary(data.summary)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load imaging requests.')
+      setAllRequests([])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  // Refresh the list whenever the user navigates back to this page
   useEffect(() => {
-    setTick((t) => t + 1)
-  }, [])
-
-  const allRequests = useMemo(() => getAllImagingRequests(), [tick])
+    void loadRequests()
+  }, [loadRequests])
 
   const filteredRequests = useMemo(() => {
     return allRequests.filter((request) => {
@@ -150,46 +168,57 @@ export function ImagingRequestsContent() {
     setCurrentPage(1)
   }
 
-  const handleSecondaryAction = (
+  const ensureReadyForReport = async (request: ImagingRequest) => {
+    if (request.status === 'requested') {
+      await radiologyService.scheduleRequest(request.id, {
+        modality: request.modality,
+        bodyPart: request.bodyPart === '—' ? request.testName : request.bodyPart,
+        scheduledAt: new Date().toISOString(),
+      })
+      await radiologyService.performRequest(request.id)
+    } else if (request.status === 'scheduled') {
+      await radiologyService.performRequest(request.id)
+    }
+  }
+
+  const handleSecondaryAction = async (
     request: ImagingRequest,
     action: ImagingRequestSecondaryAction,
   ) => {
-    switch (action) {
-      case 'enter-report':
-        patchImagingRequest(request.id, { status: 'in-progress' })
-        setTick((t) => t + 1)
-        navigate(`/radiology/requests/${request.id}/report`)
-        break
-      case 'view-record':
-        navigate(`/radiology/requests/${request.id}/report`)
-        break
-      case 'schedule':
-        navigate(`/radiology/schedule?prefill=${request.id}`)
-        break
-      case 'reschedule':
-        navigate(`/radiology/schedule?prefill=${request.id}`)
-        break
-      case 'cancel-request':
-      case 'cancel-appointment':
-        patchImagingRequest(request.id, { status: 'requested' })
-        setTick((t) => t + 1)
-        toast.error(`Request for ${request.patientName} has been cancelled.`)
-        break
-      case 'put-on-hold':
-        patchImagingRequest(request.id, { status: 'scheduled' })
-        setTick((t) => t + 1)
-        toast.info(`${request.patientName}'s request put on hold.`)
-        break
-      case 'amend-report':
-        patchImagingRequest(request.id, { status: 'in-progress' })
-        setTick((t) => t + 1)
-        navigate(`/radiology/requests/${request.id}/report`)
-        break
-      case 'print-report':
-        toast.success(`Preparing report for ${request.patientName} to print / download…`)
-        break
-      default:
-        break
+    try {
+      switch (action) {
+        case 'enter-report':
+          await ensureReadyForReport(request)
+          navigate(`/radiology/requests/${request.id}/report`)
+          break
+        case 'view-record':
+          navigate(`/radiology/requests/${request.id}/report`)
+          break
+        case 'schedule':
+        case 'reschedule':
+          navigate(`/radiology/schedule?prefill=${request.id}`)
+          break
+        case 'cancel-request':
+        case 'cancel-appointment':
+          toast.info('Cancel is not available on the radiology API yet.')
+          break
+        case 'put-on-hold':
+          toast.info('Hold is not available on the radiology API yet.')
+          break
+        case 'amend-report':
+          navigate(`/radiology/requests/${request.id}/report`)
+          break
+        case 'print-report':
+          toast.success(`Preparing report for ${request.patientName} to print / download…`)
+          break
+        default:
+          break
+      }
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Action failed.'
+      toast.error(typeof detail === 'string' ? detail : 'Action failed.')
     }
   }
 
@@ -197,7 +226,7 @@ export function ImagingRequestsContent() {
     toast.success('Exporting imaging requests list…')
   }
 
-  const displayTotal = hasFilters ? filteredRequests.length : TOTAL_REQUEST_COUNT
+  const displayTotal = hasFilters ? filteredRequests.length : allRequests.length
 
   return (
     <div className="max-w-container-max mx-auto w-full flex flex-col gap-lg">
@@ -213,7 +242,7 @@ export function ImagingRequestsContent() {
         </button>
       </div>
 
-      <SummaryCards />
+      <SummaryCards {...summary} />
 
       <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden flex flex-col">
         <div className="px-lg py-md flex flex-col xl:flex-row xl:items-center justify-between gap-md">
@@ -290,7 +319,9 @@ export function ImagingRequestsContent() {
           ) : (
             <ImagingRequestsTable
               requests={visibleRequests}
-              onSecondaryAction={handleSecondaryAction}
+              onSecondaryAction={(req, action) => {
+                void handleSecondaryAction(req, action)
+              }}
             />
           )}
         </div>

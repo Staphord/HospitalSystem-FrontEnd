@@ -1,65 +1,88 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { radiologyService } from '@/api/services/radiology'
 import { ModalityBadge } from '@/features/radiology/components/ModalityBadge'
 import {
   getDemoCurrentImages,
   getDemoPriorStudies,
   ImagingComparisonPanel,
 } from '@/features/radiology/components/ImagingComparisonPanel'
-import {
-  getImagingRequestById,
-  patchImagingRequest,
-} from '@/features/radiology/utils/imagingRequestStore'
 import { MODALITY_LABELS } from '@/features/radiology/utils/imagingRequestUtils'
-import type { ReportAttachment } from '@/features/radiology/types/radiology'
-
-const DEMO_ATTACHMENT: ReportAttachment = {
-  id: 'att-1',
-  fileName: 'chest_xray_final.png',
-  fileSize: '4.2 MB',
-}
+import type { ImagingRequest, ReportAttachment } from '@/features/radiology/types/radiology'
 
 export function ImagingReportContent() {
   const { requestId } = useParams<{ requestId: string }>()
   const navigate = useNavigate()
 
-  // Always read from store so we get the latest persisted state
-  const request = requestId ? getImagingRequestById(requestId) : undefined
-
-  const [findings, setFindings] = useState(request?.findings ?? '')
-  const [impression, setImpression] = useState(request?.impression ?? '')
-  const [attachments, setAttachments] = useState<ReportAttachment[]>(
-    request?.modality === 'x-ray' && request.bodyPart === 'Chest' ? [DEMO_ATTACHMENT] : [],
-  )
+  const [request, setRequest] = useState<ImagingRequest | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [findings, setFindings] = useState('')
+  const [impression, setImpression] = useState('')
+  const [imageReference, setImageReference] = useState('')
+  const [attachments, setAttachments] = useState<ReportAttachment[]>([])
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const [comparisonOpen, setComparisonOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const prepared = useRef(false)
 
-  // Auto-set to in-progress when radiographer opens for the first time
-  const markedInProgress = useRef(false)
-  useEffect(() => {
-    if (!request || markedInProgress.current) return
-    if (request.status === 'requested' || request.status === 'scheduled') {
-      patchImagingRequest(request.id, { status: 'in-progress' })
+  const loadRequest = useCallback(async () => {
+    if (!requestId) return
+    setLoading(true)
+    try {
+      let detail = await radiologyService.getRequest(requestId)
+
+      if (!prepared.current) {
+        prepared.current = true
+        if (detail.status === 'requested') {
+          await radiologyService.scheduleRequest(requestId, {
+            modality: detail.modality,
+            bodyPart: detail.bodyPart === '—' ? detail.testName : detail.bodyPart,
+            scheduledAt: new Date().toISOString(),
+          })
+          await radiologyService.performRequest(requestId)
+          detail = await radiologyService.getRequest(requestId)
+        } else if (detail.status === 'scheduled') {
+          await radiologyService.performRequest(requestId)
+          detail = await radiologyService.getRequest(requestId)
+        }
+      }
+
+      setRequest(detail)
+      setFindings(detail.findings ?? '')
+      setImpression(detail.impression ?? '')
+      setImageReference(detail.imageReference ?? '')
+      setAttachments(
+        detail.imageReference
+          ? [{ id: 'ref-1', fileName: detail.imageReference, fileSize: 'Linked' }]
+          : [],
+      )
+    } catch {
+      setNotFound(true)
+    } finally {
+      setLoading(false)
     }
-    markedInProgress.current = true
-  }, [request])
-
-  const isReadOnly = request?.status === 'complete'
-
-  useEffect(() => {
-    if (!request) return
-    setFindings(request.findings ?? '')
-    setImpression(request.impression ?? '')
-    setAttachments(
-      request.modality === 'x-ray' && request.bodyPart === 'Chest' ? [DEMO_ATTACHMENT] : [],
-    )
   }, [requestId])
 
-  if (!requestId || !request) {
+  useEffect(() => {
+    prepared.current = false
+    void loadRequest()
+  }, [loadRequest])
+
+  if (!requestId || notFound) {
     return <Navigate to="/radiology/requests" replace />
   }
 
+  if (loading || !request) {
+    return (
+      <div className="max-w-container-max mx-auto w-full py-24 text-center text-secondary">
+        Loading report…
+      </div>
+    )
+  }
+
+  const isReadOnly = request.status === 'complete'
   const modalityLabel = MODALITY_LABELS[request.modality]
   const breadcrumbLabel = `Report — ${request.patientNumber} ${request.patientName} — ${modalityLabel}`
   const priorStudies = getDemoPriorStudies(request.modality, request.bodyPart)
@@ -67,27 +90,45 @@ export function ImagingReportContent() {
   const hasPriorImaging = priorStudies.length > 0
 
   const handleSaveDraft = () => {
-    patchImagingRequest(request.id, { findings, impression })
     setLastSaved('just now')
-    toast.success('Draft saved — your findings are preserved.')
+    toast.success('Draft kept locally — submit to save to the server.')
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!findings.trim() && !impression.trim()) {
       toast.error('Please enter findings or impression before submitting.')
       return
     }
-    patchImagingRequest(request.id, { status: 'complete', findings, impression })
-    toast.success(`Report submitted. ${request.requestedBy} has been notified.`)
-    navigate('/radiology/requests')
+    setSubmitting(true)
+    try {
+      await radiologyService.enterReport(request.id, {
+        findings: findings.trim(),
+        impression: impression.trim(),
+        imageReference: imageReference.trim() || undefined,
+      })
+      toast.success(`Report submitted. ${request.requestedBy} will be notified.`)
+      navigate('/radiology/requests')
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        'Failed to submit report.'
+      toast.error(typeof detail === 'string' ? detail : 'Failed to submit report.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleRemoveAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
+    setImageReference('')
   }
 
   const handleUploadClick = () => {
-    toast.info('Image upload will be available when radiology API is connected.')
+    const ref = window.prompt('Enter image / DICOM / PACS reference path:')
+    if (!ref?.trim()) return
+    setImageReference(ref.trim())
+    setAttachments([{ id: 'ref-1', fileName: ref.trim(), fileSize: 'Linked' }])
+    toast.success('Image reference linked (saved on submit).')
   }
 
   return (
@@ -214,10 +255,10 @@ export function ImagingReportContent() {
                         cloud_upload
                       </span>
                       <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
-                        Upload image or scanned report
+                        Link DICOM / PACS reference
                       </p>
                       <span className="font-label-sm text-label-sm text-outline m-0">
-                        PNG, JPG, DICOM up to 20MB
+                        Path or reference string
                       </span>
                     </button>
                   )}
@@ -235,7 +276,7 @@ export function ImagingReportContent() {
                               {file.fileName}
                             </p>
                             <p className="font-label-sm text-label-sm text-on-surface-variant m-0">
-                              {file.fileSize} • Uploaded
+                              {file.fileSize}
                             </p>
                           </div>
                         </div>
@@ -251,11 +292,6 @@ export function ImagingReportContent() {
                         )}
                       </div>
                     ))}
-                    {!isReadOnly && (
-                      <p className="font-label-sm text-label-sm text-on-surface-variant px-2 italic m-0">
-                        Add up to 4 clinical images to this report.
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -307,11 +343,12 @@ export function ImagingReportContent() {
             </button>
             <button
               type="button"
-              onClick={handleSubmit}
-              className="px-6 h-10 rounded-lg bg-primary-container text-white font-label-md text-label-md flex items-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-sm border-0 cursor-pointer"
+              onClick={() => void handleSubmit()}
+              disabled={submitting}
+              className="px-6 h-10 rounded-lg bg-primary-container text-white font-label-md text-label-md flex items-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-sm border-0 cursor-pointer disabled:opacity-60"
             >
               <span className="material-symbols-outlined text-sm">send</span>
-              Submit Report &amp; Notify Doctor
+              {submitting ? 'Submitting…' : 'Submit Report & Notify Doctor'}
             </button>
           </div>
         </footer>

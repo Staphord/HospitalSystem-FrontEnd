@@ -19,8 +19,16 @@ type ApiErrorLike = {
 
 function getApiErrorMessage(err: unknown): string {
   const apiError = err as ApiErrorLike
+  const status = apiError?.response?.status
+  if (status && status >= 500) {
+    return 'An internal server error occurred during login. Please try again later.'
+  }
+
   const detail = apiError?.response?.data?.detail
   if (typeof detail === 'string') {
+    if (detail.includes('psycopg2') || detail.includes('UndefinedColumn') || detail.includes('SQL:')) {
+      return 'An internal server error occurred during login. Please try again later.'
+    }
     if (detail.includes('Keycloak error') && detail.includes('{')) {
       try {
         const jsonStr = detail.substring(detail.indexOf('{'))
@@ -60,6 +68,7 @@ export function HospitalLoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isServerError, setIsServerError] = useState(false)
   const [activeSlide, setActiveSlide] = useState(0)
   const [resetKey, setResetKey] = useState(0)
   const [imgFailed, setImgFailed] = useState(false)
@@ -85,6 +94,7 @@ export function HospitalLoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setIsServerError(false)
 
     try {
       const tokens = await authService.login({ username, password }) as any
@@ -109,15 +119,26 @@ export function HospitalLoginPage() {
       toast.success('Welcome back!')
       navigate(getDefaultRoute(getRolesFromToken(tokens.access_token)))
     } catch (err: unknown) {
+      const apiError = err as ApiErrorLike
+      const status = apiError?.response?.status
+      const isServerErr = status !== undefined && status >= 500
       const apiMessage = getApiErrorMessage(err)
+
       if (apiMessage.toLowerCase().includes('not fully set up') || apiMessage.toLowerCase().includes('setup')) {
         toast.info('First-time login: Redirecting to establish your secure password.')
         navigate('/first-login-change-password', { state: { username, tempPassword: password } })
         return
       }
 
-      const apiError = err as ApiErrorLike
-      const isRateLimited = apiError?.response?.status === 429
+      if (isServerErr) {
+        const message = apiMessage || 'An internal server error occurred during login. Please try again later.'
+        setError(message)
+        setIsServerError(true)
+        toast.error(message)
+        return
+      }
+
+      const isRateLimited = status === 429
       const detail = apiError?.response?.data?.detail
       
       let attemptsRemaining: number | undefined = undefined
@@ -140,12 +161,12 @@ export function HospitalLoginPage() {
         toast.error('Too many login attempts. Account locked.')
         navigate('/account-locked')
       } else {
-        const apiMessage =
+        const rawMsg =
           typeof detail === 'object' && detail !== null && 'message' in detail
             ? (detail as { message?: unknown }).message
-            : getApiErrorMessage(err)
-        const message = typeof apiMessage === 'string' && apiMessage.trim()
-          ? apiMessage
+            : apiMessage
+        const message = typeof rawMsg === 'string' && rawMsg.trim()
+          ? rawMsg
           : 'Invalid username or password. Please try again.'
         setError(message)
         toast.error(message)
@@ -225,7 +246,11 @@ export function HospitalLoginPage() {
                     error
                   </span>
                   <div>
-                    <strong>Access Denied:</strong> {error} {5 - failedAttempts} attempts remaining before account lock.
+                    {isServerError ? (
+                      <><strong>Server Error:</strong> {error}</>
+                    ) : (
+                      <><strong>Access Denied:</strong> {error} {Math.max(0, 5 - failedAttempts)} attempts remaining before account lock.</>
+                    )}
                   </div>
                 </div>
               )}

@@ -9,32 +9,32 @@ const PAGE_SIZE = 5
 type VisitOutcome = 'Recovered' | 'Stable' | 'Admitted' | 'Referred' | 'Pending'
 
 function deriveOutcome(visit: PatientHistoryData['previous_visits'][0]): VisitOutcome {
-  const status    = visit.status?.toLowerCase() ?? ''
-  const disp      = visit.consultation?.disposition?.toLowerCase() ?? ''
-  if (status === 'admitted' || disp === 'admit')          return 'Admitted'
-  if (disp === 'referral' || disp === 'refer')            return 'Referred'
-  if (status === 'completed' && disp === 'outpatient')    return 'Recovered'
-  if (status === 'completed')                             return 'Stable'
+  const status = visit.status?.toLowerCase() ?? ''
+  const disp = visit.consultation?.disposition?.toLowerCase() ?? ''
+  if (status === 'admitted' || disp === 'admission' || disp === 'admit') return 'Admitted'
+  if (disp === 'referral' || disp === 'refer') return 'Referred'
+  if (status === 'completed' && (disp === 'outpatient' || disp === 'discharge')) return 'Recovered'
+  if (status === 'completed') return 'Stable'
   return 'Pending'
 }
 
 function outcomeBadge(o: VisitOutcome) {
   switch (o) {
     case 'Recovered': return 'bg-success/10 text-success'
-    case 'Stable':    return 'bg-primary/10 text-primary'
-    case 'Admitted':  return 'bg-[#5243AA]/10 text-[#5243AA]'
-    case 'Referred':  return 'bg-[#00B8D9]/10 text-[#00B8D9]'
-    case 'Pending':   return 'bg-warning/10 text-warning'
+    case 'Stable': return 'bg-primary/10 text-primary'
+    case 'Admitted': return 'bg-[#5243AA]/10 text-[#5243AA]'
+    case 'Referred': return 'bg-[#00B8D9]/10 text-[#00B8D9]'
+    case 'Pending': return 'bg-warning/10 text-warning'
   }
 }
 
 function outcomeIcon(o: VisitOutcome) {
   switch (o) {
     case 'Recovered': return 'check_circle'
-    case 'Stable':    return 'favorite'
-    case 'Admitted':  return 'local_hospital'
-    case 'Referred':  return 'swap_horiz'
-    case 'Pending':   return 'schedule'
+    case 'Stable': return 'favorite'
+    case 'Admitted': return 'local_hospital'
+    case 'Referred': return 'swap_horiz'
+    case 'Pending': return 'schedule'
   }
 }
 
@@ -46,14 +46,10 @@ function fmtDate(raw?: string | null) {
   catch { return raw }
 }
 
+import { formatPatientAge } from '@/lib/localization'
+
 function calcAge(dob: string) {
-  try {
-    const b = new Date(dob)
-    const today = new Date()
-    let age = today.getFullYear() - b.getFullYear()
-    if (today < new Date(today.getFullYear(), b.getMonth(), b.getDate())) age--
-    return age
-  } catch { return 0 }
+  return formatPatientAge(dob)
 }
 
 function initials(name: string) {
@@ -62,14 +58,14 @@ function initials(name: string) {
 
 function buildDispositionText(c: NonNullable<PatientHistoryData['previous_visits'][0]['consultation']>) {
   const parts: string[] = []
-  if (c.disposition)             parts.push(`Disposition: ${c.disposition}`)
-  if (c.referral_type)           parts.push(`Referral type: ${c.referral_type}`)
-  if (c.referral_notes)          parts.push(`Referral notes: ${c.referral_notes}`)
-  if (c.admission_reason)        parts.push(`Admission reason: ${c.admission_reason}`)
-  if (c.discharge_instructions)  parts.push(`Discharge instructions: ${c.discharge_instructions}`)
-  if (c.follow_up_date)          parts.push(`Follow-up date: ${fmtDate(c.follow_up_date)}`)
-  if (c.return_date)             parts.push(`Return date: ${fmtDate(c.return_date)}`)
-  if (c.return_reason)           parts.push(`Return reason: ${c.return_reason}`)
+  if (c.disposition) parts.push(`Disposition: ${c.disposition}`)
+  if (c.referral_type) parts.push(`Referral type: ${c.referral_type}`)
+  if (c.referral_notes) parts.push(`Referral notes: ${c.referral_notes}`)
+  if (c.admission_reason) parts.push(`Admission reason: ${c.admission_reason}`)
+  if (c.discharge_instructions) parts.push(`Discharge instructions: ${c.discharge_instructions}`)
+  if (c.follow_up_date) parts.push(`Follow-up date: ${fmtDate(c.follow_up_date)}`)
+  if (c.return_date) parts.push(`Return date: ${fmtDate(c.return_date)}`)
+  if (c.return_reason) parts.push(`Return reason: ${c.return_reason}`)
   return parts.join('\n') || 'No disposition information recorded.'
 }
 
@@ -93,11 +89,11 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 type ModalTab = 'notes' | 'diagnosis' | 'investigations' | 'prescriptions' | 'disposition'
 
 const TABS: { id: ModalTab; label: string }[] = [
-  { id: 'notes',          label: 'Clinical Notes'  },
-  { id: 'diagnosis',      label: 'Diagnosis'       },
-  { id: 'investigations', label: 'Investigations'  },
-  { id: 'prescriptions',  label: 'Prescriptions'   },
-  { id: 'disposition',    label: 'Disposition'     },
+  { id: 'notes', label: 'Clinical Notes' },
+  { id: 'diagnosis', label: 'Diagnosis' },
+  { id: 'investigations', label: 'Investigations' },
+  { id: 'prescriptions', label: 'Prescriptions' },
+  { id: 'disposition', label: 'Disposition' },
 ]
 
 interface ModalProps {
@@ -159,11 +155,10 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`py-md font-label-md text-label-md whitespace-nowrap border-b-2 transition-colors bg-transparent border-x-0 border-t-0 cursor-pointer ${
-                activeTab === tab.id
+              className={`py-md font-label-md text-label-md whitespace-nowrap border-b-2 transition-colors bg-transparent border-x-0 border-t-0 cursor-pointer ${activeTab === tab.id
                   ? 'border-primary text-primary'
                   : 'border-transparent text-outline hover:text-on-surface'
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -176,8 +171,8 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
           {activeTab === 'notes' && (
             <>
               <div className="grid grid-cols-2 gap-md">
-                <ReadOnlyField label="Visit Type"  value={visit.visit_type ?? '—'} />
-                <ReadOnlyField label="Attending"   value={c?.created_by ?? '—'} />
+                <ReadOnlyField label="Visit Type" value={visit.visit_type ?? '—'} />
+                <ReadOnlyField label="Attending" value={c?.created_by ?? '—'} />
               </div>
               <ReadOnlyField
                 label="Chief Complaint"
@@ -232,11 +227,10 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
                   <div key={i} className="bg-surface-container-low p-md rounded-lg space-y-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-body-sm text-body-sm font-semibold text-on-surface">{inv.test_name}</span>
-                      <span className={`font-label-sm text-label-sm px-xs py-0.5 rounded capitalize ${
-                        inv.status === 'completed' || inv.result ? 'bg-success/10 text-success font-bold'
-                        : inv.status === 'pending' ? 'bg-warning/10 text-warning font-bold'
-                        : 'bg-surface-container text-outline'
-                      }`}>{inv.status === 'completed' || inv.result ? 'Results Ready' : inv.status}</span>
+                      <span className={`font-label-sm text-label-sm px-xs py-0.5 rounded capitalize ${inv.status === 'completed' || inv.result ? 'bg-success/10 text-success font-bold'
+                          : inv.status === 'pending' ? 'bg-warning/10 text-warning font-bold'
+                            : 'bg-surface-container text-outline'
+                        }`}>{inv.status === 'completed' || inv.result ? 'Results Ready' : inv.status}</span>
                     </div>
                     <p className="font-body-sm text-body-sm text-on-surface-variant m-0">
                       {inv.request_type} {inv.created_at ? `· ${fmtDate(inv.created_at)}` : ''}
@@ -290,7 +284,7 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      {rx.dose     && <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{rx.dose}</p>}
+                      {rx.dose && <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{rx.dose}</p>}
                       {rx.duration && <p className="font-label-sm text-label-sm text-outline m-0">{rx.duration}</p>}
                     </div>
                   </div>
@@ -332,20 +326,20 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
   const navigate = useNavigate()
   const { patient, previous_visits } = data
 
-  const [page, setPage]               = useState(1)
-  const [selectedVisit, setSelected]  = useState<PatientHistoryData['previous_visits'][0] | null>(null)
+  const [page, setPage] = useState(1)
+  const [selectedVisit, setSelected] = useState<PatientHistoryData['previous_visits'][0] | null>(null)
 
-  const totalPages  = Math.max(1, Math.ceil(previous_visits.length / PAGE_SIZE))
-  const safePage    = Math.min(page, totalPages)
-  const visible     = previous_visits.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(previous_visits.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const visible = previous_visits.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
   const showingFrom = previous_visits.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
-  const showingTo   = Math.min(safePage * PAGE_SIZE, previous_visits.length)
+  const showingTo = Math.min(safePage * PAGE_SIZE, previous_visits.length)
 
-  const age          = calcAge(patient.date_of_birth)
-  const avatarInit   = initials(patient.full_name)
+  const age = calcAge(patient.date_of_birth)
+  const avatarInit = initials(patient.full_name)
 
   // Allergy parsing — backend stores as a plain string or comma-separated
-  const allergyList  = patient.allergies
+  const allergyList = patient.allergies
     ? patient.allergies.split(/[,;]/).map(a => a.trim()).filter(Boolean)
     : []
 
@@ -394,7 +388,7 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
                   {patient.patient_number}
                 </span>
                 <span className="font-body-sm text-body-sm text-outline">
-                  {fmtDate(patient.date_of_birth)} ({age} yrs) · {patient.gender}
+                  {fmtDate(patient.date_of_birth)} ({age}) · {patient.gender}
                 </span>
               </div>
             </div>
@@ -490,9 +484,9 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
                 </tr>
               ) : (
                 visible.map((visit) => {
-                  const outcome     = deriveOutcome(visit)
-                  const chiefComp   = visit.triage_summary?.chief_complaint ?? '—'
-                  const primDiag    = visit.consultation?.diagnoses?.find(d => d.diagnosis_type === 'primary')?.diagnosis_name
+                  const outcome = deriveOutcome(visit)
+                  const chiefComp = visit.triage_summary?.chief_complaint ?? '—'
+                  const primDiag = visit.consultation?.diagnoses?.find(d => d.diagnosis_type === 'primary')?.diagnosis_name
                     ?? visit.consultation?.diagnoses?.[0]?.diagnosis_name
                     ?? visit.consultation?.clinical_impression
                     ?? '—'

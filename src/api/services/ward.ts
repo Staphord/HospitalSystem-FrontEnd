@@ -1,14 +1,20 @@
 import { apiClient } from '@/api/client'
+import { receptionService } from '@/api/services/reception'
 import type {
   Admission,
+  AdmissionCondition,
   AdmissionCreate,
   BedBoardWard,
   DischargeRequest,
+  HandoverCreate,
   InpatientOrder,
   NursingNote,
   NursingNoteCreate,
   OrderCreate,
+  ShiftHandover,
+  VisitorCreate,
   WardBed,
+  WardVisitor,
 } from '@/api/types/ward'
 
 // ---------------------------------------------------------------------------
@@ -32,6 +38,7 @@ interface BackendAdmission {
   bed_id: string
   admitting_doctor_id: string
   admitting_diagnosis: string
+  condition: string
   admission_date: string
   discharge_date?: string | null
   length_of_stay_days?: string | number | null
@@ -66,6 +73,7 @@ interface BackendNote {
   vitals_temp?: string | number | null
   vitals_pulse?: number | null
   vitals_spo2?: string | number | null
+  vitals_resp_rate?: number | null
   authored_by: string
   authored_at: string
 }
@@ -81,6 +89,38 @@ interface BackendBedBoard {
       occupied: boolean
     }>
   }>
+}
+
+interface BackendVisitor {
+  visitor_id: string
+  admission_id?: string | null
+  patient_id?: string | null
+  patient_name: string
+  bed_label: string
+  visitor_name: string
+  visitor_phone?: string | null
+  relationship: string
+  national_id?: string | null
+  check_in_at: string
+  check_out_at?: string | null
+  approved_by: string
+  status: string
+  denial_reason?: string | null
+  allowed_duration_minutes: number
+  ward_name?: string | null
+  time_left_seconds?: number | null
+}
+
+interface BackendHandover {
+  handover_id: string
+  shift_label: string
+  submitted_by: string
+  overall_summary: string
+  incidents_summary?: string | null
+  patient_count: number
+  patient_notes?: Record<string, string> | null
+  ward_name?: string | null
+  created_at: string
 }
 
 const mapBed = (b: BackendBed): WardBed => ({
@@ -100,6 +140,7 @@ const mapAdmission = (a: BackendAdmission, bedNumber?: string): Admission => ({
   bedId: a.bed_id,
   admittingDoctorId: a.admitting_doctor_id,
   admittingDiagnosis: a.admitting_diagnosis,
+  condition: (a.condition as AdmissionCondition) || 'stable',
   admissionDate: a.admission_date,
   dischargeDate: a.discharge_date,
   lengthOfStayDays:
@@ -139,11 +180,52 @@ const mapNote = (n: BackendNote): NursingNote => ({
   vitalsTemp: n.vitals_temp == null ? null : Number(n.vitals_temp),
   vitalsPulse: n.vitals_pulse,
   vitalsSpo2: n.vitals_spo2 == null ? null : Number(n.vitals_spo2),
+  vitalsRespRate: n.vitals_resp_rate,
   authoredBy: n.authored_by,
   authoredAt: n.authored_at,
 })
 
+const mapVisitor = (v: BackendVisitor): WardVisitor => ({
+  visitorId: v.visitor_id,
+  admissionId: v.admission_id,
+  patientId: v.patient_id,
+  patientName: v.patient_name,
+  bedLabel: v.bed_label,
+  visitorName: v.visitor_name,
+  visitorPhone: v.visitor_phone,
+  relationship: v.relationship,
+  nationalId: v.national_id,
+  checkInAt: v.check_in_at,
+  checkOutAt: v.check_out_at,
+  approvedBy: v.approved_by,
+  status: v.status,
+  denialReason: v.denial_reason,
+  allowedDurationMinutes: v.allowed_duration_minutes,
+  wardName: v.ward_name,
+  timeLeftSeconds: v.time_left_seconds,
+})
+
+const mapHandover = (h: BackendHandover): ShiftHandover => ({
+  handoverId: h.handover_id,
+  shiftLabel: h.shift_label,
+  submittedBy: h.submitted_by,
+  overallSummary: h.overall_summary,
+  incidentsSummary: h.incidents_summary,
+  patientCount: h.patient_count,
+  patientNotes: h.patient_notes,
+  wardName: h.ward_name,
+  createdAt: h.created_at,
+})
+
 const shortId = (id: string) => (id ? id.slice(0, 8) : '—')
+
+export const parseVisitDurationMinutes = (duration: string): number => {
+  const lower = duration.toLowerCase()
+  const num = parseInt(lower.replace(/[^0-9]/g, ''), 10)
+  if (!Number.isFinite(num) || num <= 0) return 30
+  if (lower.includes('hour')) return num * 60
+  return num
+}
 
 export const wardService = {
   listBeds: (params?: {
@@ -221,6 +303,11 @@ export const wardService = {
   getLengthOfStay: (admissionId: string) =>
     apiClient.get(`/ward/admissions/${admissionId}/los`).then((r) => r.data),
 
+  updateCondition: (admissionId: string, condition: AdmissionCondition): Promise<Admission> =>
+    apiClient
+      .patch<BackendAdmission>(`/ward/admissions/${admissionId}/condition`, { condition })
+      .then((r) => mapAdmission(r.data)),
+
   listOrders: (admissionId: string): Promise<InpatientOrder[]> =>
     apiClient
       .get<BackendOrder[]>(`/ward/admissions/${admissionId}/orders`)
@@ -281,6 +368,7 @@ export const wardService = {
         vitals_temp: data.vitalsTemp ?? null,
         vitals_pulse: data.vitalsPulse ?? null,
         vitals_spo2: data.vitalsSpo2 ?? null,
+        vitals_resp_rate: data.vitalsRespRate ?? null,
       })
       .then((r) => mapNote(r.data)),
 
@@ -302,7 +390,216 @@ export const wardService = {
         diagnosis: adm.admittingDiagnosis,
         admittingDoctorId: adm.admittingDoctorId,
         admissionDate: adm.admissionDate,
+        condition: adm.condition,
       }
     })
   },
+
+  getRecentPatients: (limit = 6): Promise<PatientListItem[]> =>
+    apiClient
+      .get<PatientListItem[]>('/consultation/patients/recent', { params: { limit } })
+      .then((r) => r.data)
+      .catch(async () => {
+        const res = await receptionService.searchPatients('', 1, limit).catch(() => ({ patients: [], total: 0 }))
+        return (res.patients || []).map((p) => ({
+          id: p.id,
+          patient_number: p.patient_number,
+          full_name: p.full_name,
+          date_of_birth: p.date_of_birth,
+          gender: p.gender,
+          phone_number: p.phone_primary,
+          allergies: p.allergies,
+        }))
+      }),
+
+  searchPatients: (query: string, page = 1, pageSize = 50): Promise<PatientSearchResponse> =>
+    apiClient
+      .get<PatientSearchResponse>('/consultation/patients', {
+        params: { query, page, page_size: pageSize },
+      })
+      .then((r) => r.data)
+      .catch(async () => {
+        const res = await receptionService.searchPatients(query, page, pageSize)
+        return {
+          patients: (res.patients || []).map((p) => ({
+            id: p.id,
+            patient_number: p.patient_number,
+            full_name: p.full_name,
+            date_of_birth: p.date_of_birth,
+            gender: p.gender,
+            phone_number: p.phone_primary,
+            allergies: p.allergies,
+          })),
+          total: res.total,
+        }
+      }),
+
+  getPatientHistory: (patientId: string): Promise<PatientHistoryData> =>
+    apiClient
+      .get<PatientHistoryData>(`/consultation/encounters/patient/${patientId}/history`)
+      .then((r) => r.data),
+
+  getAdmissionDetails: (admissionId: string) =>
+    apiClient
+      .get(`/consultation/inpatient/admissions/${admissionId}`)
+      .then((r) => r.data)
+      .catch(() => wardService.getAdmission(admissionId)),
+
+  getInpatientOrders: (admissionId: string) =>
+    apiClient
+      .get(`/consultation/inpatient/admissions/${admissionId}/orders`)
+      .then((r) => r.data)
+      .catch(() => wardService.listOrders(admissionId)),
+
+  updateOrderStatus: (orderId: string, status: string) =>
+    apiClient
+      .patch(`/consultation/inpatient/orders/${orderId}`, { status })
+      .then((r) => r.data)
+      .catch(() => apiClient.patch(`/ward/orders/${orderId}/status`, { status }).then((r) => r.data)),
+
+  issueInpatientOrder: (admissionId: string, data: any) =>
+    apiClient
+      .post(`/consultation/inpatient/admissions/${admissionId}/orders`, data)
+      .then((r) => r.data)
+      .catch(() => wardService.createOrder(admissionId, data)),
+
+  getAdmittedPatients: () =>
+    apiClient
+      .get('/consultation/inpatient/admissions')
+      .then((r) => r.data)
+      .catch(() => wardService.listAdmissions({ status: 'active' })),
+
+  dischargePatient: (admissionId: string, data: any) =>
+    apiClient
+      .post(`/consultation/inpatient/admissions/${admissionId}/discharge`, data)
+      .then((r) => r.data)
+      .catch(() => wardService.dischargeAdmission(admissionId, data)),
+
+  listVisitors: (params?: { status?: string; active_only?: boolean; limit?: number }): Promise<WardVisitor[]> =>
+    apiClient
+      .get<BackendVisitor[]>('/ward/visitors', { params })
+      .then((r) => r.data.map(mapVisitor)),
+
+  listActiveVisitors: (): Promise<WardVisitor[]> =>
+    apiClient
+      .get<BackendVisitor[]>('/ward/visitors/active')
+      .then((r) => r.data.map(mapVisitor)),
+
+  createVisitor: (data: VisitorCreate): Promise<WardVisitor> =>
+    apiClient
+      .post<BackendVisitor>('/ward/visitors', {
+        admission_id: data.admissionId ?? null,
+        patient_name: data.patientName,
+        bed_label: data.bedLabel,
+        visitor_name: data.visitorName,
+        visitor_phone: data.visitorPhone ?? null,
+        relationship: data.relationship,
+        national_id: data.nationalId ?? null,
+        approved: data.approved,
+        denial_reason: data.denialReason ?? null,
+        allowed_duration_minutes: data.allowedDurationMinutes ?? 30,
+        ward_name: data.wardName ?? null,
+      })
+      .then((r) => mapVisitor(r.data)),
+
+  checkoutVisitor: (visitorId: string): Promise<WardVisitor> =>
+    apiClient
+      .post<BackendVisitor>(`/ward/visitors/${visitorId}/checkout`)
+      .then((r) => mapVisitor(r.data)),
+
+  listHandovers: (limit = 50): Promise<ShiftHandover[]> =>
+    apiClient
+      .get<BackendHandover[]>('/ward/handovers', { params: { limit } })
+      .then((r) => r.data.map(mapHandover)),
+
+  createHandover: (data: HandoverCreate): Promise<ShiftHandover> =>
+    apiClient
+      .post<BackendHandover>('/ward/handovers', {
+        shift_label: data.shiftLabel,
+        overall_summary: data.overallSummary,
+        incidents_summary: data.incidentsSummary ?? null,
+        patient_notes: data.patientNotes,
+        ward_name: data.wardName ?? null,
+      })
+      .then((r) => mapHandover(r.data)),
 }
+
+export interface PatientListItem {
+  id: string
+  patient_number: string
+  full_name: string
+  date_of_birth: string
+  gender: string
+  phone_number?: string
+  allergies?: string
+}
+
+export interface PatientSearchResponse {
+  patients: PatientListItem[]
+  total: number
+}
+
+export interface PatientHistoryData {
+  patient: {
+    id: string
+    patient_number: string
+    full_name: string
+    date_of_birth: string
+    gender: string
+    phone_primary?: string
+    phone_secondary?: string
+    email?: string
+    address?: string
+    national_id?: string
+    blood_group?: string
+    allergies?: string
+  }
+  total_visits: number
+  last_visit_date: string | null
+  active_conditions: string[]
+  previous_visits: Array<{
+    visit_id: string
+    created_at: string
+    visit_type?: string
+    status?: string
+    triage?: {
+      vitals_bp?: string
+      vitals_pulse?: number
+      vitals_temp?: number
+      vitals_spo2?: number
+      priority?: string
+    } | null
+    consultation?: {
+      consultation_id?: string
+      presenting_history?: string
+      examination_findings?: string
+      clinical_impression?: string
+      disposition?: string
+      referral_type?: string
+      referral_notes?: string
+      admission_reason?: string
+      discharge_instructions?: string
+      follow_up_date?: string
+      return_date?: string
+      return_reason?: string
+      diagnoses?: Array<{
+        diagnosis_type?: string
+        diagnosis_name?: string
+        icd_code?: string
+      }>
+      investigations?: Array<{
+        test_name?: string
+        request_type?: string
+        status?: string
+        result?: string
+      }>
+      prescriptions?: Array<{
+        drug_name?: string
+        dosage?: string
+        frequency?: string
+        duration?: string
+      }>
+    } | null
+  }>
+}
+
