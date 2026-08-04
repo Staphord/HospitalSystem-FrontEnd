@@ -1,3 +1,10 @@
+export type {
+  ImagingModality,
+  ImagingRequestStatus,
+  ImagingRequest,
+  ImagingRequestSummary,
+} from '@/api/types/radiology'
+
 export interface RadiologyDashboardStats {
   pending: number
   scheduledToday: number
@@ -36,10 +43,6 @@ export interface EquipmentItem {
   status: EquipmentStatus
 }
 
-export type ImagingModality = 'x-ray' | 'ct-scan' | 'mri' | 'ultrasound'
-
-export type ImagingRequestStatus = 'requested' | 'scheduled' | 'in-progress' | 'complete'
-
 export interface ReportAttachment {
   id: string
   fileName: string
@@ -74,27 +77,3 @@ export interface ScheduleWeekDay {
 }
 
 export type ImagingRequestAction = 'start' | 'schedule' | 'enter-report' | 'view-record'
-
-export interface ImagingRequestSummary {
-  newRequests: number
-  scheduled: number
-  inProgress: number
-  completedToday: number
-}
-
-export interface ImagingRequest {
-  id: string
-  patientName: string
-  patientNumber: string
-  age: string
-  sex: string
-  modality: ImagingModality
-  bodyPart: string
-  clinicalIndication: string
-  requestedBy: string
-  requestedAt: string
-  requestedDate: string
-  status: ImagingRequestStatus
-  findings?: string
-  impression?: string
-}

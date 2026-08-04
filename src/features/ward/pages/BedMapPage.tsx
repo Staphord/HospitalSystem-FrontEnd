@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
-import type { WardBed } from '@/api/types/ward'
+import type { AdmissionCondition, WardBed } from '@/api/types/ward'
 
 interface Patient {
   id: string
@@ -26,21 +26,8 @@ interface Bed {
   alert?: string
 }
 
-const isTestEnv =
-  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
-  import.meta.env.MODE === 'test'
-
-const getBedsWithPatients = (): Bed[] => {
-  const beds = JSON.parse(localStorage.getItem('hf_mock_beds') || '[]')
-  const patients = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
-  return beds.map((b: any) => {
-    if (b.patientId) {
-      const patient = patients.find((p: any) => p.id === b.patientId)
-      return { ...b, patient: patient ?? b._extraPatient ?? undefined }
-    }
-    return b
-  })
-}
+const conditionLabel = (c?: AdmissionCondition): Patient['condition'] =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
 
 const mapApiBed = (b: WardBed): Bed => {
   if (b.isAvailable || !b.admissionId) {
@@ -51,15 +38,16 @@ const mapApiBed = (b: WardBed): Bed => {
     }
   }
   const short = (b.patientId || '').slice(0, 8)
+  const condition = conditionLabel(b.condition)
   return {
     id: b.bedId,
     code: `Bed ${b.bedNumber}`,
-    status: 'Stable',
+    status: condition,
     patient: {
       id: b.admissionId,
       name: `Patient ${short}`,
       patientNo: short,
-      condition: 'Stable',
+      condition,
       admittingDoctor: b.admittingDoctorId || '—',
       activeVisitors: 0,
       diagnosis: b.diagnosis || '—',
@@ -96,19 +84,17 @@ const barColor = (status: Bed['status']) => {
   }
 }
 
+const CONDITIONS: AdmissionCondition[] = ['stable', 'monitoring', 'critical']
+
 export function BedMapPage() {
-  const [beds, setBeds] = useState<Bed[]>(() => (isTestEnv ? getBedsWithPatients() : []))
+  const [beds, setBeds] = useState<Bed[]>([])
   const [selectedBed, setSelectedBed] = useState<Bed | null>(null)
   const [assigningBed, setAssigningBed] = useState<Bed | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
   const [visitId, setVisitId] = useState('')
   const [admitDiagnosis, setAdmitDiagnosis] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [updatingCondition, setUpdatingCondition] = useState(false)
   const [wardTitle, setWardTitle] = useState('General Ward')
-
-  const [pendingAdmissions] = useState<any[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_pending_admissions') || '[]'),
-  )
 
   const reloadFromApi = () => {
     wardService
@@ -126,41 +112,8 @@ export function BedMapPage() {
   }
 
   useEffect(() => {
-    if (isTestEnv) return
     reloadFromApi()
   }, [])
-
-  const filteredAdmissions = pendingAdmissions.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  const handleAssignPatient = (patientName: string, diagnosis: string) => {
-    if (!assigningBed) return
-    const newPatient: Patient = {
-      id: `p-${Date.now()}`,
-      name: patientName,
-      patientNo: `HN-${Math.floor(1000 + Math.random() * 9000)}`,
-      condition: 'Stable',
-      admittingDoctor: 'Dr. Sarah Mwangi',
-      activeVisitors: 0,
-      diagnosis,
-    }
-
-    const currentPatients = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
-    currentPatients.push(newPatient)
-    localStorage.setItem('hf_mock_admitted_patients', JSON.stringify(currentPatients))
-
-    const currentBeds = JSON.parse(localStorage.getItem('hf_mock_beds') || '[]')
-    const updatedBeds = currentBeds.map((b: any) =>
-      b.id === assigningBed.id ? { ...b, status: 'Stable', patientId: newPatient.id } : b,
-    )
-    localStorage.setItem('hf_mock_beds', JSON.stringify(updatedBeds))
-
-    setBeds(getBedsWithPatients())
-    toast.success(`Patient ${patientName} assigned to ${assigningBed.code}`)
-    setAssigningBed(null)
-    setSearchQuery('')
-  }
 
   const handleAdmitFromApi = (e: React.FormEvent) => {
     e.preventDefault()
@@ -183,6 +136,22 @@ export function BedMapPage() {
         toast.error(err.response?.data?.detail || 'Admission failed.')
       })
       .finally(() => setSubmitting(false))
+  }
+
+  const handleConditionChange = (condition: AdmissionCondition) => {
+    if (!selectedBed?.patient || updatingCondition) return
+    setUpdatingCondition(true)
+    wardService
+      .updateCondition(selectedBed.patient.id, condition)
+      .then(() => {
+        toast.success(`Condition updated to ${condition}.`)
+        setSelectedBed(null)
+        reloadFromApi()
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update condition.')
+      })
+      .finally(() => setUpdatingCondition(false))
   }
 
   const handleBedClick = (bed: Bed) => {
@@ -430,6 +399,27 @@ export function BedMapPage() {
               </div>
             </div>
 
+            <div>
+              <p className="text-label-sm text-secondary uppercase m-0 mb-xs">Update Condition</p>
+              <div className="flex gap-xs">
+                {CONDITIONS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    disabled={updatingCondition}
+                    onClick={() => handleConditionChange(c)}
+                    className={`flex-1 px-sm py-1.5 rounded font-label-sm text-label-sm capitalize border transition-colors cursor-pointer disabled:opacity-60 ${
+                      conditionLabel(c) === selectedBed.patient?.condition
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-secondary border-border-default hover:bg-neutral-bg'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-md pt-2">
               <Link
                 to={`/ward/patients/${selectedBed.patient.id}/notes`}
@@ -458,7 +448,6 @@ export function BedMapPage() {
               <button
                 onClick={() => {
                   setAssigningBed(null)
-                  setSearchQuery('')
                   setVisitId('')
                   setAdmitDiagnosis('')
                 }}
@@ -468,91 +457,34 @@ export function BedMapPage() {
               </button>
             </div>
 
-            {isTestEnv ? (
-              <>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search patient name..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 text-body-sm border border-border-default rounded-lg focus:ring-1 focus:ring-clinical-blue focus:border-clinical-blue outline-none"
-                  />
-                  <span className="material-symbols-outlined absolute left-2 top-2 text-secondary text-[18px]">
-                    search
-                  </span>
-                </div>
-
-                <div className="max-h-[200px] overflow-y-auto divide-y divide-border-default/30">
-                  {filteredAdmissions.length > 0 ? (
-                    filteredAdmissions.map((pa) => (
-                      <div
-                        key={pa.id}
-                        onClick={() => handleAssignPatient(pa.name, pa.diagnosis)}
-                        className="py-3 cursor-pointer hover:bg-neutral-bg/50 rounded-lg px-2 transition flex justify-between items-center"
-                      >
-                        <div>
-                          <h5 className="font-semibold text-on-surface text-sm m-0">{pa.name}</h5>
-                          <p className="text-xs text-secondary mt-0.5 m-0">
-                            Diagnosis: {pa.diagnosis}
-                          </p>
-                        </div>
-                        <span className="material-symbols-outlined text-secondary text-base">
-                          chevron_right
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-secondary text-center py-4 m-0">
-                      No pending admissions found.
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (filteredAdmissions.length > 0) {
-                      handleAssignPatient(
-                        filteredAdmissions[0].name,
-                        filteredAdmissions[0].diagnosis,
-                      )
-                    }
-                  }}
-                  className="w-full py-2 bg-clinical-blue text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
-                >
-                  Confirm Assignment
-                </button>
-              </>
-            ) : (
-              <form onSubmit={handleAdmitFromApi} className="space-y-md">
-                <div className="space-y-xs">
-                  <label className="block text-label-sm text-secondary">Visit ID</label>
-                  <input
-                    required
-                    value={visitId}
-                    onChange={(e) => setVisitId(e.target.value)}
-                    placeholder="Existing visit UUID"
-                    className="w-full px-3 py-2 text-body-sm border border-border-default rounded-lg outline-none"
-                  />
-                </div>
-                <div className="space-y-xs">
-                  <label className="block text-label-sm text-secondary">Admitting Diagnosis</label>
-                  <textarea
-                    required
-                    value={admitDiagnosis}
-                    onChange={(e) => setAdmitDiagnosis(e.target.value)}
-                    className="w-full px-3 py-2 text-body-sm border border-border-default rounded-lg outline-none min-h-[72px]"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-2 bg-clinical-blue text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity disabled:opacity-60 border-0 cursor-pointer"
-                >
-                  {submitting ? 'Admitting...' : 'Confirm Assignment'}
-                </button>
-              </form>
-            )}
+            <form onSubmit={handleAdmitFromApi} className="space-y-md">
+              <div className="space-y-xs">
+                <label className="block text-label-sm text-secondary">Visit ID</label>
+                <input
+                  required
+                  value={visitId}
+                  onChange={(e) => setVisitId(e.target.value)}
+                  placeholder="Existing visit UUID"
+                  className="w-full px-3 py-2 text-body-sm border border-border-default rounded-lg outline-none"
+                />
+              </div>
+              <div className="space-y-xs">
+                <label className="block text-label-sm text-secondary">Admitting Diagnosis</label>
+                <textarea
+                  required
+                  value={admitDiagnosis}
+                  onChange={(e) => setAdmitDiagnosis(e.target.value)}
+                  className="w-full px-3 py-2 text-body-sm border border-border-default rounded-lg outline-none min-h-[72px]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-2 bg-clinical-blue text-white rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity disabled:opacity-60 border-0 cursor-pointer"
+              >
+                {submitting ? 'Admitting...' : 'Confirm Assignment'}
+              </button>
+            </form>
           </div>
         </div>
       )}

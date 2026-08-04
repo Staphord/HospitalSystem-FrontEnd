@@ -2,10 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
-
-const isTestEnv =
-  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
-  import.meta.env.MODE === 'test'
+import type { AdmissionCondition } from '@/api/types/ward'
 
 interface Vitals {
   bp: string
@@ -37,56 +34,8 @@ interface Patient {
   photo?: string
 }
 
-function seedInitialNotes(patientName: string): Note[] {
-  if (patientName === 'Fatuma Said') {
-    return [
-      {
-        id: 'n1',
-        timestamp: '09 JUN 2026, 08:15',
-        recordedBy: 'Nurse Esther Komba',
-        vitals: { bp: '120/80', temp: '37.2', pulse: '82', spo2: '98', respRate: '16' },
-        observation:
-          'Patient stable during morning handover. Oral intake improved. Wound dressing remains clean and dry. No complaints of pain at current site...',
-        intervention: 'Repositioned patient. IV fluids continued as per schedule.',
-        response: 'Patient responded well. Resting comfortably.',
-      },
-      {
-        id: 'n2',
-        timestamp: '08 JUN 2026, 22:45',
-        recordedBy: 'Nurse Juma Bakari',
-        vitals: { bp: '118/76', temp: '36.8', pulse: '78', spo2: '', respRate: '' },
-        observation:
-          'Patient sleeping comfortably. IV fluids running as per schedule at 80ml/hr. No respiratory distress noted during hourly rounds...',
-        intervention: 'Hourly rounds completed. No intervention needed.',
-        response: 'Patient sleeping soundly.',
-      },
-      {
-        id: 'n3',
-        timestamp: '08 JUN 2026, 16:30',
-        recordedBy: 'Nurse Esther Komba',
-        vitals: { bp: '130/85', temp: '37.5', pulse: '', spo2: '', respRate: '' },
-        observation:
-          'Physiotherapy session completed. Patient sat on the chair for 30 minutes. Reported mild fatigue but tolerated the session well...',
-        intervention: 'Assisted with physiotherapy exercises.',
-        response: 'Patient tolerated session. Mild fatigue reported.',
-      },
-    ]
-  } else {
-    // Default seed for testing Juma Hamisi (matches Juma Hamisi test expectations)
-    return [
-      {
-        id: 'n-test1',
-        timestamp: '09 JUN 2026, 08:15',
-        recordedBy: 'Nurse Amina Masoud, RN',
-        vitals: { bp: '110/70', temp: '36.5', pulse: '72', spo2: '97', respRate: '14' },
-        observation:
-          'Patient remains drowsy but responsive to verbal commands. Complains of mild headache.',
-        intervention: 'Administered pain relief.',
-        response: 'Headache partially relieved.',
-      }
-    ]
-  }
-}
+const conditionLabel = (c: AdmissionCondition): 'Stable' | 'Monitoring' | 'Critical' =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
 
 function isOutOfRange(value: string, min: number, max: number): boolean {
   if (!value) return false
@@ -94,94 +43,33 @@ function isOutOfRange(value: string, min: number, max: number): boolean {
   return isNaN(num) || num < min || num > max
 }
 
+const EMPTY_VITALS: Vitals = { bp: '', temp: '', pulse: '', spo2: '', respRate: '' }
+
 export function NursingNotesPage() {
   const { patientId } = useParams<{ patientId: string }>()
   const admissionId = patientId || ''
 
-  const [isLoading, setIsLoading] = useState(() => (isTestEnv ? false : true))
+  const [isLoading, setIsLoading] = useState(true)
 
-  const [patient, setPatient] = useState<Patient>(() => {
-    if (!isTestEnv) {
-      return {
-        id: admissionId || 'pending',
-        name: 'Loading...',
-        patientNo: '—',
-        bed: '—',
-        condition: 'Stable',
-        diagnosis: '—',
-        admissionDate: new Date().toISOString(),
-      }
-    }
-    const list = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
-    return (
-      list.find((p: any) => p.id === patientId) ||
-      list[0] || {
-        id: patientId || 'p-test1',
-        name: 'Juma Hamisi',
-        patientNo: 'HN-9821',
-        bed: 'Bed 03',
-        condition: 'Critical',
-        diagnosis: 'Severe Malaria w/ Complications',
-        admissionDate: '2026-06-20',
-        admittingDoctor: 'Dr. Joseph Lema',
-      }
-    )
+  const [patient, setPatient] = useState<Patient>({
+    id: admissionId || 'pending',
+    name: 'Loading...',
+    patientNo: '—',
+    bed: '—',
+    condition: 'Stable',
+    diagnosis: '—',
+    admissionDate: new Date().toISOString(),
   })
 
-  // Initialize vitals and textareas with default values
-  const [vitals, setVitals] = useState<Vitals>(() => {
-    if (patient.name === 'Fatuma Said') {
-      return {
-        bp: '145/95',
-        temp: '39.8',
-        pulse: '102',
-        spo2: '94',
-        respRate: '22',
-      }
-    }
-    return {
-      bp: '',
-      temp: '',
-      pulse: '',
-      spo2: '',
-      respRate: '',
-    }
-  })
-
-  const [observation, setObservation] = useState(() => {
-    if (patient.name === 'Fatuma Said') {
-      return 'Patient is exhibiting signs of acute distress. High-grade fever (39.8°C) noted with associated chills and rigors. Visible tremors. Patient is conscious but appears disoriented to time.'
-    }
-    return ''
-  })
-  const [intervention, setIntervention] = useState(() => {
-    if (patient.name === 'Fatuma Said') {
-      return 'Administered Paracetamol 1g IV as per PRN order. Applied tepid sponges. Dr. Amina Hassan notified of temperature spike. Increased fluid monitoring.'
-    }
-    return ''
-  })
-  const [response, setResponse] = useState(() => {
-    if (patient.name === 'Fatuma Said') {
-      return 'Patient reported slight relief after sponge bath but remains restless. Chills subsided after 15 minutes. Awaiting follow-up from medical officer.'
-    }
-    return ''
-  })
+  const [vitals, setVitals] = useState<Vitals>(EMPTY_VITALS)
+  const [observation, setObservation] = useState('')
+  const [intervention, setIntervention] = useState('')
+  const [response, setResponse] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [showToast, setShowToast] = useState(false)
 
-  const [notes, setNotes] = useState<Note[]>(() => {
-    if (!isTestEnv) return []
-    const key = `hf_mock_nursing_notes_${patient.id}`
-    const initial = seedInitialNotes(patient.name)
-    if (patient.name !== 'Fatuma Said') {
-      return initial
-    }
-    const existing = localStorage.getItem(key)
-    if (existing) return JSON.parse(existing)
-    localStorage.setItem(key, JSON.stringify(initial))
-    return initial
-  })
+  const [notes, setNotes] = useState<Note[]>([])
 
   const [currentTime, setCurrentTime] = useState('')
 
@@ -198,7 +86,7 @@ export function NursingNotesPage() {
   }, [])
 
   useEffect(() => {
-    if (isTestEnv || !admissionId) return
+    if (!admissionId) return
 
     Promise.all([
       wardService.getAdmission(admissionId),
@@ -210,7 +98,7 @@ export function NursingNotesPage() {
           name: `Patient ${adm.patientId.slice(0, 8)}`,
           patientNo: adm.patientId.slice(0, 8).toUpperCase(),
           bed: adm.bedNumber ? `Bed ${adm.bedNumber}` : adm.wardName || '—',
-          condition: 'Stable',
+          condition: conditionLabel(adm.condition),
           diagnosis: adm.admittingDiagnosis,
           admissionDate: adm.admissionDate,
           admittingDoctor: adm.admittingDoctorId,
@@ -231,7 +119,7 @@ export function NursingNotesPage() {
               temp: n.vitalsTemp != null ? String(n.vitalsTemp) : '',
               pulse: n.vitalsPulse != null ? String(n.vitalsPulse) : '',
               spo2: n.vitalsSpo2 != null ? String(n.vitalsSpo2) : '',
-              respRate: '',
+              respRate: n.vitalsRespRate != null ? String(n.vitalsRespRate) : '',
             },
             observation: n.noteText,
             intervention: '',
@@ -248,93 +136,57 @@ export function NursingNotesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!observation.trim() || !intervention.trim() || !response.trim()) {
+    if (!observation.trim() || !intervention.trim() || !response.trim() || !admissionId) {
       return
     }
 
     setSubmitting(true)
 
-    if (!isTestEnv && admissionId) {
-      const noteText = [
-        `Observation: ${observation.trim()}`,
-        `Intervention: ${intervention.trim()}`,
-        `Response: ${response.trim()}`,
-      ].join('\n')
-      wardService
-        .createNursingNote(admissionId, {
-          noteType: 'observation',
-          noteText,
-          vitalsBp: vitals.bp || undefined,
-          vitalsTemp: vitals.temp ? Number(vitals.temp) : undefined,
-          vitalsPulse: vitals.pulse ? Number(vitals.pulse) : undefined,
-          vitalsSpo2: vitals.spo2 ? Number(vitals.spo2) : undefined,
-        })
-        .then((n) => {
-          const newNote: Note = {
-            id: n.noteId,
-            timestamp: new Date(n.authoredAt)
-              .toLocaleString('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-              .toUpperCase(),
-            recordedBy: n.authoredBy,
-            vitals: { ...vitals },
-            observation,
-            intervention,
-            response,
-          }
-          setNotes((prev) => [newNote, ...prev])
-          setShowToast(true)
-          setVitals({ bp: '', temp: '', pulse: '', spo2: '', respRate: '' })
-          setObservation('')
-          setIntervention('')
-          setResponse('')
-          setTimeout(() => setShowToast(false), 3000)
-        })
-        .catch((err) => {
-          toast.error(err.response?.data?.detail || 'Failed to save note.')
-        })
-        .finally(() => setSubmitting(false))
-      return
-    }
-
-    setTimeout(() => {
-      const now = new Date()
-      const d = now
-        .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        .toUpperCase()
-      const t = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-
-      const newNote: Note = {
-        id: `n-${Date.now()}`,
-        timestamp: `${d}, ${t}`,
-        recordedBy: 'Nurse Esther Komba',
-        vitals: { ...vitals },
-        observation,
-        intervention,
-        response,
-      }
-
-      const updated = [newNote, ...notes]
-      setNotes(updated)
-      localStorage.setItem(`hf_mock_nursing_notes_${patient.id}`, JSON.stringify(updated))
-
-      setSubmitting(false)
-      setShowToast(true)
-
-      setVitals({ bp: '', temp: '', pulse: '', spo2: '', respRate: '' })
-      setObservation('')
-      setIntervention('')
-      setResponse('')
-
-      setTimeout(() => {
-        setShowToast(false)
-      }, 3000)
-    }, 800)
+    const noteText = [
+      `Observation: ${observation.trim()}`,
+      `Intervention: ${intervention.trim()}`,
+      `Response: ${response.trim()}`,
+    ].join('\n')
+    wardService
+      .createNursingNote(admissionId, {
+        noteType: 'observation',
+        noteText,
+        vitalsBp: vitals.bp || undefined,
+        vitalsTemp: vitals.temp ? Number(vitals.temp) : undefined,
+        vitalsPulse: vitals.pulse ? Number(vitals.pulse) : undefined,
+        vitalsSpo2: vitals.spo2 ? Number(vitals.spo2) : undefined,
+        vitalsRespRate: vitals.respRate ? Number(vitals.respRate) : undefined,
+      })
+      .then((n) => {
+        const newNote: Note = {
+          id: n.noteId,
+          timestamp: new Date(n.authoredAt)
+            .toLocaleString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+            .toUpperCase(),
+          recordedBy: n.authoredBy,
+          vitals: { ...vitals },
+          observation,
+          intervention,
+          response,
+        }
+        setNotes((prev) => [newNote, ...prev])
+        setShowToast(true)
+        setVitals(EMPTY_VITALS)
+        setObservation('')
+        setIntervention('')
+        setResponse('')
+        setTimeout(() => setShowToast(false), 3000)
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to save note.')
+      })
+      .finally(() => setSubmitting(false))
   }
 
   const conditionColor =
@@ -368,7 +220,7 @@ export function NursingNotesPage() {
         .rounded-2xl {
           border-radius: 16px !important;
         }
-        
+
         /* Exact Mockup Color and Design Utilities */
         .text-primary { color: #00296d !important; }
         .text-secondary { color: #4f5f7b !important; }
@@ -380,7 +232,7 @@ export function NursingNotesPage() {
         .bg-neutral-bg { background-color: #f4f5f7 !important; }
         .bg-secondary-container { background-color: #cdddff !important; }
         .text-on-secondary-container { color: #51617d !important; }
-        
+
         .bg-error-container { background-color: #ffdad6 !important; }
         .text-error { color: #ff5630 !important; }
         .border-outline-variant { border-color: #c4c6d4 !important; }
@@ -388,11 +240,11 @@ export function NursingNotesPage() {
         .text-on-surface-variant { color: #434652 !important; }
         .border-error { border-color: #ff5630 !important; }
         .bg-error-container\/20 { background-color: rgba(255, 218, 214, 0.2) !important; }
-        
+
         .border-outline-variant\/30 { border-color: rgba(196, 198, 212, 0.3) !important; }
         .bg-inverse-surface { background-color: #2f3037 !important; }
         .text-inverse-on-surface { color: #f0f0f9 !important; }
-        
+
         /* Focus and Hover Overrides */
         .focus\:ring-error:focus { --tw-ring-color: #ff5630 !important; }
         .focus\:border-error:focus { border-color: #ff5630 !important; }
@@ -799,6 +651,11 @@ export function NursingNotesPage() {
                       {n.vitals.spo2 && (
                         <span className="bg-white px-xs py-[2px] rounded border border-border-default text-[10px] font-bold">
                           {n.vitals.spo2}%
+                        </span>
+                      )}
+                      {n.vitals.respRate && (
+                        <span className="bg-white px-xs py-[2px] rounded border border-border-default text-[10px] font-bold">
+                          RR {n.vitals.respRate}
                         </span>
                       )}
                     </div>

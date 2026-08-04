@@ -35,6 +35,8 @@ export interface HospitalUserUpdate {
   additionalDepartments?: string[]
   mfaEnabled?: boolean
   status?: string
+  password?: string
+  forcePasswordChange?: boolean
 }
 
 export interface Department {
@@ -128,5 +130,49 @@ export interface ActiveSession {
   duration?: string
   device: string
   ipAddress: string
+}
+
+export interface StaffLoginLog {
+  timestamp: string
+  ip: string
+  device: string
+  duration: string
+  workspace: string
+  status: 'Success' | 'Failed' | 'Expired'
+}
+
+export interface StaffActivityLog {
+  timestamp: string
+  action: string
+  module: string
+  targetId: string
+  details: string
+}
+
+export interface RealmRole {
+  id: string
+  name: string
+  description?: string | null
+}
+
+export interface GlobalRole {
+  id: string
+  name: string
+  description?: string | null
+}
+
+export interface TenantRole {
+  id: string
+  name: string
+  description?: string | null
+  createdBy?: string | null
+  createdAt: string
+}
+
+export interface RolePermission {
+  roleName: string
+  modules: string[]
+  actions: string[]
+  updatedAt: string
 }
 

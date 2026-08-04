@@ -2,14 +2,19 @@ import { apiClient } from '@/api/client'
 import { receptionService } from '@/api/services/reception'
 import type {
   Admission,
+  AdmissionCondition,
   AdmissionCreate,
   BedBoardWard,
   DischargeRequest,
+  HandoverCreate,
   InpatientOrder,
   NursingNote,
   NursingNoteCreate,
   OrderCreate,
+  ShiftHandover,
+  VisitorCreate,
   WardBed,
+  WardVisitor,
 } from '@/api/types/ward'
 
 // ---------------------------------------------------------------------------
@@ -33,6 +38,7 @@ interface BackendAdmission {
   bed_id: string
   admitting_doctor_id: string
   admitting_diagnosis: string
+  condition: string
   admission_date: string
   discharge_date?: string | null
   length_of_stay_days?: string | number | null
@@ -67,6 +73,7 @@ interface BackendNote {
   vitals_temp?: string | number | null
   vitals_pulse?: number | null
   vitals_spo2?: string | number | null
+  vitals_resp_rate?: number | null
   authored_by: string
   authored_at: string
 }
@@ -82,6 +89,38 @@ interface BackendBedBoard {
       occupied: boolean
     }>
   }>
+}
+
+interface BackendVisitor {
+  visitor_id: string
+  admission_id?: string | null
+  patient_id?: string | null
+  patient_name: string
+  bed_label: string
+  visitor_name: string
+  visitor_phone?: string | null
+  relationship: string
+  national_id?: string | null
+  check_in_at: string
+  check_out_at?: string | null
+  approved_by: string
+  status: string
+  denial_reason?: string | null
+  allowed_duration_minutes: number
+  ward_name?: string | null
+  time_left_seconds?: number | null
+}
+
+interface BackendHandover {
+  handover_id: string
+  shift_label: string
+  submitted_by: string
+  overall_summary: string
+  incidents_summary?: string | null
+  patient_count: number
+  patient_notes?: Record<string, string> | null
+  ward_name?: string | null
+  created_at: string
 }
 
 const mapBed = (b: BackendBed): WardBed => ({
@@ -101,6 +140,7 @@ const mapAdmission = (a: BackendAdmission, bedNumber?: string): Admission => ({
   bedId: a.bed_id,
   admittingDoctorId: a.admitting_doctor_id,
   admittingDiagnosis: a.admitting_diagnosis,
+  condition: (a.condition as AdmissionCondition) || 'stable',
   admissionDate: a.admission_date,
   dischargeDate: a.discharge_date,
   lengthOfStayDays:
@@ -140,11 +180,52 @@ const mapNote = (n: BackendNote): NursingNote => ({
   vitalsTemp: n.vitals_temp == null ? null : Number(n.vitals_temp),
   vitalsPulse: n.vitals_pulse,
   vitalsSpo2: n.vitals_spo2 == null ? null : Number(n.vitals_spo2),
+  vitalsRespRate: n.vitals_resp_rate,
   authoredBy: n.authored_by,
   authoredAt: n.authored_at,
 })
 
+const mapVisitor = (v: BackendVisitor): WardVisitor => ({
+  visitorId: v.visitor_id,
+  admissionId: v.admission_id,
+  patientId: v.patient_id,
+  patientName: v.patient_name,
+  bedLabel: v.bed_label,
+  visitorName: v.visitor_name,
+  visitorPhone: v.visitor_phone,
+  relationship: v.relationship,
+  nationalId: v.national_id,
+  checkInAt: v.check_in_at,
+  checkOutAt: v.check_out_at,
+  approvedBy: v.approved_by,
+  status: v.status,
+  denialReason: v.denial_reason,
+  allowedDurationMinutes: v.allowed_duration_minutes,
+  wardName: v.ward_name,
+  timeLeftSeconds: v.time_left_seconds,
+})
+
+const mapHandover = (h: BackendHandover): ShiftHandover => ({
+  handoverId: h.handover_id,
+  shiftLabel: h.shift_label,
+  submittedBy: h.submitted_by,
+  overallSummary: h.overall_summary,
+  incidentsSummary: h.incidents_summary,
+  patientCount: h.patient_count,
+  patientNotes: h.patient_notes,
+  wardName: h.ward_name,
+  createdAt: h.created_at,
+})
+
 const shortId = (id: string) => (id ? id.slice(0, 8) : '—')
+
+export const parseVisitDurationMinutes = (duration: string): number => {
+  const lower = duration.toLowerCase()
+  const num = parseInt(lower.replace(/[^0-9]/g, ''), 10)
+  if (!Number.isFinite(num) || num <= 0) return 30
+  if (lower.includes('hour')) return num * 60
+  return num
+}
 
 export const wardService = {
   listBeds: (params?: {
@@ -222,6 +303,11 @@ export const wardService = {
   getLengthOfStay: (admissionId: string) =>
     apiClient.get(`/ward/admissions/${admissionId}/los`).then((r) => r.data),
 
+  updateCondition: (admissionId: string, condition: AdmissionCondition): Promise<Admission> =>
+    apiClient
+      .patch<BackendAdmission>(`/ward/admissions/${admissionId}/condition`, { condition })
+      .then((r) => mapAdmission(r.data)),
+
   listOrders: (admissionId: string): Promise<InpatientOrder[]> =>
     apiClient
       .get<BackendOrder[]>(`/ward/admissions/${admissionId}/orders`)
@@ -282,6 +368,7 @@ export const wardService = {
         vitals_temp: data.vitalsTemp ?? null,
         vitals_pulse: data.vitalsPulse ?? null,
         vitals_spo2: data.vitalsSpo2 ?? null,
+        vitals_resp_rate: data.vitalsRespRate ?? null,
       })
       .then((r) => mapNote(r.data)),
 
@@ -303,6 +390,7 @@ export const wardService = {
         diagnosis: adm.admittingDiagnosis,
         admittingDoctorId: adm.admittingDoctorId,
         admissionDate: adm.admissionDate,
+        condition: adm.condition,
       }
     })
   },
@@ -386,6 +474,54 @@ export const wardService = {
       .post(`/consultation/inpatient/admissions/${admissionId}/discharge`, data)
       .then((r) => r.data)
       .catch(() => wardService.dischargeAdmission(admissionId, data)),
+
+  listVisitors: (params?: { status?: string; active_only?: boolean; limit?: number }): Promise<WardVisitor[]> =>
+    apiClient
+      .get<BackendVisitor[]>('/ward/visitors', { params })
+      .then((r) => r.data.map(mapVisitor)),
+
+  listActiveVisitors: (): Promise<WardVisitor[]> =>
+    apiClient
+      .get<BackendVisitor[]>('/ward/visitors/active')
+      .then((r) => r.data.map(mapVisitor)),
+
+  createVisitor: (data: VisitorCreate): Promise<WardVisitor> =>
+    apiClient
+      .post<BackendVisitor>('/ward/visitors', {
+        admission_id: data.admissionId ?? null,
+        patient_name: data.patientName,
+        bed_label: data.bedLabel,
+        visitor_name: data.visitorName,
+        visitor_phone: data.visitorPhone ?? null,
+        relationship: data.relationship,
+        national_id: data.nationalId ?? null,
+        approved: data.approved,
+        denial_reason: data.denialReason ?? null,
+        allowed_duration_minutes: data.allowedDurationMinutes ?? 30,
+        ward_name: data.wardName ?? null,
+      })
+      .then((r) => mapVisitor(r.data)),
+
+  checkoutVisitor: (visitorId: string): Promise<WardVisitor> =>
+    apiClient
+      .post<BackendVisitor>(`/ward/visitors/${visitorId}/checkout`)
+      .then((r) => mapVisitor(r.data)),
+
+  listHandovers: (limit = 50): Promise<ShiftHandover[]> =>
+    apiClient
+      .get<BackendHandover[]>('/ward/handovers', { params: { limit } })
+      .then((r) => r.data.map(mapHandover)),
+
+  createHandover: (data: HandoverCreate): Promise<ShiftHandover> =>
+    apiClient
+      .post<BackendHandover>('/ward/handovers', {
+        shift_label: data.shiftLabel,
+        overall_summary: data.overallSummary,
+        incidents_summary: data.incidentsSummary ?? null,
+        patient_notes: data.patientNotes,
+        ward_name: data.wardName ?? null,
+      })
+      .then((r) => mapHandover(r.data)),
 }
 
 export interface PatientListItem {

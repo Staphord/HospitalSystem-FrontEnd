@@ -20,20 +20,11 @@ interface IssueOrderModalProps {
     dueTime: string
     overdue: boolean
   }) => void
-  /** When provided (live API mode), replaces the hardcoded demo patients list. */
-  patients?: Patient[]
+  patients: Patient[]
 }
 
-const WARD_PATIENTS: Patient[] = [
-  { id: 'p1', name: 'Fatuma Said', bed: 'Bed 12', condition: 'Critical', diagnosis: 'Severe Pneumonia' },
-  { id: 'p3', name: 'John Mwangi', bed: 'Bed 14', condition: 'Stable', diagnosis: 'Post-Op Appendectomy' },
-  { id: 'p-test1', name: 'Juma Hamisi', bed: 'Bed 03', condition: 'Critical', diagnosis: 'Severe Malaria' },
-  { id: 'p-test2', name: 'Zuwena Said', bed: 'Bed 04', condition: 'Monitoring', diagnosis: 'Pneumonia' },
-  { id: 'p-test3', name: 'Neema Kessy', bed: 'Bed 05', condition: 'Stable', diagnosis: 'Gastritis' }
-]
-
 export function IssueOrderModal({ isOpen, onClose, onAddOrder, patients }: IssueOrderModalProps) {
-  const patientOptions = patients && patients.length > 0 ? patients : WARD_PATIENTS
+  const patientOptions = patients
   const [activeTab, setActiveTab] = useState<'Medication' | 'Nursing' | 'Diet' | 'Investigation'>('Medication')
   const [selectedPatientId, setSelectedPatientId] = useState('')
 
@@ -178,27 +169,6 @@ export function IssueOrderModal({ isOpen, onClose, onAddOrder, patients }: Issue
     })
 
     onClose()
-  }
-
-  // Set demo fields to help clinician and pass tests easily
-  const handleDemoMedication = () => {
-    setSelectedPatientId('p1')
-    setActiveTab('Medication')
-    setMedDrugSearch('Paracetamol')
-    setMedDose('1g')
-    setMedFrequency('Four times daily (QID)')
-    setMedRoute('PO (Oral)')
-    setMedDuration('5 days')
-    setMedInstructions('Take after meals')
-  }
-
-  const handleDemoInvestigation = () => {
-    setSelectedPatientId('p-test2')
-    setActiveTab('Investigation')
-    setInvestTest('Serum Electrolytes')
-    setInvestUrgency('STAT')
-    setInvestReason('Assess hydration status')
-    setInvestSchedule('ASAP')
   }
 
   const inputClass = (disabled: boolean) =>
@@ -636,24 +606,6 @@ export function IssueOrderModal({ isOpen, onClose, onAddOrder, patients }: Issue
               </div>
             </div>
           )}
-
-          {/* Demos/Shortcuts row */}
-          <div className="pt-md flex flex-wrap gap-sm justify-center border-t border-border-default select-none">
-            <button
-              type="button"
-              onClick={handleDemoMedication}
-              className="text-[11px] bg-surface-container-high px-md py-sm rounded-full text-clinical-blue font-semibold hover:bg-clinical-blue hover:text-white transition-all border-0 cursor-pointer flex items-center justify-center h-8 shadow-sm"
-            >
-              Demo: Medication Tab (Fatuma Said)
-            </button>
-            <button
-              type="button"
-              onClick={handleDemoInvestigation}
-              className="text-[11px] bg-surface-container-high px-md py-sm rounded-full text-clinical-blue font-semibold hover:bg-clinical-blue hover:text-white transition-all border-0 cursor-pointer flex items-center justify-center h-8 shadow-sm"
-            >
-              Demo: Investigation Tab (Zuwena Said)
-            </button>
-          </div>
 
         </div>
 

@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { useApp } from '@/features/admin/context/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import { adminService } from '@/api/services/admin';
+import { masterService } from '@/api/services/master';
+import type { Subscription } from '@/api/types/master';
 
 interface ContactInfo {
   name: string;
@@ -21,6 +23,10 @@ interface SettingsState {
   sessionTimeout: string;
   passwordExpiry: string;
   mfaDoctors: boolean;
+  mfaAdmins: boolean;
+  timezone: string;
+  currency: string;
+  dateFormat: string;
   primaryContact: ContactInfo;
   secondaryContact: ContactInfo;
   criticalLabAlerts: boolean;
@@ -47,6 +53,10 @@ export const SettingsPage: React.FC = () => {
     sessionTimeout: '15 Minutes (Default)',
     passwordExpiry: '90 Days (Default)',
     mfaDoctors: true,
+    mfaAdmins: false,
+    timezone: 'Not configured',
+    currency: 'Not configured',
+    dateFormat: 'Not configured',
     primaryContact: {
       name: 'John Doe',
       occupation: 'Medical Director',
@@ -69,6 +79,17 @@ export const SettingsPage: React.FC = () => {
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+
+  // Load current subscription summary for the side card
+  useEffect(() => {
+    masterService
+      .getMySubscription()
+      .then((subs) => setSubscription(subs[0] ?? null))
+      .catch(() => setSubscription(null))
+      .finally(() => setSubscriptionLoading(false));
+  }, []);
 
   // Load persisted hospital settings from admin-service on mount
   useEffect(() => {
@@ -85,6 +106,10 @@ export const SettingsPage: React.FC = () => {
           sessionTimeout: stored.session_timeout ?? prev.sessionTimeout,
           passwordExpiry: stored.password_expiry ?? prev.passwordExpiry,
           mfaDoctors: stored.mfa_doctors != null ? stored.mfa_doctors === 'true' : prev.mfaDoctors,
+          mfaAdmins: stored.mfa_admins != null ? stored.mfa_admins === 'true' : prev.mfaAdmins,
+          timezone: stored.timezone ?? prev.timezone,
+          currency: stored.currency ?? prev.currency,
+          dateFormat: stored.date_format ?? prev.dateFormat,
           primaryContact: {
             name: stored.primary_contact_name ?? prev.primaryContact.name,
             occupation: stored.primary_contact_occupation ?? prev.primaryContact.occupation,
@@ -130,6 +155,7 @@ export const SettingsPage: React.FC = () => {
       session_timeout: settings.sessionTimeout,
       password_expiry: settings.passwordExpiry,
       mfa_doctors: String(settings.mfaDoctors),
+      mfa_admins: String(settings.mfaAdmins),
       primary_contact_name: settings.primaryContact.name,
       primary_contact_occupation: settings.primaryContact.occupation,
       primary_contact_email: settings.primaryContact.email,
@@ -302,20 +328,35 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div className="p-lg flex-1 flex flex-col justify-between">
               <div className="bg-surface-container-low p-lg rounded-xl space-y-md">
-                <div className="flex justify-between items-center">
-                  <span className="text-label-md text-outline">Current Plan</span>
-                  <span className="bg-secondary-container text-on-secondary-container px-2 py-1 rounded text-label-sm font-bold">Standard</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-label-md text-outline">Status</span>
-                  <span className="bg-success/10 text-success px-2 py-1 rounded text-label-sm font-bold flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-success" /> Active
-                  </span>
-                </div>
-                <div className="pt-md border-t border-border-subtle">
-                  <p className="text-label-sm text-outline">Next Billing Date</p>
-                  <p className="text-body-md font-bold text-on-surface">15 Jun 2026</p>
-                </div>
+                {subscriptionLoading ? (
+                  <p className="text-label-md text-outline">Loading subscription...</p>
+                ) : subscription ? (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-label-md text-outline">Current Plan</span>
+                      <span className="bg-secondary-container text-on-secondary-container px-2 py-1 rounded text-label-sm font-bold capitalize">
+                        {subscription.plan_name}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-label-md text-outline">Status</span>
+                      <span className={`px-2 py-1 rounded text-label-sm font-bold flex items-center gap-1 capitalize ${
+                        subscription.status === 'active' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${subscription.status === 'active' ? 'bg-success' : 'bg-warning'}`} />
+                        {subscription.status}
+                      </span>
+                    </div>
+                    <div className="pt-md border-t border-border-subtle">
+                      <p className="text-label-sm text-outline">Next Billing Date</p>
+                      <p className="text-body-md font-bold text-on-surface">
+                        {subscription.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-label-md text-outline">No active subscription found.</p>
+                )}
               </div>
               <div className="mt-lg">
                 <button
@@ -346,14 +387,14 @@ export const SettingsPage: React.FC = () => {
                 Timezone, currency, and data region are configured by your system administrator and cannot be changed here.
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-lg">
               <div>
                 <label className="text-label-md text-outline block mb-2">Timezone</label>
                 <input
                   className="w-full bg-surface-container-low border border-border-subtle rounded-lg px-md py-2 text-body-md text-outline cursor-not-allowed"
                   readOnly
                   type="text"
-                  value="(GMT+03:00) East Africa Time"
+                  value={settings.timezone}
                 />
               </div>
               <div>
@@ -362,7 +403,7 @@ export const SettingsPage: React.FC = () => {
                   className="w-full bg-surface-container-low border border-border-subtle rounded-lg px-md py-2 text-body-md text-outline cursor-not-allowed"
                   readOnly
                   type="text"
-                  value="Tanzanian Shilling (TZS)"
+                  value={settings.currency}
                 />
               </div>
               <div>
@@ -371,16 +412,7 @@ export const SettingsPage: React.FC = () => {
                   className="w-full bg-surface-container-low border border-border-subtle rounded-lg px-md py-2 text-body-md text-outline cursor-not-allowed"
                   readOnly
                   type="text"
-                  value="DD/MM/YYYY"
-                />
-              </div>
-              <div>
-                <label className="text-label-md text-outline block mb-2">Data Region</label>
-                <input
-                  className="w-full bg-surface-container-low border border-border-subtle rounded-lg px-md py-2 text-body-md text-outline cursor-not-allowed"
-                  readOnly
-                  type="text"
-                  value="East Africa (Dar es Salaam)"
+                  value={settings.dateFormat}
                 />
               </div>
             </div>
@@ -427,20 +459,23 @@ export const SettingsPage: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-primary">verified_user</span>
                   <div>
-                    <p className="text-body-md font-bold flex items-center gap-2">
-                      MFA Required for Admins
-                      <span className="material-symbols-outlined text-[16px] text-outline">lock</span>
-                    </p>
+                    <p className="text-body-md font-bold">MFA Required for Admins</p>
                     <p className="text-label-sm text-outline">Mandatory multi-factor authentication for all portal admins.</p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  disabled
-                  className="w-11 h-6 rounded-full relative bg-primary/50 cursor-not-allowed"
-                  aria-label="MFA for Admins (Mandatory Lock)"
+                  onClick={() => handleChange(prev => ({ ...prev, mfaAdmins: !prev.mfaAdmins }))}
+                  className={`w-11 h-6 rounded-full relative transition-all shadow-inner ${
+                    settings.mfaAdmins ? 'bg-primary' : 'bg-gray-200'
+                  }`}
+                  aria-label="Toggle MFA requirement for admins"
                 >
-                  <div className="absolute top-[2px] right-[2px] w-5 h-5 bg-white rounded-full shadow-sm" />
+                  <div
+                    className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
+                      settings.mfaAdmins ? 'right-[2px]' : 'left-[2px]'
+                    }`}
+                  />
                 </button>
               </div>
               <div className="flex items-center justify-between p-md border border-border-subtle rounded-lg">

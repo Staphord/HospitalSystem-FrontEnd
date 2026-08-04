@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
+import { wardService } from '@/api/services/ward'
 
 interface ActiveVisitor {
   id: string
@@ -9,34 +10,60 @@ interface ActiveVisitor {
   bed: string
   relationship: string
   checkIn: string
-  timeLeft: number // in seconds
-  totalDuration: number // in seconds
+  timeLeft: number
+  totalDuration: number
+}
+
+const formatClock = (iso?: string | null): string => {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 export function ActiveVisitorsPage() {
-  const [visitors, setVisitors] = useState<ActiveVisitor[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]')
-  )
-
+  const [visitors, setVisitors] = useState<ActiveVisitor[]>([])
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
-  // Countdown timer ticks down every second
+  const reloadFromApi = () => {
+    wardService
+      .listActiveVisitors()
+      .then((rows) => {
+        setVisitors(
+          rows.map((v) => ({
+            id: v.visitorId,
+            name: v.visitorName,
+            patientName: v.patientName,
+            bed: v.bedLabel,
+            relationship: v.relationship,
+            checkIn: formatClock(v.checkInAt),
+            timeLeft: Math.max(0, v.timeLeftSeconds ?? 0),
+            totalDuration: (v.allowedDurationMinutes || 30) * 60,
+          })),
+        )
+      })
+      .catch(() => toast.error('Failed to load active visitors.'))
+  }
+
+  useEffect(() => {
+    reloadFromApi()
+  }, [])
+
   useEffect(() => {
     const interval = setInterval(() => {
       setVisitors((prev) =>
         prev.map((v) => ({
           ...v,
           timeLeft: Math.max(0, v.timeLeft - 1),
-        }))
+        })),
       )
     }, 1000)
     return () => clearInterval(interval)
   }, [])
 
-  // Auto-refresh simulations every 30 seconds
   useEffect(() => {
     const refreshInterval = setInterval(() => {
-      toast.info('Active visitor list refreshed from nurse ledger.')
+      reloadFromApi()
     }, 30000)
     return () => clearInterval(refreshInterval)
   }, [])
@@ -46,25 +73,14 @@ export function ActiveVisitorsPage() {
   }
 
   const handleConfirmCheckOut = (visitorId: string, name: string) => {
-    const updated = visitors.filter((v) => v.id !== visitorId)
-    setVisitors(updated)
-    localStorage.setItem('hf_mock_active_visitors', JSON.stringify(updated))
-
-    const records = JSON.parse(localStorage.getItem('hf_mock_visitor_records') || '[]')
-    const updatedRecords = records.map((r: any) => {
-      if (r.visitorName === name && (r.status === 'Active' || r.status === 'Overstay')) {
-        return {
-          ...r,
-          status: 'Departed',
-          checkOut: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }
-      }
-      return r
-    })
-    localStorage.setItem('hf_mock_visitor_records', JSON.stringify(updatedRecords))
-
-    setConfirmingId(null)
-    toast.success(`Visitor ${name} checked out and departed the ward.`)
+    wardService
+      .checkoutVisitor(visitorId)
+      .then(() => {
+        setConfirmingId(null)
+        toast.success(`Visitor ${name} checked out and departed the ward.`)
+        reloadFromApi()
+      })
+      .catch(() => toast.error('Failed to check out visitor.'))
   }
 
   const formatTimeRemaining = (seconds: number) => {
@@ -78,15 +94,15 @@ export function ActiveVisitorsPage() {
     <div className="w-full text-on-surface">
       <style>{`
         .text-primary { color: #00296d !important; }
-        .bg-primary\/10 { background-color: rgba(0, 41, 109, 0.1) !important; }
+        .bg-primary\\/10 { background-color: rgba(0, 41, 109, 0.1) !important; }
         .text-success { color: #36b37e !important; }
         .bg-success { background-color: #36b37e !important; }
-        .bg-success\/10 { background-color: rgba(54, 179, 126, 0.1) !important; }
+        .bg-success\\/10 { background-color: rgba(54, 179, 126, 0.1) !important; }
         .text-warning { color: #ffab00 !important; }
         .bg-warning { background-color: #ffab00 !important; }
-        .bg-warning\/10 { background-color: rgba(255, 171, 0, 0.1) !important; }
+        .bg-warning\\/10 { background-color: rgba(255, 171, 0, 0.1) !important; }
         .text-error { color: #ff5630 !important; }
-        .bg-error\/10 { background-color: rgba(255, 86, 48, 0.1) !important; }
+        .bg-error\\/10 { background-color: rgba(255, 86, 48, 0.1) !important; }
         .text-clinical-blue { color: #0052cc !important; }
         .bg-clinical-blue { background-color: #0052cc !important; }
         .border-border-default { border-color: #dfe1e6 !important; }
@@ -113,11 +129,14 @@ export function ActiveVisitorsPage() {
       `}</style>
 
       <section className="px-xl py-lg max-w-container-max mx-auto">
-        {/* Header Actions */}
         <div className="flex justify-between items-end mb-lg">
           <div>
-            <h3 className="font-headline-md text-headline-md font-semibold text-on-surface m-0">Active Visitors Log — General Ward</h3>
-            <p className="text-slate-secondary text-body-sm m-0 mt-xs">Live monitoring of visitors currently inside the inpatient ward.</p>
+            <h3 className="font-headline-md text-headline-md font-semibold text-on-surface m-0">
+              Active Visitors Log — General Ward
+            </h3>
+            <p className="text-slate-secondary text-body-sm m-0 mt-xs">
+              Live monitoring of visitors currently inside the inpatient ward.
+            </p>
           </div>
           <div className="flex items-center gap-sm">
             <Link
@@ -135,7 +154,6 @@ export function ActiveVisitorsPage() {
           </div>
         </div>
 
-        {/* Summary Grid */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-lg">
           <div className="bg-white p-lg rounded-lg border border-border-default shadow-sm">
             <p className="text-label-md text-slate-secondary uppercase m-0">Total Visitors in Ward</p>
@@ -161,26 +179,27 @@ export function ActiveVisitorsPage() {
           </div>
         </section>
 
-        {/* Info Banner */}
         <div className="bg-[#DEEBFF] text-clinical-blue p-md rounded-lg mb-lg flex items-center gap-3 border border-[#DEEBFF] select-none">
           <span className="material-symbols-outlined text-[20px]">schedule</span>
-          <p className="font-body-md font-medium m-0">Visiting hours today: <span className="font-bold">10:00 AM – 8:00 PM</span>. Outside these hours requires supervisor override.</p>
+          <p className="font-body-md font-medium m-0">
+            Visiting hours today: <span className="font-bold">10:00 AM – 8:00 PM</span>. Outside these
+            hours requires supervisor override.
+          </p>
         </div>
 
-        {/* Visitor Log Table Card */}
         <div className="bg-white rounded-xl border border-border-default shadow-sm overflow-hidden">
-          {/* Table Header & Filters */}
           <div className="px-lg py-md border-b border-border-default flex justify-between items-center bg-surface-container-lowest">
             <h4 className="font-headline-sm text-headline-sm font-semibold m-0">Live Active Visitors</h4>
             <div className="flex gap-md select-none">
               <div className="flex items-center gap-2 px-3 py-1.5 border border-border-default rounded-lg bg-white">
                 <span className="material-symbols-outlined text-[18px] text-outline">calendar_today</span>
-                <span className="text-body-sm font-medium">Oct 24, 2023</span>
+                <span className="text-body-sm font-medium">
+                  {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Main Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -198,16 +217,20 @@ export function ActiveVisitorsPage() {
                 {visitors.length > 0 ? (
                   visitors.map((v) => {
                     const isOverstay = v.timeLeft === 0
-                    const isNearOverstay = v.timeLeft > 0 && v.timeLeft <= 600 // 10 mins
+                    const isNearOverstay = v.timeLeft > 0 && v.timeLeft <= 600
 
                     let rowStyle = 'hover:bg-[#DEEBFF] transition-colors'
-                    let badgeStyle = 'bg-[#E6F4EA] text-[#36B37E] px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider'
+                    let badgeStyle =
+                      'bg-[#E6F4EA] text-[#36B37E] px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider'
 
                     if (isOverstay) {
-                      rowStyle = 'bg-[#FFFAE5] border-b border-[#FFEAB6] hover:bg-[#FFF4C2] transition-colors'
-                      badgeStyle = 'bg-[#FFF1CC] text-[#FFAB00] px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider'
+                      rowStyle =
+                        'bg-[#FFFAE5] border-b border-[#FFEAB6] hover:bg-[#FFF4C2] transition-colors'
+                      badgeStyle =
+                        'bg-[#FFF1CC] text-[#FFAB00] px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider'
                     } else if (isNearOverstay) {
-                      badgeStyle = 'bg-warning/10 text-warning px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider'
+                      badgeStyle =
+                        'bg-warning/10 text-warning px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider'
                     }
 
                     return (
@@ -218,9 +241,7 @@ export function ActiveVisitorsPage() {
                         <td className="px-md py-4 text-slate-secondary">{v.bed}</td>
                         <td className="px-md py-4 text-slate-secondary">{v.checkIn}</td>
                         <td className="px-md py-4">
-                          <span className={badgeStyle}>
-                            {formatTimeRemaining(v.timeLeft)}
-                          </span>
+                          <span className={badgeStyle}>{formatTimeRemaining(v.timeLeft)}</span>
                         </td>
                         <td className="px-md py-4 text-right flex justify-end gap-2 items-center">
                           {confirmingId === v.id ? (
@@ -267,11 +288,15 @@ export function ActiveVisitorsPage() {
             </table>
           </div>
 
-          {/* Pagination/Footer */}
           <div className="px-lg py-md border-t border-border-default flex justify-between items-center text-body-sm text-slate-secondary bg-surface-container-lowest select-none">
-            <p className="m-0">Showing {visitors.length} of {visitors.length} visitors</p>
+            <p className="m-0">
+              Showing {visitors.length} of {visitors.length} visitors
+            </p>
             <div className="flex gap-2">
-              <button className="p-1.5 border border-border-default rounded-lg bg-transparent hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-30 flex items-center justify-center" disabled>
+              <button
+                className="p-1.5 border border-border-default rounded-lg bg-transparent hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-30 flex items-center justify-center"
+                disabled
+              >
                 <span className="material-symbols-outlined">chevron_left</span>
               </button>
               <button className="p-1.5 border border-border-default rounded-lg bg-transparent hover:bg-surface-container transition-colors cursor-pointer flex items-center justify-center">

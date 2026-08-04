@@ -27,6 +27,8 @@ import { DepartmentsPage } from '@/features/admin/pages/DepartmentsPage'
 import { FeesPage } from '@/features/admin/pages/FeesPage'
 import { InsurancePage } from '@/features/admin/pages/InsurancePage'
 import { SettingsPage } from '@/features/admin/pages/SettingsPage'
+import { RolesManagementPage } from '@/features/admin/pages/RolesManagementPage'
+import { PermissionsMatrixPage } from '@/features/admin/pages/PermissionsMatrixPage'
 import { AuditLogsPage as AdminAuditLogsPage } from '@/features/admin/pages/AuditLogsPage'
 import { DataBackupPage } from '@/features/admin/pages/DataBackupPage'
 import { SubscriptionPage } from '@/features/admin/pages/SubscriptionPage'
@@ -176,6 +178,8 @@ export const routes = [
               { path: '/admin/fees', element: <FeesPage /> },
               { path: '/admin/insurance', element: <InsurancePage /> },
               { path: '/admin/settings', element: <SettingsPage /> },
+              { path: '/admin/roles', element: <RolesManagementPage /> },
+              { path: '/admin/permissions', element: <PermissionsMatrixPage /> },
               { path: '/admin/audit-logs', element: <AdminAuditLogsPage /> },
               { path: '/admin/backup', element: <DataBackupPage /> },
               { path: '/admin/subscription', element: <SubscriptionPage /> },
