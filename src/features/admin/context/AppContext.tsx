@@ -37,7 +37,7 @@ interface AppContextType {
   // Staff Data & Actions
   staffList: StaffMember[];
   staffError: string | null;
-  addStaff: (data: Omit<StaffMember, 'id' | 'status' | 'createdAt'>) => boolean;
+  addStaff: (data: Omit<StaffMember, 'id' | 'status' | 'createdAt'> & { password?: string }) => boolean;
   updateStaff: (id: string, data: Partial<StaffMember>) => void;
   deleteStaff: (id: string) => void;
   clearStaffError: () => void;

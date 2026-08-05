@@ -367,7 +367,7 @@ export const adminService = {
     const created = await apiClient
       .post<BackendUser>('/admin/users', {
         username: data.username,
-        password: data.password ?? 'TemporaryPassword123!',
+        password: data.password ?? 'Gilgal#2026!Staff',
         email: data.email,
         full_name: data.full_name ?? '',
         role: toBackendRole(data.role) ?? 'hospital_user',

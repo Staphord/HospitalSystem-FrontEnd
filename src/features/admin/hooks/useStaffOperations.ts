@@ -73,7 +73,7 @@ export const useStaffOperations = () => {
   }, []);
 
   // Add staff registration under account plan constraints
-  const addStaff = (data: Omit<StaffMember, 'id' | 'status' | 'createdAt'>): boolean => {
+  const addStaff = (data: Omit<StaffMember, 'id' | 'status' | 'createdAt'> & { password?: string }): boolean => {
     if (staffList.length >= 20) {
       setError('Plan limit reached: Maximum of 20 active staff accounts allowed.');
       return false;
@@ -84,7 +84,7 @@ export const useStaffOperations = () => {
 
     const payload = {
       username: data.email.split('@')[0],
-      password: 'TemporaryPassword123!',
+      password: data.password || 'Gilgal#2026!Staff',
       email: data.email,
       full_name: data.name,
       role: normalizedRole,
