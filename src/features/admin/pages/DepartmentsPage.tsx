@@ -100,15 +100,8 @@ export function DepartmentsPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-lg">
-      {/* Page Header and breadcrumb links */}
-      <div className="flex justify-between items-center mb-lg">
-        <div>
-          <nav className="flex text-label-sm text-outline mt-1 gap-1">
-            <span className="text-secondary font-medium">Hospital Configuration</span>
-            <span>/</span>
-            <span className="text-secondary">Departments &amp; Wards</span>
-          </nav>
-        </div>
+      {/* Page Header */}
+      <div className="flex justify-end items-center mb-lg">
         <button
           onClick={() => setIsModalOpen(true)}
           className="bg-primary-container hover:bg-primary-container/90 text-white px-md h-[40px] rounded-lg flex items-center gap-sm font-label-md transition-colors shadow-sm border-0 cursor-pointer"
@@ -384,14 +377,6 @@ export function DepartmentsPage() {
         </div>
       )}
 
-      {/* System Footer info */}
-      <footer className="mt-xl flex flex-col md:flex-row justify-between items-center text-label-sm text-secondary gap-md border-t border-border-subtle pt-md">
-        <p>© 2024 Muhimbili National Hospital. Internal Management System.</p>
-        <div className="flex gap-lg">
-          <span className="text-[11px]">System Health: Normal</span>
-          <span className="text-[11px]">Security Protocol v4.2</span>
-        </div>
-      </footer>
     </div>
   );
 }
