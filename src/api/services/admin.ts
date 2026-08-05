@@ -373,6 +373,7 @@ export const adminService = {
         role: toBackendRole(data.role) ?? 'hospital_user',
         department_id: departmentId,
         phone: data.phone ?? null,
+        mfa_enabled: data.mfaEnabled ?? false,
       })
       .then((r) => r.data)
     const deptMap = await loadDepartmentNameMap()
@@ -391,6 +392,7 @@ export const adminService = {
     if (data.landingDepartment !== undefined) {
       payload.department_id = await resolveDepartmentId(data.landingDepartment)
     }
+    if (data.mfaEnabled !== undefined) payload.mfa_enabled = data.mfaEnabled
     if (data.status !== undefined) payload.is_active = data.status === 'active'
     const updated = await apiClient
       .patch<BackendUser>(`/admin/users/${sub}`, payload)
