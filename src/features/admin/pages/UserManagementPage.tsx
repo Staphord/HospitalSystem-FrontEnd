@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 
 // Renders the staff directory with plan-limit alerts, stat cards, filters, and table
 export const UserManagementPage: React.FC = () => {
-  const { staffList, deleteStaff, setActiveView } = useApp();
+  const { staffList, deleteStaff, setActiveView, sessions } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'doctor' | 'nurse' | 'admin'>('all');
   const [deptFilter, setDeptFilter] = useState('all');
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const PLAN_LIMIT = 20;
   const isAtLimit = staffList.length >= PLAN_LIMIT;
@@ -44,10 +46,27 @@ export const UserManagementPage: React.FC = () => {
       staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.role.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || staff.role === roleFilter;
+    const matchesRole =
+      roleFilter === 'all' ||
+      staff.role === roleFilter ||
+      (roleFilter === 'nurse' && staff.role.includes('nurse')) ||
+      (roleFilter === 'admin' && staff.role.includes('admin'));
     const matchesDept = deptFilter === 'all' || staff.landingDepartment === deptFilter;
     return matchesSearch && matchesRole && matchesDept;
   });
+
+  // Reset to page 1 whenever filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, deptFilter, pageSize]);
+
+  const totalEntries = filteredStaff.length;
+  const totalPages = Math.ceil(totalEntries / pageSize) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const startIndex = totalEntries === 0 ? 0 : (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalEntries);
+  const paginatedStaff = filteredStaff.slice(startIndex, endIndex);
 
   const activeCount = staffList.filter((s) => s.status === 'active').length;
   const inactiveCount = staffList.filter((s) => s.status !== 'active').length;
@@ -141,7 +160,7 @@ export const UserManagementPage: React.FC = () => {
         {/* Online Now (from sessions in context) */}
         <div className="bg-surface-white border border-border-subtle rounded-lg p-4">
           <p className="font-label-sm text-label-sm text-secondary uppercase tracking-wider mb-1">Online Now</p>
-          <h3 className="font-headline-lg text-headline-lg text-on-surface">{activeCount}</h3>
+          <h3 className="font-headline-lg text-headline-lg text-on-surface">{sessions.length}</h3>
           <p className="font-label-sm text-label-sm text-success mt-2 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-success" /> Live
           </p>
@@ -186,21 +205,21 @@ export const UserManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Staff table */}
-        <div className="overflow-x-auto">
+        {/* Staff table with limited height and sticky header */}
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="bg-surface-bright border-b border-border-subtle">
+            <thead className="sticky top-0 z-10 bg-surface-bright shadow-xs">
+              <tr className="border-b border-border-subtle">
                 <th className="p-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Staff Member</th>
-                <th className="p-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Role & Dept</th>
+                <th className="p-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Role &amp; Dept</th>
                 <th className="p-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Status</th>
                 <th className="p-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Last Active</th>
                 <th className="p-4 font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {filteredStaff.length > 0 ? (
-                filteredStaff.map((staff) => (
+            <tbody className="divide-y divide-border-subtle bg-surface-white">
+              {paginatedStaff.length > 0 ? (
+                paginatedStaff.map((staff) => (
                   <tr
                     key={staff.id}
                     onClick={() => handleRowClick(staff.id)}
@@ -250,14 +269,14 @@ export const UserManagementPage: React.FC = () => {
                       <div className="flex items-center justify-end gap-xs" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={(e) => handleEditClick(staff.id, e)}
-                          className="p-1 hover:bg-surface-container rounded transition-colors"
+                          className="p-1 hover:bg-surface-container rounded transition-colors border-0 bg-transparent cursor-pointer"
                           aria-label={`Edit ${staff.name}`}
                         >
                           <span className="material-symbols-outlined text-secondary hover:text-primary">edit</span>
                         </button>
                         <button
                           onClick={(e) => handleDeleteClick(staff.id, e)}
-                          className="p-1 hover:bg-surface-container rounded transition-colors"
+                          className="p-1 hover:bg-surface-container rounded transition-colors border-0 bg-transparent cursor-pointer"
                           aria-label={`Delete ${staff.name}`}
                         >
                           <span className="material-symbols-outlined text-secondary hover:text-error">delete</span>
@@ -278,16 +297,75 @@ export const UserManagementPage: React.FC = () => {
         </div>
 
         {/* Pagination footer */}
-        <div className="p-4 border-t border-border-subtle bg-surface-white flex items-center justify-between">
-          <p className="font-body-sm text-body-sm text-secondary">
-            Showing 1 to {filteredStaff.length} of {filteredStaff.length} entries
-          </p>
-          <div className="flex gap-1">
-            <button className="w-8 h-8 rounded flex items-center justify-center border border-border-subtle text-outline cursor-not-allowed" disabled>
+        <div className="p-4 border-t border-border-subtle bg-surface-white flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <p className="font-body-sm text-body-sm text-secondary m-0">
+              Showing {totalEntries > 0 ? startIndex + 1 : 0} to {endIndex} of {totalEntries} entries
+            </p>
+            <div className="flex items-center gap-2">
+              <label htmlFor="pageSizeSelect" className="font-body-sm text-xs text-secondary whitespace-nowrap">
+                Per page:
+              </label>
+              <select
+                id="pageSizeSelect"
+                className="border border-border-subtle rounded text-xs px-2 py-1 bg-surface-white font-medium text-on-surface focus:outline-none focus:border-primary"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={validCurrentPage <= 1}
+              className={`w-8 h-8 rounded flex items-center justify-center border transition-colors ${
+                validCurrentPage <= 1
+                  ? 'border-border-subtle text-outline cursor-not-allowed bg-surface-bright'
+                  : 'border-border-subtle text-secondary hover:bg-surface-container-low cursor-pointer'
+              }`}
+              aria-label="Previous Page"
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            <button className="w-8 h-8 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-label-sm">1</button>
-            <button className="w-8 h-8 rounded flex items-center justify-center border border-border-subtle text-outline cursor-not-allowed" disabled>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => setCurrentPage(pageNum)}
+                style={
+                  pageNum === validCurrentPage
+                    ? { backgroundColor: '#0052cc', color: '#ffffff', borderColor: '#0052cc' }
+                    : undefined
+                }
+                className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold transition-colors cursor-pointer border ${
+                  pageNum === validCurrentPage
+                    ? 'shadow-xs'
+                    : 'border-border-subtle text-on-surface hover:bg-surface-container-low bg-surface-white'
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={validCurrentPage >= totalPages}
+              className={`w-8 h-8 rounded flex items-center justify-center border transition-colors ${
+                validCurrentPage >= totalPages
+                  ? 'border-border-subtle text-outline cursor-not-allowed bg-surface-bright'
+                  : 'border-border-subtle text-secondary hover:bg-surface-container-low cursor-pointer'
+              }`}
+              aria-label="Next Page"
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>

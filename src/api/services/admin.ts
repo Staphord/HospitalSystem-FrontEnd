@@ -90,6 +90,18 @@ interface BackendWard {
   available: number
 }
 
+interface BackendActiveSession {
+  id: string
+  staff_id: string
+  staff_name: string
+  staff_role: string
+  department?: string | null
+  login_time?: string | null
+  device?: string | null
+  ip_address?: string | null
+  avatar_url?: string | null
+}
+
 interface BackendDashboardReport {
   active_users: number
   visits_today: number
@@ -165,7 +177,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
   if (!landingDepartment) return null
   if (isUuid(landingDepartment)) return landingDepartment
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/shared/departments')
+    .get<BackendDepartment[]>('/admin/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   const match = departments.find(
@@ -176,7 +188,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
 
 const loadDepartmentNameMap = async (): Promise<Map<string, string>> => {
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/shared/departments')
+    .get<BackendDepartment[]>('/admin/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   return new Map(departments.map((d) => [d.department_id, d.department_name]))
@@ -346,6 +358,18 @@ const mapBackup = (b: BackendBackup): BackupItem => ({
   initiatedBy: b.triggered_by_sub || b.triggered_by,
 })
 
+const mapSession = (s: BackendActiveSession): ActiveSession => ({
+  id: s.id,
+  staffId: s.staff_id || s.id,
+  staffName: s.staff_name || 'Staff Member',
+  staffRole: s.staff_role || 'Staff',
+  department: s.department || 'General',
+  loginTime: s.login_time ? new Date(s.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+  device: s.device || 'Workstation',
+  ipAddress: s.ip_address || '—',
+  avatarUrl: s.avatar_url || '',
+})
+
 // ---------------------------------------------------------------------------
 // Service — all paths proxied via api-gateway → admin-service (/admin/*)
 // ---------------------------------------------------------------------------
@@ -354,7 +378,7 @@ export const adminService = {
   // Users (FR-53)
   listUsers: async (): Promise<HospitalUser[]> => {
     const [users, deptMap] = await Promise.all([
-      apiClient.get<BackendUser[]>('/admin/shared/users').then((r) => r.data),
+      apiClient.get<BackendUser[]>('/admin/users').then((r) => r.data),
       loadDepartmentNameMap(),
     ])
     return users.map((u) =>
@@ -412,9 +436,9 @@ export const adminService = {
   // Departments (FR-55)
   listDepartments: async (): Promise<Department[]> => {
     const [departments, users] = await Promise.all([
-      apiClient.get<BackendDepartment[]>('/admin/shared/departments').then((r) => r.data),
+      apiClient.get<BackendDepartment[]>('/admin/departments').then((r) => r.data),
       apiClient
-        .get<BackendUser[]>('/admin/shared/users')
+        .get<BackendUser[]>('/admin/users')
         .then((r) => r.data)
         .catch(() => [] as BackendUser[]),
     ])
@@ -492,7 +516,7 @@ export const adminService = {
   // Insurance providers (FR-55)
   listInsuranceProviders: (): Promise<Provider[]> =>
     apiClient
-      .get<BackendProvider[]>('/admin/shared/insurance-providers')
+      .get<BackendProvider[]>('/admin/insurance-providers')
       .then((r) => r.data.map(mapProvider)),
 
   createInsuranceProvider: (data: Omit<Provider, 'id'>): Promise<Provider> =>
@@ -617,12 +641,16 @@ export const adminService = {
     }
   },
 
-  // Sessions — no admin-service endpoint yet; still mock-backed
-  listActiveSessions: () =>
-    apiClient.get<ActiveSession[]>('/sessions').then((r) => r.data),
+  // Sessions (FR-53) — proxied via api-gateway → admin-service (/admin/sessions)
+  listActiveSessions: async (): Promise<ActiveSession[]> => {
+    const sessions = await apiClient
+      .get<BackendActiveSession[]>('/admin/sessions')
+      .then((r) => r.data)
+    return sessions.map(mapSession)
+  },
 
   revokeSession: (id: string) =>
-    apiClient.delete(`/sessions/${id}`),
+    apiClient.delete(`/admin/sessions/${id}`),
 
   // Wards & beds (catalog owned by admin-service)
   listWards: (): Promise<WardItem[]> =>
