@@ -476,6 +476,9 @@ export const adminService = {
     return apiClient.patch<BackendDepartment>(`/admin/departments/${id}`, payload).then((r) => r.data)
   },
 
+  deleteDepartment: (id: string) =>
+    apiClient.delete(`/admin/departments/${id}`),
+
   // Fee schedules (FR-55) — backend path is /admin/fee-schedules
   listFeeSchedules: (): Promise<FeeItem[]> =>
     apiClient
