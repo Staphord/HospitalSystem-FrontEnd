@@ -255,7 +255,7 @@ const mapFee = (f: BackendFee): FeeItem => ({
   id: f.fee_id,
   name: f.item_name,
   category: FEE_TYPE_TO_CATEGORY[f.item_type] ?? f.item_type.toUpperCase(),
-  amount: Number(f.standard_price).toLocaleString('en-US'),
+  amount: f.standard_price !== null && f.standard_price !== undefined ? String(f.standard_price) : '0',
   currency: 'TZS',
   insuranceCovered: f.insurance_price !== null && f.insurance_price !== undefined,
   active: f.is_active,

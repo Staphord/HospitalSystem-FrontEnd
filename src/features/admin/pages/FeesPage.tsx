@@ -23,6 +23,13 @@ function categoryStyle(cat: string) {
   return CATEGORY_COLORS[cat?.toUpperCase()] ?? { bg: '#f4f5f7', text: '#5e6c84' };
 }
 
+const parseFeeAmount = (val: string | number): number => {
+  if (val === null || val === undefined) return 0;
+  const cleaned = String(val).replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
     <button
@@ -214,7 +221,7 @@ export function FeesPage() {
   const insuredCount = feeItems.filter(f => f.insuranceCovered).length;
   const coveragePercent = feeItems.length > 0 ? Math.round((insuredCount / feeItems.length) * 100) : 0;
   const tzsFees = feeItems.filter(f => f.currency === 'TZS');
-  const avgFee = tzsFees.length > 0 ? Math.round(tzsFees.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0) / tzsFees.length) : 0;
+  const avgFee = tzsFees.length > 0 ? Math.round(tzsFees.reduce((sum, f) => sum + parseFeeAmount(f.amount), 0) / tzsFees.length) : 0;
 
   return (
     <div className="max-w-container-max mx-auto flex flex-col gap-lg">
@@ -342,7 +349,7 @@ export function FeesPage() {
                         {item.category}
                       </span>
                     </td>
-                    <td className="p-4 text-sm text-on-surface">{Number(item.amount).toLocaleString()}</td>
+                    <td className="p-4 text-sm text-on-surface">{parseFeeAmount(item.amount).toLocaleString()}</td>
                     <td className="p-4 text-center text-sm text-secondary">{item.currency}</td>
                     <td className="p-4 text-center">
                       <Toggle checked={item.insuranceCovered} onChange={() => toggleInsuranceCovered(item.id)} label={`Toggle insurance for ${item.name}`} />
