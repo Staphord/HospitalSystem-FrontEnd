@@ -12,6 +12,12 @@ import type {
   AuditLogRow,
   WardItem,
   BackupItem,
+  StaffLoginLog,
+  StaffActivityLog,
+  RealmRole,
+  GlobalRole,
+  TenantRole,
+  RolePermission,
 } from '@/api/types/admin'
 
 // ---------------------------------------------------------------------------
@@ -112,22 +118,51 @@ interface BackendDashboardReport {
 
 interface BackendAuditLog {
   log_id: string
-  user_sub: string
-  username: string | null
+  user_id: string
   action: string
   table_name: string
   record_id: string | null
   old_values: Record<string, unknown> | null
   new_values: Record<string, unknown> | null
   ip_address: string | null
+  session_id?: string | null
   created_at: string
 }
 
 interface BackendAuditLogPage {
   items: BackendAuditLog[]
   total: number
-  page: number
-  page_size: number
+  limit: number
+  offset: number
+}
+
+interface BackendSetting {
+  key: string
+  value: string | null
+  updated_by?: string | null
+  updated_at?: string | null
+}
+
+interface BackendSession {
+  id: string
+  staff_id: string
+  staff_name: string
+  staff_role: string
+  department?: string | null
+  login_time: string
+  device: string
+  ip_address: string
+  avatar_url?: string
+}
+
+interface BackendLoginHistory {
+  timestamp: string
+  ip?: string | null
+  device?: string
+  duration?: string
+  workspace?: string
+  status?: string
+  detail?: string | null
 }
 
 interface BackendBackup {
@@ -249,6 +284,33 @@ const mapWard = (w: BackendWard): WardItem => {
   }
 }
 
+const mapRealmRole = (r: BackendRealmRole): RealmRole => ({
+  id: r.id,
+  name: r.name,
+  description: r.description,
+})
+
+const mapGlobalRole = (r: BackendGlobalRole): GlobalRole => ({
+  id: r.global_role_id,
+  name: r.name,
+  description: r.description,
+})
+
+const mapTenantRole = (r: BackendTenantRole): TenantRole => ({
+  id: r.tenant_role_id,
+  name: r.name,
+  description: r.description,
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+})
+
+const mapPermission = (p: BackendPermission): RolePermission => ({
+  roleName: p.role_name,
+  modules: p.modules,
+  actions: p.actions,
+  updatedAt: p.updated_at,
+})
+
 const profileToSettingsMap = (p: BackendHospitalProfile): Record<string, string | null> => ({
   hospital_name: p.hospital_name,
   address: p.address,
@@ -327,7 +389,7 @@ const summarizeAuditLog = (log: BackendAuditLog): string => {
 const mapAuditLog = (log: BackendAuditLog): AuditLogRow => ({
   id: log.log_id,
   timestamp: new Date(log.created_at).toLocaleString(),
-  staffName: log.username || log.user_sub,
+  staffName: log.user_id,
   staffRole: 'Staff',
   action: log.action,
   department: capitalize(log.table_name.replace(/_/g, ' ')),
@@ -335,6 +397,45 @@ const mapAuditLog = (log: BackendAuditLog): AuditLogRow => ({
   ipAddress: log.ip_address || '—',
   details: summarizeAuditLog(log),
   signature: `LOG-${log.log_id.slice(0, 8)}`,
+})
+
+const PROFILE_KEYS = new Set([
+  'hospital_name',
+  'address',
+  'city',
+  'country',
+  'phone',
+  'email',
+  'primary_contact_name',
+  'primary_contact_email',
+  'primary_contact_phone',
+  'timezone',
+  'currency',
+  'date_format',
+  'logo_url',
+])
+
+const formatDuration = (loginTime: string): string => {
+  const start = new Date(loginTime).getTime()
+  if (!Number.isFinite(start)) return '—'
+  const mins = Math.max(0, Math.floor((Date.now() - start) / 60000))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h <= 0) return `${m}m`
+  return `${h}h ${m}m`
+}
+
+const mapSession = (s: BackendSession): ActiveSession => ({
+  id: s.id,
+  staffId: s.staff_id,
+  staffName: s.staff_name,
+  staffRole: s.staff_role,
+  avatarUrl: s.avatar_url || '',
+  department: s.department || '—',
+  loginTime: new Date(s.login_time).toLocaleString(),
+  duration: formatDuration(s.login_time),
+  device: s.device || 'Web Browser',
+  ipAddress: s.ip_address || '—',
 })
 
 const formatBytes = (bytes: number | null): string => {
@@ -418,6 +519,8 @@ export const adminService = {
     }
     if (data.mfaEnabled !== undefined) payload.mfa_enabled = data.mfaEnabled
     if (data.status !== undefined) payload.is_active = data.status === 'active'
+    if (data.password !== undefined) payload.password = data.password
+    if (data.forcePasswordChange !== undefined) payload.force_password_change = data.forcePasswordChange
     const updated = await apiClient
       .patch<BackendUser>(`/admin/users/${sub}`, payload)
       .then((r) => r.data)
@@ -551,29 +654,127 @@ export const adminService = {
   deleteInsuranceProvider: (id: string) =>
     apiClient.delete(`/admin/insurance-providers/${id}`),
 
-  // Hospital profile (FR-55) — maps settings UI onto /admin/hospital-profile
-  getSettings: (): Promise<Record<string, string | null>> =>
-    apiClient
-      .get<BackendHospitalProfile>('/admin/hospital-profile')
-      .then((r) => profileToSettingsMap(r.data)),
+  // Hospital profile + KV settings (FR-55)
+  getSettings: async (): Promise<Record<string, string | null>> => {
+    const [profile, kv] = await Promise.all([
+      apiClient
+        .get<BackendHospitalProfile>('/admin/hospital-profile')
+        .then((r) => profileToSettingsMap(r.data))
+        .catch(() => ({}) as Record<string, string | null>),
+      apiClient
+        .get<BackendSetting[]>('/admin/settings')
+        .then((r) => Object.fromEntries(r.data.map((s) => [s.key, s.value])))
+        .catch(() => ({}) as Record<string, string | null>),
+    ])
+    return { ...profile, ...kv }
+  },
 
-  updateSettings: (settings: Record<string, string | null>) =>
-    apiClient
-      .patch<BackendHospitalProfile>('/admin/hospital-profile', settingsToProfilePatch(settings))
-      .then((r) => profileToSettingsMap(r.data)),
+  updateSettings: async (settings: Record<string, string | null>) => {
+    const profilePatch = settingsToProfilePatch(settings)
+    const kvEntries = Object.fromEntries(
+      Object.entries(settings).filter(([key]) => !PROFILE_KEYS.has(key)),
+    )
+    const [profile, kv] = await Promise.all([
+      Object.keys(profilePatch).length > 0
+        ? apiClient
+            .patch<BackendHospitalProfile>('/admin/hospital-profile', profilePatch)
+            .then((r) => profileToSettingsMap(r.data))
+        : Promise.resolve({} as Record<string, string | null>),
+      Object.keys(kvEntries).length > 0
+        ? apiClient
+            .put<BackendSetting[]>('/admin/settings', { settings: kvEntries })
+            .then((r) => Object.fromEntries(r.data.map((s) => [s.key, s.value])))
+        : Promise.resolve({} as Record<string, string | null>),
+    ])
+    return { ...profile, ...kv }
+  },
 
   // Audit logs (FR-56)
   listHospitalAuditLogs: (params?: {
-    page?: number
-    page_size?: number
+    limit?: number
+    offset?: number
     action?: string
     table_name?: string
+    user_id?: string
+    from?: string
+    to?: string
   }): Promise<AuditLogRow[]> =>
     apiClient
       .get<BackendAuditLogPage>('/admin/audit-logs', {
-        params: { page: 1, page_size: 100, ...params },
+        params: { limit: 100, offset: 0, ...params },
       })
       .then((r) => r.data.items.map(mapAuditLog)),
+
+  listHospitalAuditLogsPage: (params?: {
+    limit?: number
+    offset?: number
+    action?: string
+    table_name?: string
+    user_id?: string
+    from?: string
+    to?: string
+  }): Promise<{ items: AuditLogRow[]; total: number }> =>
+    apiClient
+      .get<BackendAuditLogPage>('/admin/audit-logs', {
+        params: { limit: 25, offset: 0, ...params },
+      })
+      .then((r) => ({ items: r.data.items.map(mapAuditLog), total: r.data.total })),
+
+  exportAuditLogs: async (
+    params: {
+      action?: string
+      table_name?: string
+      user_id?: string
+      from?: string
+      to?: string
+    },
+    format: 'csv' | 'json' = 'csv',
+  ): Promise<void> => {
+    const response = await apiClient.get('/admin/audit-logs/export', {
+      params: { ...params, format },
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `audit-logs.${format}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  },
+
+  listStaffActivityLogs: (userSub: string): Promise<StaffActivityLog[]> =>
+    adminService.listHospitalAuditLogs({ user_id: userSub, limit: 100 }).then((rows) =>
+      rows.map((row) => ({
+        timestamp: row.timestamp,
+        action: row.action,
+        module: row.department,
+        targetId: row.recordId,
+        details: row.details,
+      })),
+    ),
+
+  listStaffLoginHistory: (userSub: string): Promise<StaffLoginLog[]> =>
+    apiClient
+      .get<BackendLoginHistory[]>(`/admin/users/${userSub}/login-history`, {
+        params: { days: 30, limit: 50 },
+      })
+      .then((r) =>
+        r.data.map((row) => {
+          const statusRaw = (row.status || 'Success').toLowerCase()
+          const status: StaffLoginLog['status'] =
+            statusRaw === 'failed' ? 'Failed' : statusRaw === 'expired' ? 'Expired' : 'Success'
+          return {
+            timestamp: new Date(row.timestamp).toLocaleString(),
+            ip: row.ip || '—',
+            device: row.device || 'Web Browser',
+            duration: row.duration || '—',
+            workspace: row.workspace || 'Hospital Portal',
+            status,
+          }
+        }),
+      ),
 
   // Backups (FR-58)
   listBackups: (): Promise<BackupItem[]> =>
@@ -685,23 +886,44 @@ export const adminService = {
   },
 
   updateWard: async (id: string, data: Partial<WardItem>): Promise<WardItem> => {
+    const targetName = data.name ?? id
     // Wards are derived from beds; renaming updates all beds in that ward.
+    let beds = await apiClient
+      .get<Array<{ bed_id: string; ward_name: string; bed_number: string }>>('/admin/beds')
+      .then((r) => r.data)
     if (data.name && data.name !== id) {
-      const beds = await apiClient
-        .get<Array<{ bed_id: string; ward_name: string }>>('/admin/beds')
-        .then((r) => r.data)
       await Promise.all(
         beds
           .filter((b) => b.ward_name === id)
           .map((b) => apiClient.patch(`/admin/beds/${b.bed_id}`, { ward_name: data.name })),
       )
+      beds = beds.map((b) => (b.ward_name === id ? { ...b, ward_name: data.name! } : b))
+    }
+    // Growing bed count adds new beds; shrinking is not supported (beds may be occupied).
+    if (data.totalBeds !== undefined) {
+      const wardBeds = beds.filter((b) => b.ward_name === targetName)
+      const existingNumbers = new Set(wardBeds.map((b) => b.bed_number))
+      let nextNumber = wardBeds.length + 1
+      const toAdd = Math.max(0, data.totalBeds - wardBeds.length)
+      for (let i = 0; i < toAdd; i++) {
+        while (existingNumbers.has(String(nextNumber).padStart(2, '0'))) nextNumber++
+        const bedNumber = String(nextNumber).padStart(2, '0')
+        existingNumbers.add(bedNumber)
+        await apiClient.post('/admin/beds', {
+          ward_name: targetName,
+          bed_number: bedNumber,
+          bed_type: 'general',
+          is_available: true,
+          is_active: true,
+        })
+        nextNumber++
+      }
     }
     const wards = await adminService.listWards()
-    const name = data.name ?? id
     return (
-      wards.find((w) => w.name === name) ?? {
-        id: name,
-        name,
+      wards.find((w) => w.name === targetName) ?? {
+        id: targetName,
+        name: targetName,
         occupiedBeds: data.occupiedBeds ?? 0,
         totalBeds: data.totalBeds ?? 0,
         isUrgent: data.isUrgent,

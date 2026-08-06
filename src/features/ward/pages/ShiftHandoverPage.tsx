@@ -1,5 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { wardService } from '@/api/services/ward'
+import type { AdmissionCondition } from '@/api/types/ward'
+
+const conditionLabel = (c: AdmissionCondition): 'Stable' | 'Monitoring' | 'Critical' =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
 
 interface PatientHandover {
   id: string
@@ -22,136 +27,71 @@ interface HandoverHistory {
   patientNotes: { [key: string]: string }
 }
 
+function mapApiHandover(h: {
+  handoverId: string
+  shiftLabel: string
+  submittedBy: string
+  overallSummary: string
+  incidentsSummary?: string | null
+  patientCount: number
+  patientNotes?: Record<string, string> | null
+  createdAt: string
+}): HandoverHistory {
+  const created = new Date(h.createdAt)
+  const date = created.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const time = created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return {
+    id: h.handoverId,
+    timestamp: `${date}, ${time}`,
+    date,
+    shift: h.shiftLabel,
+    submittedBy: h.submittedBy,
+    patientCount: h.patientCount,
+    incidents: h.incidentsSummary || '0 Reported',
+    overallSummary: h.overallSummary,
+    patientNotes: h.patientNotes || {},
+  }
+}
+
 export function ShiftHandoverPage() {
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new')
 
-  const [patients, setPatients] = useState<PatientHandover[]>(() => {
-    const list = JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]')
-    return list.map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      bed: p.bed,
-      activeVisitors: p.activeVisitors || 0,
-      condition: p.condition || 'Stable',
-      handoverNote: ''
-    }))
-  })
-
+  const [patients, setPatients] = useState<PatientHandover[]>([])
   const [overallSummary, setOverallSummary] = useState('')
-
-  const [history, setHistory] = useState<HandoverHistory[]>(() => {
-    const raw = localStorage.getItem('hf_mock_handover_history')
-
-    const defaults: HandoverHistory[] = [
-      {
-        id: 'h-1',
-        timestamp: 'Jun 25, 2026, 07:30 PM',
-        date: 'Jun 25, 2026',
-        shift: 'Night Shift',
-        submittedBy: 'Nurse John S.',
-        patientCount: 18,
-        incidents: '0 Reported',
-        overallSummary: 'All patients stable. No major incidents during the night shift. Handover completed smoothly.',
-        patientNotes: {
-          'Fatuma Said': 'Stable overnight, vital signs monitored hourly.',
-          'John Mwangi': 'NPO maintained for morning endoscopy.',
-          'Juma Hamisi': 'Vitals stable. SpO2 stable at 97% on room air.',
-          'Zuwena Said': 'Close monitoring of blood glucose levels. Insulin infusion ongoing.'
-        }
-      },
-      {
-        id: 'h-2',
-        timestamp: 'Jun 25, 2026, 07:30 AM',
-        date: 'Jun 25, 2026',
-        shift: 'Day Shift',
-        submittedBy: 'Nurse Thomas Lowassa, RN',
-        patientCount: 5,
-        incidents: '1 Incident',
-        overallSummary: 'One minor incident: Bed 301-B patient had temporary IV line displacement, re-sited by medical officer. All other care completed successfully.',
-        patientNotes: {
-          'Juma Hamisi': 'Monitor vitals every 2 hours. High malaria count, IV Artesunate ongoing.',
-          'Zuwena Said': 'Diabetic ketoacidosis. Check blood glucose levels every 4 hours.',
-          'Emmanuel John': 'Post-op coronary bypass. Critical monitoring. Chest drain output is normal.',
-          'Mariam Athuman': 'Stable. Blood pressure well controlled with current anti-hypertensive regimen.',
-          'Neema Kessy': 'Pneumonia recovery. Oxygenation stable at 96% room air.'
-        }
-      },
-      {
-        id: 'h-3',
-        timestamp: 'Jun 24, 2026, 07:30 PM',
-        date: 'Jun 24, 2026',
-        shift: 'Night Shift',
-        submittedBy: 'Nurse Esther M.',
-        patientCount: 5,
-        incidents: '0 Reported',
-        overallSummary: 'All patients stable. Routine checks performed. Morning labs drawn at 6:00 AM for all acute patients.',
-        patientNotes: {
-          'Juma Hamisi': 'Resting quietly. IV fluids running as scheduled.',
-          'Zuwena Said': 'Blood glucose monitored, stable between 7.8 and 9.2 mmol/L.',
-          'Emmanuel John': 'Resting comfortably, pain managed with analgesics.',
-          'Mariam Athuman': 'Asleep. Vital signs stable throughout the night.',
-          'Neema Kessy': 'Productive cough decreasing. Slept well.'
-        }
-      },
-      {
-        id: 'h-4',
-        timestamp: 'Jun 24, 2026, 07:30 AM',
-        date: 'Jun 24, 2026',
-        shift: 'Day Shift',
-        submittedBy: 'Nurse Amina Masoud, RN',
-        patientCount: 6,
-        incidents: '0 Reported',
-        overallSummary: 'Regular day shift. Patient admissions completed from triage. Rounding doctors adjusted care plans.',
-        patientNotes: {
-          'Juma Hamisi': 'Admitted today from Emergency Department. Initiated severe malaria protocol.',
-          'Zuwena Said': 'Transferred in for diabetic ketoacidosis management.',
-          'Emmanuel John': 'Post-op monitoring. Checked surgical site, clean and dry.',
-          'Mariam Athuman': 'Monitored for elevated blood pressure. Rest prescribed.',
-          'Neema Kessy': 'Initiated chest physiotherapy.',
-          'Ali Selemani': 'Admitted for scheduled appendectomy.'
-        }
-      },
-      {
-        id: 'h-5',
-        timestamp: 'Jun 23, 2026, 07:30 PM',
-        date: 'Jun 23, 2026',
-        shift: 'Night Shift',
-        submittedBy: 'Nurse Thomas Lowassa, RN',
-        patientCount: 4,
-        incidents: '1 Incident',
-        overallSummary: 'Incident: Bed 303-A patient had minor wound site ooze, dressing reinforced, surgical team notified. No active bleeding. Other patients stable.',
-        patientNotes: {
-          'Emmanuel John': 'Wound site ooze noted. Dressing changed and reinforced.',
-          'Mariam Athuman': 'Stable. Rested well with no complaints.',
-          'Neema Kessy': 'SpO2 maintained above 95% on room air.',
-          'Ali Selemani': 'Resting post-surgery, pain controlled.'
-        }
-      }
-    ]
-
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw)
-        // Upgrade legacy records or empty cells in list
-        const isOld = parsed.some((h: any) => h.fromNurse !== undefined || h.submittedBy === undefined || !h.shift || !h.date)
-        const isWrongFirst = parsed[0]?.submittedBy !== 'Nurse John S.'
-        if (!isOld && !isWrongFirst && parsed.length >= 3) {
-          return parsed
-        }
-      } catch (e) {
-        // Fall back to defaults on parse errors
-      }
-    }
-
-    localStorage.setItem('hf_mock_handover_history', JSON.stringify(defaults))
-    return defaults
-  })
-
+  const [incidentsSummary, setIncidentsSummary] = useState('')
+  const [history, setHistory] = useState<HandoverHistory[]>([])
   const [selectedReport, setSelectedReport] = useState<HandoverHistory | null>(null)
+
+  useEffect(() => {
+    Promise.all([
+      wardService.listAdmissions({ status: 'active', limit: 200 }),
+      wardService.listActiveVisitors(),
+      wardService.listHandovers(50),
+    ])
+      .then(([admissions, activeVisitors, handovers]) => {
+        const visitorCounts = new Map<string, number>()
+        activeVisitors.forEach((v) => {
+          if (!v.admissionId) return
+          visitorCounts.set(v.admissionId, (visitorCounts.get(v.admissionId) || 0) + 1)
+        })
+        setPatients(
+          admissions.map((a) => ({
+            id: a.admissionId,
+            name: `Patient ${a.patientId.slice(0, 8)}`,
+            bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+            activeVisitors: visitorCounts.get(a.admissionId) || 0,
+            condition: conditionLabel(a.condition),
+            handoverNote: '',
+          })),
+        )
+        setHistory(handovers.map(mapApiHandover))
+      })
+      .catch(() => toast.error('Failed to load handover data.'))
+  }, [])
 
   const handlePatientNoteChange = (patientId: string, note: string) => {
     setPatients((prev) =>
-      prev.map((p) => (p.id === patientId ? { ...p, handoverNote: note } : p))
+      prev.map((p) => (p.id === patientId ? { ...p, handoverNote: note } : p)),
     )
   }
 
@@ -169,28 +109,23 @@ export function ShiftHandoverPage() {
     })
 
     const now = new Date()
-    const formattedDate = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const shiftLabel = now.getHours() >= 7 && now.getHours() < 19 ? 'Day Shift' : 'Night Shift'
 
-    const newHandover: HandoverHistory = {
-      id: `h-${Date.now()}`,
-      timestamp: `${formattedDate}, ${formattedTime}`,
-      date: formattedDate,
-      shift: now.getHours() >= 7 && now.getHours() < 19 ? 'Day Shift' : 'Night Shift',
-      submittedBy: 'Nurse Esther Komba',
-      patientCount: patients.length,
-      incidents: '0 Reported',
-      overallSummary,
-      patientNotes: patientNotesMap,
-    }
-
-    const updatedHistory = [newHandover, ...history]
-    setHistory(updatedHistory)
-    localStorage.setItem('hf_mock_handover_history', JSON.stringify(updatedHistory))
-    toast.success('Shift handover submitted successfully.')
-
-    setOverallSummary('')
-    setPatients((prev) => prev.map((p) => ({ ...p, handoverNote: '' })))
+    wardService
+      .createHandover({
+        shiftLabel,
+        overallSummary,
+        incidentsSummary: incidentsSummary.trim() || '0 Reported',
+        patientNotes: patientNotesMap,
+      })
+      .then((created) => {
+        setHistory((prev) => [mapApiHandover(created), ...prev])
+        toast.success('Shift handover submitted successfully.')
+        setOverallSummary('')
+        setIncidentsSummary('')
+        setPatients((prev) => prev.map((p) => ({ ...p, handoverNote: '' })))
+      })
+      .catch(() => toast.error('Failed to submit handover.'))
   }
 
   return (
@@ -350,6 +285,18 @@ export function ShiftHandoverPage() {
                 placeholder="General ward notes, incidents, equipment issues, etc. Describe general ward issues."
                 value={overallSummary}
                 onChange={(e) => setOverallSummary(e.target.value)}
+                className="w-full border border-border-default rounded-lg p-md text-body-md focus:ring-2 focus:ring-clinical-blue/20 focus:border-clinical-blue outline-none transition-all bg-white"
+              />
+            </div>
+
+            {/* Incidents */}
+            <div className="bg-surface-container-lowest border border-border-default rounded-xl p-lg space-y-md shadow-sm">
+              <label className="font-headline-sm text-headline-sm block">Incidents</label>
+              <input
+                type="text"
+                placeholder="e.g. 1 Incident: minor IV line displacement, re-sited. Leave blank if none reported."
+                value={incidentsSummary}
+                onChange={(e) => setIncidentsSummary(e.target.value)}
                 className="w-full border border-border-default rounded-lg p-md text-body-md focus:ring-2 focus:ring-clinical-blue/20 focus:border-clinical-blue outline-none transition-all bg-white"
               />
             </div>

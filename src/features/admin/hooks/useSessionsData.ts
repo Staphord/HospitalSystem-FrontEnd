@@ -49,6 +49,7 @@ export const useSessionsData = () => {
 
   return {
     sessions,
-    revokeSession
+    revokeSession,
+    refreshSessions: syncSessions
   };
 };

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { Department, WardItem } from '@/api/types/admin';
+import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
+import { AdminModal, AdminModalButton, AdminModalFooter } from '@/components/ui/AdminModal';
 
 const DEPARTMENT_TYPES = [
   'Reception', 'Triage', 'Consultation', 'Laboratory', 'Radiology',
@@ -115,6 +117,7 @@ export function DepartmentsPage() {
   const [wards, setWards] = useState<WardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [isWardModalOpen, setIsWardModalOpen] = useState(false);
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState('Consultation');
@@ -234,12 +237,21 @@ export function DepartmentsPage() {
       });
   };
 
-  // Create a new department via admin-service
-  const handleCreateDepartment = (e: React.FormEvent) => {
+  const handleSaveDepartment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || isSubmitting) return;
     setIsSubmitting(true);
-    adminService.createDepartment({ name: formName.trim(), type: formType })
+
+    const name = formName.trim();
+    const request = editingDept
+      ? adminService.updateDepartment(editingDept.id, { name, type: formType }).then(() => {
+          toast.success(`Department "${name}" updated.`);
+        })
+      : adminService.createDepartment({ name, type: formType }).then(() => {
+          toast.success(`Department "${name}" created.`);
+        });
+
+    request
       .then(() => {
         toast.success(`Department "${formName.trim()}" created.`);
         setIsModalOpen(false);
@@ -247,9 +259,57 @@ export function DepartmentsPage() {
         fetchData(false);
       })
       .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to create department.');
+        toast.error(
+          err.response?.data?.detail ||
+            (editingDept ? 'Failed to update department.' : 'Failed to create department.'),
+        );
       })
       .finally(() => setIsSubmitting(false));
+  };
+
+  const handleDeleteDepartment = () => {
+    if (!deptToDelete || deletingId) return;
+
+    setDeletingId(deptToDelete.id);
+    adminService
+      .deleteDepartment(deptToDelete.id)
+      .then(() => {
+        toast.success(`Department "${deptToDelete.name}" deleted.`);
+        setDeptToDelete(null);
+        fetchData();
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to delete department.');
+      })
+      .finally(() => setDeletingId(null));
+  };
+
+  const openEditWardModal = (ward: WardItem) => {
+    setEditingWard(ward);
+    setEditWardName(ward.name);
+    setEditWardBeds(ward.totalBeds);
+  };
+
+  const closeEditWardModal = () => {
+    setEditingWard(null);
+  };
+
+  const handleUpdateWard = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWard || !editWardName.trim() || isSavingWard) return;
+    setIsSavingWard(true);
+    const name = editWardName.trim();
+    adminService
+      .updateWard(editingWard.id, { name, totalBeds: Math.max(editWardBeds, editingWard.totalBeds) })
+      .then(() => {
+        toast.success(`Ward "${name}" updated.`);
+        closeEditWardModal();
+        fetchData();
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update ward.');
+      })
+      .finally(() => setIsSavingWard(false));
   };
 
   const handleCreateWard = (e: React.FormEvent) => {
@@ -280,7 +340,7 @@ export function DepartmentsPage() {
       {/* Page Header */}
       <div className="flex justify-end items-center mb-lg">
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="bg-primary-container hover:bg-primary-container/90 text-white px-md h-[40px] rounded-lg flex items-center gap-sm font-label-md transition-colors shadow-sm border-0 cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
@@ -500,8 +560,16 @@ export function DepartmentsPage() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={closeDeptModal}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : editingDept ? 'Update Department' : 'Save Department'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
 
       {/* Add Ward modal */}
       {isWardModalOpen && (
@@ -562,8 +630,75 @@ export function DepartmentsPage() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={() => setIsWardModalOpen(false)}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Ward'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
+      <AdminModal
+        isOpen={!!editingWard}
+        title="Edit Ward"
+        onClose={closeEditWardModal}
+      >
+        <form onSubmit={handleUpdateWard}>
+          <div className="px-lg py-lg space-y-md">
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Ward Name</label>
+              <input
+                type="text"
+                required
+                value={editWardName}
+                onChange={(e) => setEditWardName(e.target.value)}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              />
+            </div>
+            <div className="space-y-xs">
+              <label className="block font-label-md text-label-md text-secondary">Number of Beds</label>
+              <input
+                type="number"
+                min={editingWard?.totalBeds ?? 1}
+                max={100}
+                required
+                value={editWardBeds}
+                onChange={(e) => setEditWardBeds(Number(e.target.value))}
+                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+              />
+              <p className="text-label-sm text-secondary">
+                Existing beds can't be removed here since they may be occupied; increasing this adds new beds.
+              </p>
+            </div>
+          </div>
+          <AdminModalFooter>
+            <AdminModalButton type="button" onClick={closeEditWardModal}>
+              Cancel
+            </AdminModalButton>
+            <AdminModalButton type="submit" variant="primary" disabled={isSavingWard}>
+              {isSavingWard ? 'Saving...' : 'Update Ward'}
+            </AdminModalButton>
+          </AdminModalFooter>
+        </form>
+      </AdminModal>
+
+      <DeleteConfirmationModal
+        isOpen={!!deptToDelete}
+        title="Delete Department"
+        message={
+          <>
+            Are you sure you want to permanently delete department{' '}
+            <strong>{deptToDelete?.name}</strong>? This action cannot be undone.
+          </>
+        }
+        onClose={() => {
+          if (!deletingId) setDeptToDelete(null);
+        }}
+        onConfirm={handleDeleteDepartment}
+        isLoading={!!deletingId}
+      />
 
       {/* Edit Department Modal */}
       {isEditDeptModalOpen && editingDept && (

@@ -12,11 +12,13 @@ interface Patient {
 interface LogVisitorModalProps {
   isOpen: boolean
   onClose: () => void
+  patients: Patient[]
   onAddVisitor: (visitorData: {
     patientId: string
     patientName: string
     bed: string
     visitorName: string
+    visitorPhone: string
     relationship: string
     nationalId: string
     duration: string
@@ -25,15 +27,8 @@ interface LogVisitorModalProps {
   }) => void
 }
 
-const WARD_PATIENTS: Patient[] = [
-  { id: 'p1', name: 'Fatuma Said', bed: 'Bed 12', condition: 'Critical', activeVisitors: 0, diagnosis: 'Severe Pneumonia' },
-  { id: 'p3', name: 'John Mwangi', bed: 'Bed 14', condition: 'Stable', activeVisitors: 0, diagnosis: 'Post-Op Appendectomy' },
-  { id: 'p-test1', name: 'Juma Hamisi', bed: 'Bed 03', condition: 'Critical', activeVisitors: 2, diagnosis: 'Severe Malaria' },
-  { id: 'p-test2', name: 'Zuwena Said', bed: 'Bed 04', condition: 'Monitoring', activeVisitors: 1, diagnosis: 'Pneumonia' },
-  { id: 'p-test3', name: 'Neema Kessy', bed: 'Bed 05', condition: 'Stable', activeVisitors: 1, diagnosis: 'Gastritis' }
-]
-
-export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorModalProps) {
+export function LogVisitorModal({ isOpen, onClose, onAddVisitor, patients }: LogVisitorModalProps) {
+  const patientList = patients
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [visitorName, setVisitorName] = useState('')
   const [relationship, setRelationship] = useState('')
@@ -42,10 +37,9 @@ export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorMod
   const [duration, setDuration] = useState('30 mins')
   const [isApproved, setIsApproved] = useState(true)
   const [denialReason, setDenialReason] = useState('')
-  
-  // Custom states for simulating warnings in demo
+
+  // Manual override for visiting-hours restriction
   const [forceOutsideHours, setForceOutsideHours] = useState(false)
-  const [forceLimitReached, setForceLimitReached] = useState(false)
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -59,41 +53,16 @@ export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorMod
       setIsApproved(true)
       setDenialReason('')
       setForceOutsideHours(false)
-      setForceLimitReached(false)
     }
   }, [isOpen])
 
   if (!isOpen) return null
 
-  const selectedPatient = WARD_PATIENTS.find((p) => p.id === selectedPatientId)
-
-  // Demos shortcuts
-  const handleDemoFatuma = () => {
-    setSelectedPatientId('p1')
-    setIsApproved(true)
-    setForceOutsideHours(false)
-    setForceLimitReached(false)
-    setVisitorName('Hassan Said')
-    setRelationship('Husband')
-    setNationalId('ID-88291')
-    setPhone('0712345678')
-  }
-
-  const handleDemoJohn = () => {
-    setSelectedPatientId('p3')
-    setIsApproved(false)
-    setForceOutsideHours(true)
-    setForceLimitReached(true)
-    setVisitorName('Unknown Visitor')
-    setRelationship('Friend')
-    setNationalId('ID-55021')
-    setPhone('')
-    setDenialReason('Outside visiting hours, no supervisor override provided.')
-  }
+  const selectedPatient = patientList.find((p) => p.id === selectedPatientId)
 
   // Calculate check warnings
   const isCritical = selectedPatient?.condition === 'Critical'
-  const isLimitReached = selectedPatient ? (selectedPatient.activeVisitors >= 2 || forceLimitReached) : false
+  const isLimitReached = selectedPatient ? selectedPatient.activeVisitors >= 2 : false
   const isOutsideHours = forceOutsideHours
 
   // Dynamic input/select style generator for premium disabled state look and feel
@@ -205,13 +174,12 @@ export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorMod
                   setSelectedPatientId(e.target.value)
                   // Reset warnings when patient changes
                   setForceOutsideHours(false)
-                  setForceLimitReached(false)
                   setIsApproved(true)
                 }}
                 className="w-full pl-9 pr-9 py-2.5 border border-border-default rounded-lg text-body-sm bg-white focus:ring-1 focus:ring-clinical-blue focus:border-clinical-blue outline-none cursor-pointer appearance-none text-on-surface"
               >
                 <option value="">Search by patient name or bed number</option>
-                {WARD_PATIENTS.map((p) => (
+                {patientList.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} ({p.bed})
                   </option>
@@ -429,23 +397,6 @@ export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorMod
             )}
           </div>
 
-          {/* Demos/Shortcuts row */}
-          <div className="pt-md flex flex-wrap gap-sm justify-center border-t border-border-default select-none">
-            <button
-              type="button"
-              onClick={handleDemoFatuma}
-              className="text-[11px] bg-surface-container-high px-md py-sm rounded-full text-clinical-blue font-semibold hover:bg-clinical-blue hover:text-white transition-all border-0 cursor-pointer flex items-center justify-center h-8 shadow-sm"
-            >
-              Demo: Select Fatuma Said (Approve)
-            </button>
-            <button
-              type="button"
-              onClick={handleDemoJohn}
-              className="text-[11px] bg-surface-container-high px-md py-sm rounded-full text-clinical-blue font-semibold hover:bg-clinical-blue hover:text-white transition-all border-0 cursor-pointer flex items-center justify-center h-8 shadow-sm"
-            >
-              Demo: Select John Mwangi (Deny)
-            </button>
-          </div>
         </div>
 
         {/* Footer */}
@@ -468,6 +419,7 @@ export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorMod
                   patientName: selectedPatient.name,
                   bed: selectedPatient.bed,
                   visitorName,
+                  visitorPhone: phone,
                   relationship,
                   nationalId,
                   duration,
@@ -490,6 +442,7 @@ export function LogVisitorModal({ isOpen, onClose, onAddVisitor }: LogVisitorMod
                   patientName: selectedPatient.name,
                   bed: selectedPatient.bed,
                   visitorName,
+                  visitorPhone: phone,
                   relationship,
                   nationalId,
                   duration,

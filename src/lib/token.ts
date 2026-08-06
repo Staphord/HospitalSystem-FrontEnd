@@ -48,6 +48,17 @@ export function isTokenExpired(token: string): boolean {
   }
 }
 
+/** Absolute expiry time in epoch ms, or null if the token is opaque / has no exp claim. */
+export function getTokenExpiryMs(token: string): number | null {
+  try {
+    const payload = decodeToken(token)
+    if (!payload.exp) return null
+    return payload.exp * 1000
+  } catch {
+    return null
+  }
+}
+
 export function isReadOnlyToken(token: string): boolean {
   const payload = decodeToken(token)
   return payload.scope === 'readonly'

@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { adminService } from '@/api/services/admin';
+import type { Department } from '@/api/types/admin';
 
 // Wizard view handling creation and modification of staff personnel records
 export function AddStaffPage() {
@@ -57,6 +59,17 @@ export function AddStaffPage() {
     }
   };
 
+  useEffect(() => {
+    generatePassword();
+    adminService.listDepartments().then((depts) => {
+      setDepartments(depts);
+      if (!staffMember && depts.length > 0) {
+        setLandingDepartment((prev) => prev || depts[0].name);
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Triggers navigation back to the directory grid
   const handleCancel = () => {
     clearStaffError();
@@ -93,7 +106,7 @@ export function AddStaffPage() {
       updateStaff(selectedStaffId, payload);
       setActiveView('staff');
     } else {
-      const success = addStaff(payload);
+      const success = addStaff({ ...payload, password: tempPassword });
       if (success) {
         setActiveView('staff');
       }

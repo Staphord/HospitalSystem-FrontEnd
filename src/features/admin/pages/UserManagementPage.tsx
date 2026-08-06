@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 
+const PAGE_SIZE = 10;
+
+// Escapes a value for safe inclusion in a CSV cell
+const csvCell = (value: string): string => `"${value.replace(/"/g, '""')}"`;
+
 // Renders the staff directory with plan-limit alerts, stat cards, filters, and table
 export const UserManagementPage: React.FC = () => {
   const { staffList, deleteStaff, setActiveView, sessions } = useApp();
@@ -71,6 +76,34 @@ export const UserManagementPage: React.FC = () => {
   const activeCount = staffList.filter((s) => s.status === 'active').length;
   const inactiveCount = staffList.filter((s) => s.status !== 'active').length;
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, roleFilter, deptFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
+  const pagedStaff = filteredStaff.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handleExport = () => {
+    const header = ['Name', 'ID', 'Role', 'Department', 'Status', 'Created At'];
+    const rows = filteredStaff.map((s) => [
+      s.name,
+      s.id,
+      s.role,
+      s.landingDepartment || '',
+      s.status || '',
+      s.createdAt || '',
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'staff-directory.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="max-w-container-max mx-auto flex flex-col gap-lg">
 
@@ -96,7 +129,10 @@ export const UserManagementPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div />
         <div className="flex gap-2">
-          <button className="h-10 px-4 rounded border border-border-subtle bg-surface-white text-secondary font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-low transition-colors">
+          <button
+            onClick={handleExport}
+            className="h-10 px-4 rounded border border-border-subtle bg-surface-white text-secondary font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-low transition-colors cursor-pointer"
+          >
             <span className="material-symbols-outlined text-[18px]">download</span>
             Export
           </button>

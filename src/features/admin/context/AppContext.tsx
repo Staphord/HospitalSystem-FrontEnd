@@ -45,6 +45,7 @@ interface AppContextType {
   // Session Data & Actions
   sessions: ActiveSession[];
   revokeSession: (sessionId: string) => void;
+  refreshSessions: () => void;
 
   // Telemetry & Feed Data
   stats: DashboardStats;
@@ -156,6 +157,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clearStaffError: staffOps.clearError,
         sessions: sessionOps.sessions,
         revokeSession: sessionOps.revokeSession,
+        refreshSessions: sessionOps.refreshSessions,
         stats: computedStats,
         alerts: dashboardData.alerts,
         departments: dashboardData.departments,

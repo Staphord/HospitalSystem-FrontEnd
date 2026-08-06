@@ -1,12 +1,13 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
 import type { Invoice, Tenant } from '@/api/types/master'
 
 export function OverdueAccountsPage() {
+  const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
@@ -160,10 +161,13 @@ export function OverdueAccountsPage() {
                       return (
                         <tr
                           key={inv.id}
+                          className="hover:bg-row-hover transition-colors"
                           style={{
                             ...info.style,
                             borderRadius: '8px',
+                            cursor: 'pointer',
                           }}
+                          onClick={() => navigate(`/master/tenants/${inv.tenant_id}`)}
                         >
                           <td style={{ borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px', padding: '1rem' }}>
                             <strong>{getHospitalName(inv.tenant_id)}</strong>

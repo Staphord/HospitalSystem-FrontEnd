@@ -838,6 +838,7 @@ apiClient.defaults.adapter = async (config) => {
   const useRealBackend =
     url.startsWith('/admin/') ||
     url.startsWith('/ward/') ||
+    url.startsWith('/radiology/') ||
     url.startsWith('/reports/') ||
     url.includes('/reception') ||
     url.includes('/triage') ||
@@ -2127,6 +2128,41 @@ function processQueue(token: string | null) {
   refreshQueue = []
 }
 
+/**
+ * Single-flight token refresh, shared by the reactive 401 interceptor below
+ * and any proactive refresh (e.g. SessionTimeoutHandler's activity-based
+ * refresh). Concurrent callers within the same tab all await the same
+ * in-flight request instead of each hitting /auth/refresh independently —
+ * two overlapping refreshes for the same refresh token race the backend,
+ * and the loser gets "refresh token not found or revoked".
+ */
+export async function refreshAuthToken(): Promise<string | null> {
+  if (isRefreshing) {
+    return new Promise((resolve) => {
+      refreshQueue.push((token) => resolve(token))
+    })
+  }
+
+  const refreshToken = getStoredRefreshToken()
+  if (!refreshToken) return null
+
+  isRefreshing = true
+  try {
+    const { data } = await axios.post<TokenResponse>(
+      `${API_BASE_URL}/auth/refresh`,
+      { refresh_token: refreshToken },
+    )
+    useAuthStore.getState().setTokens(data.access_token, data.refresh_token)
+    processQueue(data.access_token)
+    return data.access_token
+  } catch {
+    processQueue(null)
+    return null
+  } finally {
+    isRefreshing = false
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => {
     if (response.headers && response.headers['x-impersonation-banner'] === 'true') {
@@ -2160,43 +2196,18 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    const refreshToken = getStoredRefreshToken()
-    if (!refreshToken) {
+    if (!getStoredRefreshToken()) {
       useAuthStore.getState().clearAuth()
       return Promise.reject(error)
-    }
-
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        refreshQueue.push((token) => {
-          if (!token) {
-            reject(error)
-            return
-          }
-          original.headers.Authorization = `Bearer ${token}`
-          resolve(apiClient(original))
-        })
-      })
     }
 
     original._retry = true
-    isRefreshing = true
-
-    try {
-      const { data } = await axios.post<TokenResponse>(
-        `${API_BASE_URL}/auth/refresh`,
-        { refresh_token: refreshToken },
-      )
-      useAuthStore.getState().setTokens(data.access_token, data.refresh_token)
-      processQueue(data.access_token)
-      original.headers.Authorization = `Bearer ${data.access_token}`
-      return apiClient(original)
-    } catch {
+    const newToken = await refreshAuthToken()
+    if (!newToken) {
       useAuthStore.getState().clearAuth()
-      processQueue(null)
       return Promise.reject(error)
-    } finally {
-      isRefreshing = false
     }
+    original.headers.Authorization = `Bearer ${newToken}`
+    return apiClient(original)
   },
 )

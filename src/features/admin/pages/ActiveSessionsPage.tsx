@@ -9,13 +9,19 @@ export const ActiveSessionsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Counts down refresh indicator every second
+  // Re-polls active sessions every 30s and counts down the indicator each second
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown((prev) => (prev <= 1 ? 30 : prev - 1));
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          refreshSessions();
+          return 30;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [refreshSessions]);
 
   // Reset to page 1 whenever filters or page size change
   useEffect(() => {
@@ -110,7 +116,7 @@ export const ActiveSessionsPage: React.FC = () => {
       </div>
 
       {/* Bento summary grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-md">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
         {/* Online Now */}
         <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between">
           <div className="flex justify-between items-start">
@@ -121,10 +127,6 @@ export const ActiveSessionsPage: React.FC = () => {
             <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_play</span>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-success">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span className="text-[11px] font-medium">+12% vs last hr</span>
           </div>
         </div>
 
@@ -139,10 +141,6 @@ export const ActiveSessionsPage: React.FC = () => {
               <span className="material-symbols-outlined text-[24px]">medical_information</span>
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-1 text-success">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span className="text-[11px] font-medium">Stable load</span>
-          </div>
         </div>
 
         {/* In Laboratory */}
@@ -155,27 +153,6 @@ export const ActiveSessionsPage: React.FC = () => {
             <div className="w-10 h-10 rounded bg-secondary-container/30 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-[24px]">biotech</span>
             </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-error">
-            <span className="material-symbols-outlined text-[16px]">trending_down</span>
-            <span className="text-[11px] font-medium">-2 from peak</span>
-          </div>
-        </div>
-
-        {/* Idle */}
-        <div className="bg-surface-white border border-border-subtle p-md rounded-lg flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-outline font-label-md uppercase tracking-wider mb-1">Idle (&gt;10min)</p>
-              <h3 className="font-headline-md text-[28px] text-on-surface">{idleCount}</h3>
-            </div>
-            <div className="w-10 h-10 rounded bg-warning/10 flex items-center justify-center text-warning">
-              <span className="material-symbols-outlined text-[24px]">hourglass_empty</span>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-warning">
-            <span className="material-symbols-outlined text-[16px]">priority_high</span>
-            <span className="text-[11px] font-medium">Requires attention</span>
           </div>
         </div>
       </div>
@@ -436,6 +413,12 @@ export const ActiveSessionsPage: React.FC = () => {
             View Audit Log
           </button>
         </div>
+        <button
+          onClick={() => setActiveView('audit')}
+          className="py-2 px-lg bg-white text-primary font-label-md rounded hover:bg-white/90 transition-all whitespace-nowrap"
+        >
+          View Audit Log
+        </button>
       </div>
     </div>
   );

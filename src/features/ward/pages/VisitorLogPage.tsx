@@ -1,7 +1,11 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { parseVisitDurationMinutes, wardService } from '@/api/services/ward'
 import { LogVisitorModal } from '../components/LogVisitorModal'
+import type { AdmissionCondition } from '@/api/types/ward'
+
+const conditionLabel = (c: AdmissionCondition): 'Stable' | 'Monitoring' | 'Critical' =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
 
 interface VisitorRecord {
   id: string
@@ -17,175 +21,88 @@ interface VisitorRecord {
   denialReason?: string
 }
 
-const DEFAULT_RECORDS: VisitorRecord[] = [
-  {
-    id: 'vr1',
-    patientName: 'Fatuma Said',
-    bed: 'Bed 12',
-    visitorName: 'Hassan Said',
-    relationship: 'Husband',
-    nationalId: 'ID-88291',
-    checkIn: '10:15',
-    checkOut: '—',
-    approvedBy: 'Nurse Esther',
-    status: 'Active'
-  },
-  {
-    id: 'vr2',
-    patientName: 'Robert Chen',
-    bed: 'Bed 04',
-    visitorName: 'Lisa Chen',
-    relationship: 'Daughter',
-    nationalId: 'ID-22340',
-    checkIn: '08:00',
-    checkOut: '—',
-    approvedBy: 'Nurse Esther',
-    status: 'Overstay'
-  },
-  {
-    id: 'vr3',
-    patientName: 'John Mwangi',
-    bed: 'Bed 14',
-    visitorName: 'Mary Mwangi',
-    relationship: 'Wife',
-    nationalId: 'ID-77104',
-    checkIn: '09:30',
-    checkOut: '10:45',
-    approvedBy: 'Nurse Esther',
-    status: 'Departed'
-  },
-  {
-    id: 'vr4',
-    patientName: 'Asha Juma',
-    bed: 'Bed 09',
-    visitorName: 'Unknown Visitor',
-    relationship: 'Friend',
-    nationalId: 'ID-55021',
-    checkIn: '11:00',
-    checkOut: '—',
-    approvedBy: 'Nurse Esther',
-    status: 'Denied',
-    denialReason: 'Outside visiting hours'
-  },
-  // Test suite records
-  {
-    id: 'vr-test1',
-    patientName: 'Juma Hamisi',
-    bed: 'Bed 03',
-    visitorName: 'Hamisi Juma',
-    relationship: 'Sibling',
-    nationalId: 'ID-99881',
-    checkIn: '10:15',
-    checkOut: '—',
-    approvedBy: 'Nurse Amina Masoud, RN',
-    status: 'Active'
-  },
-  {
-    id: 'vr-test2',
-    patientName: 'Juma Hamisi',
-    bed: 'Bed 03',
-    visitorName: 'Fatuma Hamisi',
-    relationship: 'Parent',
-    nationalId: 'ID-99882',
-    checkIn: '09:30',
-    checkOut: '—',
-    approvedBy: 'Nurse Amina Masoud, RN',
-    status: 'Active'
-  },
-  // Departed records to complete the 11 total count
-  {
-    id: 'vr-dep1',
-    patientName: 'Amina Juma',
-    bed: 'Bed 01',
-    visitorName: 'Mock Sibling 1',
-    relationship: 'Sibling',
-    nationalId: 'ID-00001',
-    checkIn: '08:00',
-    checkOut: '09:00',
-    approvedBy: 'Nurse Esther',
-    status: 'Departed'
-  },
-  {
-    id: 'vr-dep2',
-    patientName: 'Baraka Elias',
-    bed: 'Bed 02',
-    visitorName: 'Mock Sibling 2',
-    relationship: 'Sibling',
-    nationalId: 'ID-00002',
-    checkIn: '08:15',
-    checkOut: '09:15',
-    approvedBy: 'Nurse Esther',
-    status: 'Departed'
-  },
-  {
-    id: 'vr-dep3',
-    patientName: 'Chacha Mwita',
-    bed: 'Bed 06',
-    visitorName: 'Mock Sibling 3',
-    relationship: 'Sibling',
-    nationalId: 'ID-00003',
-    checkIn: '08:30',
-    checkOut: '09:30',
-    approvedBy: 'Nurse Esther',
-    status: 'Departed'
-  },
-  {
-    id: 'vr-dep4',
-    patientName: 'David Malima',
-    bed: 'Bed 07',
-    visitorName: 'Mock Sibling 4',
-    relationship: 'Sibling',
-    nationalId: 'ID-00004',
-    checkIn: '08:45',
-    checkOut: '09:45',
-    approvedBy: 'Nurse Esther',
-    status: 'Departed'
-  },
-  {
-    id: 'vr-dep5',
-    patientName: 'Emmanuel Kavishe',
-    bed: 'Bed 08',
-    visitorName: 'Mock Sibling 5',
-    relationship: 'Sibling',
-    nationalId: 'ID-00005',
-    checkIn: '09:00',
-    checkOut: '10:00',
-    approvedBy: 'Nurse Esther',
-    status: 'Departed'
-  }
-]
+interface ModalPatient {
+  id: string
+  name: string
+  bed: string
+  condition: 'Stable' | 'Monitoring' | 'Critical'
+  activeVisitors: number
+  diagnosis: string
+}
+
+const titleStatus = (status: string): VisitorRecord['status'] => {
+  const s = status.toLowerCase()
+  if (s === 'active') return 'Active'
+  if (s === 'departed') return 'Departed'
+  if (s === 'denied') return 'Denied'
+  if (s === 'overstay') return 'Overstay'
+  return 'Active'
+}
+
+const formatClock = (iso?: string | null): string => {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 export function VisitorLogPage() {
-  const [records, setRecords] = useState<VisitorRecord[]>(() => {
-    const existing = localStorage.getItem('hf_mock_visitor_records')
-    if (existing) {
-      const parsed = JSON.parse(existing)
-      if (parsed.length === DEFAULT_RECORDS.length) {
-        return parsed
-      }
-    }
-    localStorage.setItem('hf_mock_visitor_records', JSON.stringify(DEFAULT_RECORDS))
-    return DEFAULT_RECORDS
-  })
-
+  const [records, setRecords] = useState<VisitorRecord[]>([])
+  const [patients, setPatients] = useState<ModalPatient[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [filterStatus, setFilterStatus] = useState('All Statuses')
   const [searchQuery, setSearchQuery] = useState('')
 
+  const reloadFromApi = () => {
+    wardService
+      .listVisitors({ limit: 200 })
+      .then((rows) => {
+        setRecords(
+          rows.map((v) => ({
+            id: v.visitorId,
+            patientName: v.patientName,
+            bed: v.bedLabel,
+            visitorName: v.visitorName,
+            relationship: v.relationship,
+            nationalId: v.nationalId || '—',
+            checkIn: formatClock(v.checkInAt),
+            checkOut: formatClock(v.checkOutAt),
+            approvedBy: v.approvedBy,
+            status: titleStatus(v.status),
+            denialReason: v.denialReason || undefined,
+          })),
+        )
+      })
+      .catch(() => toast.error('Failed to load visitor log.'))
+  }
+
+  useEffect(() => {
+    reloadFromApi()
+    wardService
+      .listAdmissions({ status: 'active', limit: 200 })
+      .then((admissions) => {
+        setPatients(
+          admissions.map((a) => ({
+            id: a.admissionId,
+            name: `Patient ${a.patientId.slice(0, 8)}`,
+            bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+            condition: conditionLabel(a.condition),
+            activeVisitors: 0,
+            diagnosis: a.admittingDiagnosis,
+          })),
+        )
+      })
+      .catch(() => undefined)
+  }, [])
+
   const handleCheckout = (recordId: string) => {
-    const updated = records.map((r) => {
-      if (r.id === recordId) {
-        toast.success(`Visitor ${r.visitorName} checked out successfully.`)
-        return {
-          ...r,
-          status: 'Departed' as const,
-          checkOut: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      }
-      return r
-    })
-    setRecords(updated)
-    localStorage.setItem('hf_mock_visitor_records', JSON.stringify(updated))
+    wardService
+      .checkoutVisitor(recordId)
+      .then((v) => {
+        toast.success(`Visitor ${v.visitorName} checked out successfully.`)
+        reloadFromApi()
+      })
+      .catch(() => toast.error('Failed to check out visitor.'))
   }
 
   const handleAddVisitor = (visitorData: {
@@ -193,42 +110,38 @@ export function VisitorLogPage() {
     patientName: string
     bed: string
     visitorName: string
+    visitorPhone: string
     relationship: string
     nationalId: string
     duration: string
     approved: boolean
     denialReason?: string
   }) => {
-    const newRecord: VisitorRecord = {
-      id: `vr-${Date.now()}`,
-      patientName: visitorData.patientName,
-      bed: visitorData.bed,
-      visitorName: visitorData.visitorName,
-      relationship: visitorData.relationship,
-      nationalId: visitorData.nationalId,
-      checkIn: visitorData.approved
-        ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      checkOut: '—',
-      approvedBy: 'Nurse Esther',
-      status: visitorData.approved ? 'Active' : 'Denied',
-      denialReason: visitorData.denialReason
-    }
-
-    const updated = [newRecord, ...records]
-    setRecords(updated)
-    localStorage.setItem('hf_mock_visitor_records', JSON.stringify(updated))
-
-    toast.success(
-      visitorData.approved
-        ? `Visitor ${visitorData.visitorName} logged successfully.`
-        : `Visitor ${visitorData.visitorName} access denied.`
-    )
+    wardService
+      .createVisitor({
+        admissionId: visitorData.patientId,
+        patientName: visitorData.patientName,
+        bedLabel: visitorData.bed,
+        visitorName: visitorData.visitorName,
+        visitorPhone: visitorData.visitorPhone || undefined,
+        relationship: visitorData.relationship,
+        nationalId: visitorData.nationalId,
+        approved: visitorData.approved,
+        denialReason: visitorData.denialReason,
+        allowedDurationMinutes: parseVisitDurationMinutes(visitorData.duration),
+      })
+      .then((v) => {
+        toast.success(
+          visitorData.approved
+            ? `Visitor ${v.visitorName} logged successfully.`
+            : `Visitor ${v.visitorName} access denied.`,
+        )
+        reloadFromApi()
+      })
+      .catch(() => toast.error('Failed to log visitor.'))
   }
 
-  // Filter records
   const filteredRecords = records.filter((r) => {
-    // Search filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       const matchesVisitor = r.visitorName.toLowerCase().includes(q)
@@ -237,9 +150,7 @@ export function VisitorLogPage() {
       if (!matchesVisitor && !matchesPatient && !matchesId) return false
     }
 
-    // Status filter
     if (filterStatus !== 'All Statuses' && filterStatus !== 'All Records') {
-      // Handle test mapping where select value might be 'All Records'
       const checkStatus = filterStatus === 'All' ? 'All Records' : filterStatus
       if (checkStatus !== 'All Records' && r.status !== checkStatus) return false
     }
@@ -247,25 +158,24 @@ export function VisitorLogPage() {
     return true
   })
 
-  // Calculate stats
   const totalCount = records.length
-  const activeCount = records.filter(r => r.status === 'Active' || r.status === 'Overstay').length
-  const deniedCount = records.filter(r => r.status === 'Denied').length
-  const overstayCount = records.filter(r => r.status === 'Overstay').length
+  const activeCount = records.filter((r) => r.status === 'Active' || r.status === 'Overstay').length
+  const deniedCount = records.filter((r) => r.status === 'Denied').length
+  const overstayCount = records.filter((r) => r.status === 'Overstay').length
 
   return (
     <div className="w-full text-on-surface">
       <style>{`
         .text-primary { color: #00296d !important; }
-        .bg-primary\/10 { background-color: rgba(0, 41, 109, 0.1) !important; }
+        .bg-primary\\/10 { background-color: rgba(0, 41, 109, 0.1) !important; }
         .text-success { color: #36b37e !important; }
         .bg-success { background-color: #36b37e !important; }
-        .bg-success\/10 { background-color: rgba(54, 179, 126, 0.1) !important; }
+        .bg-success\\/10 { background-color: rgba(54, 179, 126, 0.1) !important; }
         .text-warning { color: #ffab00 !important; }
         .bg-warning { background-color: #ffab00 !important; }
-        .bg-warning\/10 { background-color: rgba(255, 171, 0, 0.1) !important; }
+        .bg-warning\\/10 { background-color: rgba(255, 171, 0, 0.1) !important; }
         .text-error { color: #ff5630 !important; }
-        .bg-error\/10 { background-color: rgba(255, 86, 48, 0.1) !important; }
+        .bg-error\\/10 { background-color: rgba(255, 86, 48, 0.1) !important; }
         .text-clinical-blue { color: #0052cc !important; }
         .bg-clinical-blue { background-color: #0052cc !important; }
         .border-border-default { border-color: #dfe1e6 !important; }
@@ -291,12 +201,10 @@ export function VisitorLogPage() {
         .custom-shadow { box-shadow: 0px 4px 12px rgba(9, 30, 66, 0.15); }
       `}</style>
 
-      {/* Hidden headers for test suite compatibility */}
       <h2 className="sr-only">Visitor Ledger</h2>
       <h2 className="sr-only">Active Visiting Hours Enforced</h2>
 
       <section className="px-xl py-lg max-w-container-max mx-auto">
-        {/* Header Actions */}
         <div className="flex justify-between items-end mb-lg">
           <div>
             <h3 className="font-headline-md text-headline-md font-semibold text-on-surface m-0">Visitor Log — General Ward</h3>
@@ -311,15 +219,11 @@ export function VisitorLogPage() {
           </button>
         </div>
 
-        {/* Summary Grid */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-lg">
           <div className="bg-white p-lg rounded-lg border border-border-default shadow-sm">
             <p className="text-label-md text-slate-secondary uppercase m-0">Visitors Today</p>
             <div className="flex items-baseline gap-2 mt-sm">
               <span className="text-[28px] font-bold text-on-surface">{totalCount}</span>
-              <span className="text-success text-[12px] font-semibold flex items-center">
-                <span className="material-symbols-outlined text-[16px]">arrow_upward</span> 15%
-              </span>
             </div>
           </div>
           <div className="bg-white p-lg rounded-lg border border-border-default shadow-sm">
@@ -342,7 +246,6 @@ export function VisitorLogPage() {
           </div>
         </section>
 
-        {/* Info Banner */}
         <div className="bg-[#DEEBFF] text-clinical-blue p-md rounded-lg mb-lg flex items-center gap-3 border border-[#B3D4FF] select-none">
           <span className="material-symbols-outlined text-[20px]">schedule</span>
           <p className="font-body-md font-medium m-0">
@@ -350,20 +253,21 @@ export function VisitorLogPage() {
           </p>
         </div>
 
-        {/* Visitor Log Table Card */}
         <div className="bg-white rounded-xl border border-border-default shadow-sm overflow-hidden">
-          {/* Table Header & Filters */}
           <div className="px-lg py-md border-b border-border-default flex justify-between items-center bg-surface-container-lowest">
             <h4 className="font-headline-sm text-headline-sm font-semibold m-0">Today's Visitor Log</h4>
             <div className="flex gap-md select-none">
-              {/* Search Input for Test Suite compatibility */}
-              <div className="relative w-48 hidden">
+              <div className="relative w-48">
                 <input
                   type="text"
                   placeholder="Search visitor, patient, ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full text-body-sm border border-border-default rounded-lg pl-8 pr-3 py-1.5 bg-white focus:ring-clinical-blue focus:border-clinical-blue outline-none"
                 />
+                <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-secondary text-[18px] pointer-events-none">
+                  search
+                </span>
               </div>
 
               <select
@@ -377,15 +281,16 @@ export function VisitorLogPage() {
                 <option value="Denied">Denied</option>
                 <option value="Overstay">Overstay</option>
               </select>
-              
+
               <div className="flex items-center gap-2 px-3 py-1.5 border border-border-default rounded-lg bg-white">
                 <span className="material-symbols-outlined text-[18px] text-outline">calendar_today</span>
-                <span className="text-body-sm font-medium">Oct 24, 2023</span>
+                <span className="text-body-sm font-medium">
+                  {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Main Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -409,15 +314,18 @@ export function VisitorLogPage() {
                     let badgeStyle = ''
 
                     if (r.status === 'Active') {
-                      rowStyle = 'border-b border-border-default hover:bg-[#DEEBFF] transition-colors ring-2 ring-clinical-blue ring-inset'
+                      rowStyle =
+                        'border-b border-border-default hover:bg-[#DEEBFF] transition-colors ring-2 ring-clinical-blue ring-inset'
                       badgeStyle = 'bg-[#E6F4EA] text-[#36B37E]'
                     } else if (r.status === 'Overstay') {
-                      rowStyle = 'bg-[#FFFAE5] border-b border-[#FFEAB6] hover:bg-[#FFF4C2] transition-colors'
+                      rowStyle =
+                        'bg-[#FFFAE5] border-b border-[#FFEAB6] hover:bg-[#FFF4C2] transition-colors'
                       badgeStyle = 'bg-[#FFF1CC] text-[#FFAB00]'
                     } else if (r.status === 'Departed') {
                       badgeStyle = 'bg-[#F4F5F7] text-slate-secondary'
                     } else if (r.status === 'Denied') {
-                      rowStyle = 'bg-[#FFF4F4] border-b border-[#FFE6E6] hover:bg-[#FFE0E0] transition-colors'
+                      rowStyle =
+                        'bg-[#FFF4F4] border-b border-[#FFE6E6] hover:bg-[#FFE0E0] transition-colors'
                       badgeStyle = 'bg-[#FFE6E6] text-[#FF5630]'
                     }
 
@@ -433,7 +341,9 @@ export function VisitorLogPage() {
                         <td className="px-md py-4 text-slate-600">{r.approvedBy}</td>
                         <td className="px-md py-4">
                           <div className="flex flex-col items-start gap-1">
-                            <span className={`px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${badgeStyle}`}>
+                            <span
+                              className={`px-2 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${badgeStyle}`}
+                            >
                               {r.status}
                             </span>
                             {r.status === 'Denied' && r.denialReason && (
@@ -444,7 +354,7 @@ export function VisitorLogPage() {
                           </div>
                         </td>
                         <td className="px-md py-4 text-right flex justify-end gap-2 items-center">
-                          {(r.status === 'Active' || r.status === 'Overstay') ? (
+                          {r.status === 'Active' || r.status === 'Overstay' ? (
                             <button
                               onClick={() => handleCheckout(r.id)}
                               className="text-clinical-blue hover:underline font-semibold px-2 py-1 border-0 bg-transparent cursor-pointer"
@@ -452,7 +362,9 @@ export function VisitorLogPage() {
                               Check Out
                             </button>
                           ) : (
-                            <span className="text-[11px] text-slate-300 font-semibold uppercase select-none mr-2">Archived</span>
+                            <span className="text-[11px] text-slate-300 font-semibold uppercase select-none mr-2">
+                              Archived
+                            </span>
                           )}
                           <button className="p-1 hover:bg-white rounded transition-colors text-slate-secondary border-0 bg-transparent cursor-pointer flex items-center justify-center">
                             <span className="material-symbols-outlined text-[18px]">visibility</span>
@@ -472,11 +384,15 @@ export function VisitorLogPage() {
             </table>
           </div>
 
-          {/* Pagination/Footer */}
           <div className="px-lg py-md border-t border-border-default flex justify-between items-center text-body-sm text-slate-secondary bg-surface-container-lowest select-none">
-            <p className="m-0">Showing {filteredRecords.length} of {totalCount} visitors</p>
+            <p className="m-0">
+              Showing {filteredRecords.length} of {totalCount} visitors
+            </p>
             <div className="flex gap-2">
-              <button className="p-1.5 border border-border-default rounded-lg bg-transparent hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-30 flex items-center justify-center" disabled>
+              <button
+                className="p-1.5 border border-border-default rounded-lg bg-transparent hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-30 flex items-center justify-center"
+                disabled
+              >
                 <span className="material-symbols-outlined">chevron_left</span>
               </button>
               <button className="p-1.5 border border-border-default rounded-lg bg-transparent hover:bg-surface-container transition-colors cursor-pointer flex items-center justify-center">
@@ -487,11 +403,11 @@ export function VisitorLogPage() {
         </div>
       </section>
 
-      {/* Log Visitor Modal Component */}
       <LogVisitorModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddVisitor={handleAddVisitor}
+        patients={patients}
       />
     </div>
   )

@@ -399,7 +399,18 @@ export function InvoiceManagementPage() {
                 </thead>
                 <tbody>
                   {paginatedInvoices.map((i) => (
-                    <tr key={i.id}>
+                    <tr
+                      key={i.id}
+                      className="hover:bg-row-hover transition-colors"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        if (i.status !== 'paid') {
+                          setSelectedInvoiceForPayment(i)
+                        } else {
+                          navigate(`/master/tenants/${i.tenant_id}`)
+                        }
+                      }}
+                    >
                       <td><code>{i.invoice_number || `#${i.id}`}</code></td>
                       <td>
                         <strong>{getHospitalName(i.tenant_id)}</strong>
@@ -416,7 +427,7 @@ export function InvoiceManagementPage() {
                         </span>
                       </td>
                       <td>{i.due_date ? new Date(i.due_date).toLocaleDateString() : 'N/A'}</td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         {i.status !== 'paid' && (
                           <button
                             className="btn btn-secondary"

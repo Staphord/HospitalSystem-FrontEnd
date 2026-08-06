@@ -460,7 +460,12 @@ export function SubscriptionDetailPage() {
                         </thead>
                         <tbody>
                           {paginatedInvoices.map((inv) => (
-                            <tr key={inv.invoice_id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                            <tr
+                              key={inv.invoice_id}
+                              className="hover:bg-row-hover transition-colors"
+                              style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+                              onClick={() => navigate(`/master/invoices?tenant_id=${subscription.tenant_id}`)}
+                            >
                               <td style={{ padding: '0.75rem 0.5rem', fontWeight: 500 }}>{inv.invoice_number}</td>
                               <td style={{ padding: '0.75rem 0.5rem' }}>
                                 {new Date(inv.billing_period_start).toLocaleDateString()} - {new Date(inv.billing_period_end).toLocaleDateString()}

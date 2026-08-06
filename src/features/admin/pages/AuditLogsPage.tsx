@@ -1,21 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
-import type { AuditLogRow } from '@/api/types/admin';
+import type { AuditLogRow, HospitalUser } from '@/api/types/admin';
+
+const PAGE_SIZE = 25;
 
 export const AuditLogsPage: React.FC = () => {
-  const [selectedStaff, setSelectedStaff] = useState('All Staff');
+  const [selectedStaff, setSelectedStaff] = useState('all');
   const [selectedAction, setSelectedAction] = useState('All Actions');
   const [selectedDept, setSelectedDept] = useState('All Departments');
-  const [expandedRowId, setExpandedRowId] = useState<string | null>('1');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  const [users, setUsers] = useState<HospitalUser[]>([]);
+  const [actionOptions, setActionOptions] = useState<string[]>([]);
+  const [deptOptions, setDeptOptions] = useState<{ label: string; tableName: string }[]>([]);
+
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    users.forEach((u) => map.set(u.keycloak_sub, u.full_name || u.username));
+    return map;
+  }, [users]);
+
+  // Load staff list + a broad unfiltered sample of logs once, to populate filter option lists
+  useEffect(() => {
+    adminService.listUsers().then(setUsers).catch(() => {});
+    adminService
+      .listHospitalAuditLogs({ limit: 200 })
+      .then((rows) => {
+        setActionOptions(Array.from(new Set(rows.map((r) => r.action))).sort());
+        const deptMap = new Map<string, string>();
+        rows.forEach((r) => {
+          if (!deptMap.has(r.department)) {
+            deptMap.set(r.department, r.department.toLowerCase().replace(/ /g, '_'));
+          }
+        });
+        setDeptOptions(
+          Array.from(deptMap.entries()).map(([label, tableName]) => ({ label, tableName })),
+        );
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchLogs = () => {
     setLoading(true);
-    adminService.listHospitalAuditLogs()
-      .then((data) => {
-        setLogs(data);
+    adminService
+      .listHospitalAuditLogsPage({
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        user_id: selectedStaff !== 'all' ? selectedStaff : undefined,
+        action: selectedAction !== 'All Actions' ? selectedAction : undefined,
+        table_name:
+          selectedDept !== 'All Departments'
+            ? deptOptions.find((d) => d.label === selectedDept)?.tableName
+            : undefined,
+        from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+        to: dateTo ? new Date(dateTo).toISOString() : undefined,
+      })
+      .then(({ items, total: totalCount }) => {
+        setLogs(
+          items.map((log) => ({
+            ...log,
+            staffName: userNameById.get(log.staffName) || log.staffName,
+          })),
+        );
+        setTotal(totalCount);
       })
       .catch((err) => {
         console.error('Failed to load audit logs:', err);
@@ -28,7 +85,33 @@ export const AuditLogsPage: React.FC = () => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLogs();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, selectedStaff, selectedAction, selectedDept, dateFrom, dateTo, userNameById]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStaff, selectedAction, selectedDept, dateFrom, dateTo]);
+
+  const handleExport = () => {
+    setExporting(true);
+    adminService
+      .exportAuditLogs(
+        {
+          user_id: selectedStaff !== 'all' ? selectedStaff : undefined,
+          action: selectedAction !== 'All Actions' ? selectedAction : undefined,
+          table_name:
+            selectedDept !== 'All Departments'
+              ? deptOptions.find((d) => d.label === selectedDept)?.tableName
+              : undefined,
+          from: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+          to: dateTo ? new Date(dateTo).toISOString() : undefined,
+        },
+        'csv',
+      )
+      .then(() => toast.success('Audit log export downloaded.'))
+      .catch((err) => toast.error(err.response?.data?.detail || 'Failed to export audit logs.'))
+      .finally(() => setExporting(false));
+  };
 
   const toggleRowExpanded = (id: string) => {
     setExpandedRowId((prev) => (prev === id ? null : id));
@@ -53,6 +136,10 @@ export const AuditLogsPage: React.FC = () => {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
+
   return (
     <div className="max-w-[1280px] mx-auto space-y-lg">
       <div className="flex items-center mb-lg">
@@ -63,9 +150,13 @@ export const AuditLogsPage: React.FC = () => {
             <span className="text-primary font-bold">Audit Logs</span>
           </nav>
         </div>
-        <button className="flex items-center gap-xs px-3 py-1.5 border border-border-subtle rounded bg-surface-white text-secondary font-label-md hover:bg-surface-container-low transition-all">
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-xs px-3 py-1.5 border border-border-subtle rounded bg-surface-white text-secondary font-label-md hover:bg-surface-container-low transition-all disabled:opacity-60 cursor-pointer"
+        >
           <span className="material-symbols-outlined text-[18px]">download</span>
-          Export CSV
+          {exporting ? 'Exporting...' : 'Export CSV'}
         </button>
       </div>
 
@@ -86,10 +177,12 @@ export const AuditLogsPage: React.FC = () => {
             onChange={(e) => setSelectedStaff(e.target.value)}
             className="w-full h-10 px-md border border-border-subtle rounded bg-surface-white text-body-sm focus:border-primary focus:ring-0 outline-none"
           >
-            <option>All Staff</option>
-            <option>Dr. Amina Hassan</option>
-            <option>Nurse Grace</option>
-            <option>John Baraka</option>
+            <option value="all">All Staff</option>
+            {users.map((u) => (
+              <option key={u.keycloak_sub} value={u.keycloak_sub}>
+                {u.full_name || u.username}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex-1 min-w-[200px]">
@@ -100,10 +193,9 @@ export const AuditLogsPage: React.FC = () => {
             className="w-full h-10 px-md border border-border-subtle rounded bg-surface-white text-body-sm focus:border-primary focus:ring-0 outline-none"
           >
             <option>All Actions</option>
-            <option>DIAGNOSIS</option>
-            <option>PATIENT_REGISTER</option>
-            <option>LOGIN</option>
-            <option>DELETE</option>
+            {actionOptions.map((a) => (
+              <option key={a}>{a}</option>
+            ))}
           </select>
         </div>
         <div className="flex-1 min-w-[200px]">
@@ -114,23 +206,27 @@ export const AuditLogsPage: React.FC = () => {
             className="w-full h-10 px-md border border-border-subtle rounded bg-surface-white text-body-sm focus:border-primary focus:ring-0 outline-none"
           >
             <option>All Departments</option>
-            <option>Consultation</option>
-            <option>Triage</option>
-            <option>Reception</option>
+            {deptOptions.map((d) => (
+              <option key={d.tableName}>{d.label}</option>
+            ))}
           </select>
         </div>
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-[280px]">
           <label className="block font-label-md text-secondary mb-base uppercase">Date Range</label>
-          <div className="relative">
+          <div className="flex items-center gap-xs">
             <input
-              className="w-full h-10 pl-md pr-10 border border-border-subtle rounded bg-surface-white text-body-sm focus:border-primary focus:ring-0 outline-none cursor-pointer"
-              readOnly
-              type="text"
-              defaultValue="Jun 01, 2026 - Jun 09, 2026"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full h-10 px-md border border-border-subtle rounded bg-surface-white text-body-sm focus:border-primary focus:ring-0 outline-none"
             />
-            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-secondary text-[20px]">
-              calendar_today
-            </span>
+            <span className="text-secondary">-</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-full h-10 px-md border border-border-subtle rounded bg-surface-white text-body-sm focus:border-primary focus:ring-0 outline-none"
+            />
           </div>
         </div>
       </div>
@@ -226,24 +322,24 @@ export const AuditLogsPage: React.FC = () => {
 
         <div className="px-md py-md flex items-center justify-between border-t border-border-subtle bg-surface-white">
           <p className="text-body-sm text-secondary">
-            Showing <span className="font-semibold">1-25</span> of 1,248 logs
+            Showing <span className="font-semibold">{rangeStart}-{rangeEnd}</span> of {total} logs
           </p>
           <div className="flex items-center gap-base">
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors disabled:opacity-50 cursor-pointer"
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded bg-primary text-white font-label-md">1</button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors font-label-md">
-              2
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors font-label-md">
-              3
-            </button>
-            <span className="px-base">...</span>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors font-label-md">
-              50
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors">
+            <span className="px-md font-label-md text-secondary">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="w-8 h-8 flex items-center justify-center rounded border border-border-subtle hover:bg-surface-container-low transition-colors disabled:opacity-50 cursor-pointer"
+            >
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>

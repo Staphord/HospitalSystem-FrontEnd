@@ -2,10 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
-
-const isTestEnv =
-  (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
-  import.meta.env.MODE === 'test'
+import type { AdmissionCondition } from '@/api/types/ward'
 
 interface Patient {
   id: string
@@ -36,6 +33,9 @@ interface Visitor {
   timeLeft: number // in seconds
 }
 
+const conditionLabel = (c: AdmissionCondition): Patient['condition'] =>
+  c === 'critical' ? 'Critical' : c === 'monitoring' ? 'Monitoring' : 'Stable'
+
 // Format remaining time as a readable string
 const formatTimeLeft = (seconds: number): { label: string; isOverdue: boolean } => {
   if (seconds <= 0) {
@@ -48,22 +48,24 @@ const formatTimeLeft = (seconds: number): { label: string; isOverdue: boolean } 
   return { label: `${m}m left`, isOverdue: m < 10 }
 }
 
-// Derive bed overview counts from patient list
-const deriveBedCounts = (patients: Patient[]) => ({
+// Derive bed overview counts from patient list and real bed total
+const deriveBedCounts = (patients: Patient[], totalBeds: number) => ({
   stable: patients.filter((p) => p.condition === 'Stable').length,
   monitoring: patients.filter((p) => p.condition === 'Monitoring').length,
   critical: patients.filter((p) => p.condition === 'Critical').length,
-  available: Math.max(0, 24 - patients.length),
+  available: Math.max(0, totalBeds - patients.length),
 })
 
 export function WardNurseDashboard() {
   const [stats, setStats] = useState({
-    admitted: isTestEnv ? 18 : 0,
-    bedsOccupied: isTestEnv ? '18/24' : '0/0',
-    critical: isTestEnv ? 3 : 0,
-    dueForRound: isTestEnv ? 4 : 0,
-    activeVisitors: JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]').length || (isTestEnv ? 5 : 0),
+    admitted: 0,
+    bedsOccupied: '0/0',
+    critical: 0,
+    dueForRound: 0,
+    activeVisitors: 0,
   })
+
+  const [totalBeds, setTotalBeds] = useState(0)
 
   const [newAdmission, setNewAdmission] = useState<{
     id: string
@@ -71,81 +73,53 @@ export function WardNurseDashboard() {
     bed: string
     admittingDoctor: string
     diagnosis: string
-  } | null>(
-    isTestEnv
-      ? {
-          id: 'p-new',
-          name: 'Aisha Rashid',
-          bed: 'Bed 302-B',
-          admittingDoctor: 'Dr. Sarah Mwangi',
-          diagnosis: 'Acute Appendicitis (Post-Op)',
-        }
-      : null,
-  )
+  } | null>(null)
 
-  const [patients, setPatients] = useState<Patient[]>(() =>
-    isTestEnv
-      ? JSON.parse(localStorage.getItem('hf_mock_admitted_patients') || '[]').slice(0, 5)
-      : [],
-  )
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    if (!isTestEnv) return []
-    const list = JSON.parse(localStorage.getItem('hf_mock_inpatient_orders') || '[]')
-    return list.slice(0, 4).map((o: any) => {
-      let detail = o.detail
-      if (detail === 'IV Artesunate 120mg stat') detail = 'IV Artesunate 120mg'
-      if (detail === 'Stat Blood Glucose check & electrolytes panel') detail = 'Stat Blood Glucose check'
-      if (detail === 'Turn patient and check pressure points every 2 hours') {
-        detail = 'Turn patient and check pressure points'
-      }
-      if (detail === 'Soft diet restriction review with nutritionist') {
-        detail = 'Soft diet restriction review'
-      }
-      return {
-        id: o.id,
-        patientName: o.patientName,
-        type: o.type,
-        detail,
-        dueTime: o.dueTime,
-        overdue: o.overdue,
-      }
-    })
-  })
-
-  // Visitors / handover remain localStorage-only (no backend endpoints).
-  const [visitors, setVisitors] = useState<Visitor[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_active_visitors') || '[]'),
-  )
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [visitors, setVisitors] = useState<Visitor[]>([])
 
   useEffect(() => {
-    if (isTestEnv) return
-
     Promise.all([
       wardService.listAdmissions({ status: 'active', limit: 200 }),
       wardService.listBeds({ is_active: true }),
       wardService.listActiveOrders(),
+      wardService.listActiveVisitors(),
     ])
-      .then(([admissions, beds, apiOrders]) => {
+      .then(([admissions, beds, apiOrders, activeVisitors]) => {
         const occupied = beds.filter((b) => !b.isAvailable).length
+        setTotalBeds(beds.length)
+        const visitorCounts = new Map<string, number>()
+        activeVisitors.forEach((v) => {
+          if (!v.admissionId) return
+          visitorCounts.set(v.admissionId, (visitorCounts.get(v.admissionId) || 0) + 1)
+        })
+        setVisitors(
+          activeVisitors.map((v) => ({
+            id: v.visitorId,
+            name: v.visitorName,
+            patientName: v.patientName,
+            relationship: v.relationship,
+            timeLeft: Math.max(0, v.timeLeftSeconds ?? 0),
+          })),
+        )
+        const mappedPatients = admissions.slice(0, 5).map((a) => ({
+          id: a.admissionId,
+          name: `Patient ${a.patientId.slice(0, 8)}`,
+          bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
+          condition: conditionLabel(a.condition),
+          admittingDoctor: a.admittingDoctorId || '—',
+          diagnosis: a.admittingDiagnosis,
+          activeVisitors: visitorCounts.get(a.admissionId) || 0,
+        }))
+        setPatients(mappedPatients)
         setStats({
           admitted: admissions.length,
           bedsOccupied: `${occupied}/${beds.length}`,
-          critical: 0,
+          critical: admissions.filter((a) => a.condition === 'critical').length,
           dueForRound: apiOrders.filter((o) => o.status !== 'completed').length,
-          activeVisitors: visitors.length,
+          activeVisitors: activeVisitors.length,
         })
-        setPatients(
-          admissions.slice(0, 5).map((a) => ({
-            id: a.admissionId,
-            name: `Patient ${a.patientId.slice(0, 8)}`,
-            bed: a.bedNumber ? `Bed ${a.bedNumber}` : a.wardName || '—',
-            condition: 'Stable' as const,
-            admittingDoctor: a.admittingDoctorId || '—',
-            diagnosis: a.admittingDiagnosis,
-            activeVisitors: 0,
-          })),
-        )
         if (admissions[0]) {
           const newest = [...admissions].sort(
             (a, b) =>
@@ -191,7 +165,7 @@ export function WardNurseDashboard() {
       })
   }, [])
 
-  // Countdown timer for visitor time tracking (local mock feature)
+  // Countdown timer for visitor time tracking
   useEffect(() => {
     const timer = setInterval(() => {
       setVisitors((prev) =>
@@ -211,28 +185,19 @@ export function WardNurseDashboard() {
 
   const handleToggleOrder = (orderId: string) => {
     const target = orders.find((o) => o.id === orderId)
-    if (!isTestEnv && target?.admissionId) {
-      wardService
-        .updateOrder(target.admissionId, orderId, { status: 'completed' })
-        .then(() => {
-          setOrders((prev) => prev.filter((o) => o.id !== orderId))
-          toast.success('Order marked as completed.')
-        })
-        .catch((err) => {
-          toast.error(err.response?.data?.detail || 'Failed to update order.')
-        })
-      return
-    }
-    setOrders((prev) => prev.filter((o) => o.id !== orderId))
-    const allOrders = JSON.parse(localStorage.getItem('hf_mock_inpatient_orders') || '[]')
-    localStorage.setItem(
-      'hf_mock_inpatient_orders',
-      JSON.stringify(allOrders.filter((o: any) => o.id !== orderId)),
-    )
-    toast.success('Order marked as completed.')
+    if (!target?.admissionId) return
+    wardService
+      .updateOrder(target.admissionId, orderId, { status: 'completed' })
+      .then(() => {
+        setOrders((prev) => prev.filter((o) => o.id !== orderId))
+        toast.success('Order marked as completed.')
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update order.')
+      })
   }
 
-  const bedCounts = deriveBedCounts(patients)
+  const bedCounts = deriveBedCounts(patients, totalBeds)
 
   // Type-color map for order strips and badges
   const orderTypeStyle = (type: Order['type']) => {
