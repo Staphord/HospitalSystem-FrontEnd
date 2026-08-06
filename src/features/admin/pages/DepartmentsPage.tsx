@@ -10,6 +10,107 @@ const DEPARTMENT_TYPES = [
   'Pharmacy', 'Ward', 'Icu', 'Billing', 'Admin',
 ];
 
+// Reusable dropdown menu matching the style from VisitQueuePage
+function ActionsMenu({
+  id,
+  openMenuId,
+  onOpenChange,
+  onEdit,
+  onDelete,
+}: {
+  id: string;
+  openMenuId: string | null;
+  onOpenChange: (id: string | null) => void;
+  onEdit: () => void;
+  onDelete?: () => void;
+}) {
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+  const isOpen = openMenuId === id;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onOpenChange]);
+
+  const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (isOpen) {
+      onOpenChange(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnchor({ top: rect.bottom + 4, left: rect.right - 180 });
+    onOpenChange(id);
+  };
+
+  const menuItemClass =
+    'w-full flex items-center gap-sm px-md py-sm font-body-sm text-body-sm text-left bg-transparent border-0 cursor-pointer hover:bg-surface-container-low transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+
+  return (
+    <>
+      <button
+        type="button"
+        title="More actions"
+        onClick={handleToggle}
+        className="w-8 h-8 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container transition-colors border-0 bg-transparent cursor-pointer"
+      >
+        <span className="material-symbols-outlined">more_vert</span>
+      </button>
+
+      {isOpen && anchor && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default border-0 bg-transparent p-0"
+            aria-label="Close menu"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChange(null);
+            }}
+          />
+          <div
+            className="fixed z-50 min-w-[180px] py-xs bg-surface-white border border-border-subtle rounded shadow-lg"
+            style={{ top: anchor.top, left: Math.max(8, anchor.left) }}
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className={`${menuItemClass} text-on-surface`}
+              onClick={() => {
+                onOpenChange(null);
+                onEdit();
+              }}
+            >
+              <span className="material-symbols-outlined text-[18px]">edit</span>
+              Edit
+            </button>
+            {onDelete && (
+              <button
+                type="button"
+                role="menuitem"
+                className={`${menuItemClass} text-error`}
+                onClick={() => {
+                  onOpenChange(null);
+                  onDelete();
+                }}
+              >
+                <span className="material-symbols-outlined text-[18px]">delete</span>
+                Delete
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 // Renders the departments roster directory and ward occupancy panel
 export function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -23,39 +124,86 @@ export function DepartmentsPage() {
   const [wardName, setWardName] = useState('');
   const [wardBeds, setWardBeds] = useState(4);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deptToDelete, setDeptToDelete] = useState<Department | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
+  const [editDeptName, setEditDeptName] = useState('');
+  const [editDeptType, setEditDeptType] = useState('Consultation');
+  const [isEditDeptModalOpen, setIsEditDeptModalOpen] = useState(false);
+
   const [editingWard, setEditingWard] = useState<WardItem | null>(null);
-  const [editWardName, setEditWardName] = useState('');
-  const [editWardBeds, setEditWardBeds] = useState(4);
-  const [isSavingWard, setIsSavingWard] = useState(false);
+  const [addBedsCount, setAddBedsCount] = useState(2);
+  const [isEditWardModalOpen, setIsEditWardModalOpen] = useState(false);
 
-  const openCreateModal = () => {
-    setEditingDept(null);
-    setFormName('');
-    setFormType('Consultation');
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (dept: Department) => {
+  const openEditDeptModal = (dept: Department) => {
     setEditingDept(dept);
-    setFormName(dept.name);
-    const matchedType = DEPARTMENT_TYPES.find(
-      (t) => t.toLowerCase() === (dept.type || '').toLowerCase(),
-    );
-    setFormType(matchedType || 'Consultation');
-    setIsModalOpen(true);
+    setEditDeptName(dept.name);
+    setEditDeptType(dept.type || 'Consultation');
+    setIsEditDeptModalOpen(true);
   };
 
-  const closeDeptModal = () => {
-    setIsModalOpen(false);
-    setEditingDept(null);
-    setFormName('');
-    setFormType('Consultation');
+  const handleUpdateDepartment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDept || !editDeptName.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    adminService.updateDepartment(editingDept.id, {
+      name: editDeptName.trim(),
+      type: editDeptType,
+    })
+      .then(() => {
+        toast.success(`Department "${editDeptName.trim()}" updated.`);
+        setIsEditDeptModalOpen(false);
+        setEditingDept(null);
+        fetchData(false);
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update department.');
+      })
+      .finally(() => setIsSubmitting(false));
   };
 
-  const fetchData = () => {
-    setLoading(true);
+  const handleDeleteDepartment = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete department "${name}"?`)) {
+      adminService.deleteDepartment(id)
+        .then(() => {
+          toast.success(`Department "${name}" deleted.`);
+          fetchData(false);
+        })
+        .catch((err) => {
+          toast.error(err.response?.data?.detail || 'Failed to delete department.');
+        });
+    }
+  };
+
+  const openEditWardModal = (ward: WardItem) => {
+    setEditingWard(ward);
+    setAddBedsCount(2);
+    setIsEditWardModalOpen(true);
+  };
+
+  const handleAddBedsToWard = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWard || isSubmitting) return;
+    setIsSubmitting(true);
+    adminService.createWard({
+      name: editingWard.name,
+      totalBeds: Math.max(1, addBedsCount),
+      occupiedBeds: 0,
+    })
+      .then(() => {
+        toast.success(`Added ${addBedsCount} bed(s) to "${editingWard.name}".`);
+        setIsEditWardModalOpen(false);
+        setEditingWard(null);
+        fetchData(false);
+      })
+      .catch((err) => {
+        toast.error(err.response?.data?.detail || 'Failed to update ward capacity.');
+      })
+      .finally(() => setIsSubmitting(false));
+  };
+
+  const fetchData = (showLoading = true) => {
+    if (showLoading) setLoading(true);
     Promise.all([
       adminService.listDepartments(),
       adminService.listWards()
@@ -68,25 +216,24 @@ export function DepartmentsPage() {
         console.error('Failed to load departments data:', err);
       })
       .finally(() => {
-        setLoading(false);
+        if (showLoading) setLoading(false);
       });
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData();
+    fetchData(true);
   }, []);
 
   // Toggle active status
   const toggleDepartmentActive = (id: string) => {
     const dept = departments.find(d => d.id === id);
     if (!dept) return;
-    adminService.updateDepartment(id, { active: !dept.active })
-      .then(() => {
-        fetchData();
-      })
+    const newActive = !dept.active;
+    setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: newActive } : d));
+    adminService.updateDepartment(id, { active: newActive })
       .catch((err) => {
         console.error('Failed to update department status:', err);
+        setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: dept.active } : d));
       });
   };
 
@@ -106,8 +253,10 @@ export function DepartmentsPage() {
 
     request
       .then(() => {
-        closeDeptModal();
-        fetchData();
+        toast.success(`Department "${formName.trim()}" created.`);
+        setIsModalOpen(false);
+        setFormName('');
+        fetchData(false);
       })
       .catch((err) => {
         toast.error(
@@ -178,7 +327,7 @@ export function DepartmentsPage() {
         setIsWardModalOpen(false);
         setWardName('');
         setWardBeds(4);
-        fetchData();
+        fetchData(false);
       })
       .catch((err) => {
         toast.error(err.response?.data?.detail || 'Failed to create ward.');
@@ -188,15 +337,8 @@ export function DepartmentsPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-lg">
-      {/* Page Header and breadcrumb links */}
-      <div className="flex justify-between items-center mb-lg">
-        <div>
-          <nav className="flex text-label-sm text-outline mt-1 gap-1">
-            <span className="text-secondary font-medium">Hospital Configuration</span>
-            <span>/</span>
-            <span className="text-secondary">Departments &amp; Wards</span>
-          </nav>
-        </div>
+      {/* Page Header */}
+      <div className="flex justify-end items-center mb-lg">
         <button
           onClick={openCreateModal}
           className="bg-primary-container hover:bg-primary-container/90 text-white px-md h-[40px] rounded-lg flex items-center gap-sm font-label-md transition-colors shadow-sm border-0 cursor-pointer"
@@ -267,26 +409,14 @@ export function DepartmentsPage() {
                         </button>
                       </td>
                       <td className="px-md py-md text-right">
-                        <div className="flex items-center justify-end gap-xs">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(dept)}
-                            className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-border-subtle text-secondary hover:text-primary hover:border-primary transition-all cursor-pointer"
-                            aria-label={`Edit ${dept.name}`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeptToDelete(dept)}
-                            disabled={deletingId === dept.id}
-                            className="w-8 h-8 flex items-center justify-center rounded bg-surface-white border border-error/30 text-error hover:bg-error/10 hover:border-error transition-all cursor-pointer disabled:opacity-60"
-                            aria-label={`Delete ${dept.name}`}
-                          >
-                            <span className="material-symbols-outlined text-[18px] text-error">
-                              {deletingId === dept.id ? 'hourglass_empty' : 'delete'}
-                            </span>
-                          </button>
+                        <div className="flex justify-end">
+                          <ActionsMenu
+                            id={dept.id}
+                            openMenuId={openDropdownId}
+                            onOpenChange={setOpenDropdownId}
+                            onEdit={() => openEditDeptModal(dept)}
+                            onDelete={() => handleDeleteDepartment(dept.id, dept.name)}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -342,14 +472,12 @@ export function DepartmentsPage() {
                           <span className="font-body-sm text-on-surface font-medium">
                             {ward.occupiedBeds} / {ward.totalBeds} <span className="text-secondary font-normal">Beds</span>
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => openEditWardModal(ward)}
-                            className="text-outline hover:text-primary transition-colors p-1 rounded hover:bg-row-hover bg-transparent border-0 cursor-pointer"
-                            aria-label={`Edit ${ward.name}`}
-                          >
-                            <span className="material-symbols-outlined text-[16px]">edit</span>
-                          </button>
+                          <ActionsMenu
+                            id={ward.id}
+                            openMenuId={openDropdownId}
+                            onOpenChange={setOpenDropdownId}
+                            onEdit={() => openEditWardModal(ward)}
+                          />
                         </div>
                       </div>
                       
@@ -373,36 +501,64 @@ export function DepartmentsPage() {
         </section>
       </div>
 
-      <AdminModal
-        isOpen={isModalOpen}
-        title={editingDept ? 'Edit Department' : 'Add Department'}
-        onClose={closeDeptModal}
-      >
-        <form onSubmit={handleSaveDepartment}>
-          <div className="px-lg py-lg space-y-md">
-            <div className="space-y-xs">
-              <label className="block font-label-md text-label-md text-secondary">Department Name</label>
-              <input
-                type="text"
-                required
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
-                placeholder="e.g. Emergency Department"
-              />
-            </div>
-            <div className="space-y-xs">
-              <label className="block font-label-md text-label-md text-secondary">Department Type</label>
-              <select
-                value={formType}
-                onChange={(e) => setFormType(e.target.value)}
-                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+      {/* Add Department modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-md">
+          <div className="bg-surface-white w-full max-w-[420px] rounded-xl shadow-xl overflow-hidden">
+            <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
+              <h3 className="font-headline-sm text-[18px] font-semibold text-on-surface">Add Department</h3>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-xs hover:bg-surface-container-low rounded-full transition-colors text-outline bg-transparent border-0 cursor-pointer"
+                aria-label="Close modal"
               >
-                {DEPARTMENT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t === 'Icu' ? 'ICU' : t}</option>
-                ))}
-              </select>
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
             </div>
+            <form onSubmit={handleCreateDepartment}>
+              <div className="px-lg py-lg space-y-md">
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Department Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
+                    placeholder="e.g. Emergency Department"
+                  />
+                </div>
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Department Type</label>
+                  <select
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value)}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                  >
+                    {DEPARTMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>{t === 'Icu' ? 'ICU' : t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '14px 20px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  style={{ padding: '9px 20px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#ffffff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{ padding: '9px 20px', border: 'none', borderRadius: '8px', background: '#0052cc', color: '#ffffff', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1', opacity: isSubmitting ? 0.6 : 1 }}
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Department'}
+                </button>
+              </div>
+            </form>
           </div>
           <AdminModalFooter>
             <AdminModalButton type="button" onClick={closeDeptModal}>
@@ -415,36 +571,64 @@ export function DepartmentsPage() {
         </form>
       </AdminModal>
 
-      <AdminModal
-        isOpen={isWardModalOpen}
-        title="Add Ward"
-        onClose={() => setIsWardModalOpen(false)}
-      >
-        <form onSubmit={handleCreateWard}>
-          <div className="px-lg py-lg space-y-md">
-            <div className="space-y-xs">
-              <label className="block font-label-md text-label-md text-secondary">Ward Name</label>
-              <input
-                type="text"
-                required
-                value={wardName}
-                onChange={(e) => setWardName(e.target.value)}
-                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
-                placeholder="e.g. General Ward A"
-              />
+      {/* Add Ward modal */}
+      {isWardModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-md">
+          <div className="bg-surface-white w-full max-w-[420px] rounded-xl shadow-xl overflow-hidden">
+            <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
+              <h3 className="font-headline-sm text-[18px] font-semibold text-on-surface">Add Ward</h3>
+              <button
+                type="button"
+                onClick={() => setIsWardModalOpen(false)}
+                className="p-xs hover:bg-surface-container-low rounded-full transition-colors text-outline bg-transparent border-0 cursor-pointer"
+                aria-label="Close ward modal"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
             </div>
-            <div className="space-y-xs">
-              <label className="block font-label-md text-label-md text-secondary">Number of Beds</label>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                required
-                value={wardBeds}
-                onChange={(e) => setWardBeds(Number(e.target.value))}
-                className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
-              />
-            </div>
+            <form onSubmit={handleCreateWard}>
+              <div className="px-lg py-lg space-y-md">
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Ward Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={wardName}
+                    onChange={(e) => setWardName(e.target.value)}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
+                    placeholder="e.g. General Ward A"
+                  />
+                </div>
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Number of Beds</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    required
+                    value={wardBeds}
+                    onChange={(e) => setWardBeds(Number(e.target.value))}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '14px 20px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsWardModalOpen(false)}
+                  style={{ padding: '9px 20px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#ffffff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{ padding: '9px 20px', border: 'none', borderRadius: '8px', background: '#0052cc', color: '#ffffff', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1', opacity: isSubmitting ? 0.6 : 1 }}
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Ward'}
+                </button>
+              </div>
+            </form>
           </div>
           <AdminModalFooter>
             <AdminModalButton type="button" onClick={() => setIsWardModalOpen(false)}>
@@ -516,14 +700,123 @@ export function DepartmentsPage() {
         isLoading={!!deletingId}
       />
 
-      {/* System Footer info */}
-      <footer className="mt-xl flex flex-col md:flex-row justify-between items-center text-label-sm text-secondary gap-md border-t border-border-subtle pt-md">
-        <p>© 2024 Muhimbili National Hospital. Internal Management System.</p>
-        <div className="flex gap-lg">
-          <span className="text-[11px]">System Health: Normal</span>
-          <span className="text-[11px]">Security Protocol v4.2</span>
+      {/* Edit Department Modal */}
+      {isEditDeptModalOpen && editingDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-md">
+          <div className="bg-surface-white w-full max-w-[420px] rounded-xl shadow-xl overflow-hidden">
+            <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
+              <h3 className="font-headline-sm text-[18px] font-semibold text-on-surface">Edit Department</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditDeptModalOpen(false)}
+                className="p-xs hover:bg-surface-container-low rounded-full transition-colors text-outline bg-transparent border-0 cursor-pointer"
+                aria-label="Close edit department modal"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleUpdateDepartment}>
+              <div className="px-lg py-lg space-y-md">
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Department Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editDeptName}
+                    onChange={(e) => setEditDeptName(e.target.value)}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
+                  />
+                </div>
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Department Type</label>
+                  <select
+                    value={editDeptType}
+                    onChange={(e) => setEditDeptType(e.target.value)}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none bg-surface-white"
+                  >
+                    {DEPARTMENT_TYPES.map((t) => (
+                      <option key={t} value={t}>{t === 'Icu' ? 'ICU' : t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '14px 20px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditDeptModalOpen(false)}
+                  style={{ padding: '9px 20px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#ffffff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{ padding: '9px 20px', border: 'none', borderRadius: '8px', background: '#0052cc', color: '#ffffff', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1', opacity: isSubmitting ? 0.6 : 1 }}
+                >
+                  {isSubmitting ? 'Updating...' : 'Update Department'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </footer>
+      )}
+
+      {/* Edit Ward / Add Beds Modal */}
+      {isEditWardModalOpen && editingWard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-md">
+          <div className="bg-surface-white w-full max-w-[420px] rounded-xl shadow-xl overflow-hidden">
+            <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between">
+              <h3 className="font-headline-sm text-[18px] font-semibold text-on-surface">Manage Ward Beds</h3>
+              <button
+                type="button"
+                onClick={() => setIsEditWardModalOpen(false)}
+                className="p-xs hover:bg-surface-container-low rounded-full transition-colors text-outline bg-transparent border-0 cursor-pointer"
+                aria-label="Close edit ward modal"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleAddBedsToWard}>
+              <div className="px-lg py-lg space-y-md">
+                <div>
+                  <p className="font-body-md font-semibold text-on-surface mb-1">{editingWard.name}</p>
+                  <p className="text-xs text-secondary">
+                    Current Capacity: {editingWard.occupiedBeds} / {editingWard.totalBeds} Beds
+                  </p>
+                </div>
+                <div className="space-y-xs">
+                  <label className="block font-label-md text-label-md text-secondary">Additional Beds to Add</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    required
+                    value={addBedsCount}
+                    onChange={(e) => setAddBedsCount(Number(e.target.value))}
+                    className="w-full border border-border-subtle rounded-lg px-md py-sm text-body-md focus:ring-primary focus:border-primary outline-none"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', padding: '14px 20px', borderTop: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditWardModalOpen(false)}
+                  style={{ padding: '9px 20px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#ffffff', color: '#374151', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{ padding: '9px 20px', border: 'none', borderRadius: '8px', background: '#0052cc', color: '#ffffff', fontSize: '14px', fontWeight: '500', cursor: 'pointer', lineHeight: '1', opacity: isSubmitting ? 0.6 : 1 }}
+                >
+                  {isSubmitting ? 'Adding...' : 'Add Beds'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

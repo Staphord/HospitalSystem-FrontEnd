@@ -23,8 +23,8 @@ export function InsurancePage() {
   const [formNotes, setFormNotes] = useState('');
   const [formActive, setFormActive] = useState(true);
 
-  const fetchProviders = () => {
-    setLoading(true);
+  const fetchProviders = (showLoading = true) => {
+    if (showLoading) setLoading(true);
     adminService.listInsuranceProviders()
       .then((data) => {
         setProviders(data);
@@ -33,19 +33,18 @@ export function InsurancePage() {
         console.error('Failed to load insurance providers:', err);
       })
       .finally(() => {
-        setLoading(false);
+        if (showLoading) setLoading(false);
       });
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchProviders();
+    fetchProviders(true);
   }, []);
 
   const handleAddClick = () => {
     setEditingProvider(null);
     setFormName('');
-    setFormPolicies([]);
+    setFormPolicies(['Standard NHIF']);
     setFormContact('');
     setFormEmail('');
     setFormPhone('');
@@ -66,36 +65,27 @@ export function InsurancePage() {
     setIsModalOpen(true);
   };
 
-  const closeProviderModal = () => {
-    setIsModalOpen(false);
-    setEditingProvider(null);
-  };
-
-  const handleDeleteProvider = () => {
-    if (!providerToDelete || deletingId) return;
-    setDeletingId(providerToDelete.id);
-    adminService
-      .deleteInsuranceProvider(providerToDelete.id)
-      .then(() => {
-        toast.success(`Provider "${providerToDelete.name}" deleted.`);
-        setProviderToDelete(null);
-        fetchProviders();
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to delete provider.');
-      })
-      .finally(() => setDeletingId(null));
+  const handleDeleteClick = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete insurance provider "${name}"?`)) {
+      adminService.deleteInsuranceProvider(id)
+        .then(() => {
+          fetchProviders(false);
+        })
+        .catch((err) => {
+          console.error('Failed to delete provider:', err);
+        });
+    }
   };
 
   const toggleProviderActive = (id: string) => {
     const prov = providers.find(p => p.id === id);
     if (!prov) return;
-    adminService.updateInsuranceProvider(id, { active: !prov.active })
-      .then(() => {
-        fetchProviders();
-      })
+    const newActive = !prov.active;
+    setProviders(prev => prev.map(p => p.id === id ? { ...p, active: newActive } : p));
+    adminService.updateInsuranceProvider(id, { active: newActive })
       .catch((err) => {
         console.error('Failed to update provider status:', err);
+        setProviders(prev => prev.map(p => p.id === id ? { ...p, active: prov.active } : p));
       });
   };
 

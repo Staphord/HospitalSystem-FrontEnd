@@ -96,40 +96,16 @@ interface BackendWard {
   available: number
 }
 
-interface BackendRealmRole {
+interface BackendActiveSession {
   id: string
-  name: string
-  description: string | null
-  composite?: boolean | null
-  clientRole?: boolean | null
-  containerId?: string | null
-}
-
-interface BackendGlobalRole {
-  global_role_id: string
-  name: string
-  description: string | null
-  scope: Record<string, unknown> | null
-  created_at: string
-  updated_at: string
-}
-
-interface BackendTenantRole {
-  tenant_role_id: string
-  tenant_id: string
-  name: string
-  description: string | null
-  scope: Record<string, unknown> | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-interface BackendPermission {
-  role_name: string
-  modules: string[]
-  actions: string[]
-  updated_at: string
+  staff_id: string
+  staff_name: string
+  staff_role: string
+  department?: string | null
+  login_time?: string | null
+  device?: string | null
+  ip_address?: string | null
+  avatar_url?: string | null
 }
 
 interface BackendDashboardReport {
@@ -236,7 +212,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
   if (!landingDepartment) return null
   if (isUuid(landingDepartment)) return landingDepartment
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/shared/departments')
+    .get<BackendDepartment[]>('/admin/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   const match = departments.find(
@@ -247,7 +223,7 @@ const resolveDepartmentId = async (landingDepartment?: string | null): Promise<s
 
 const loadDepartmentNameMap = async (): Promise<Map<string, string>> => {
   const departments = await apiClient
-    .get<BackendDepartment[]>('/admin/shared/departments')
+    .get<BackendDepartment[]>('/admin/departments')
     .then((r) => r.data)
     .catch(() => [] as BackendDepartment[])
   return new Map(departments.map((d) => [d.department_id, d.department_name]))
@@ -483,6 +459,18 @@ const mapBackup = (b: BackendBackup): BackupItem => ({
   initiatedBy: b.triggered_by_sub || b.triggered_by,
 })
 
+const mapSession = (s: BackendActiveSession): ActiveSession => ({
+  id: s.id,
+  staffId: s.staff_id || s.id,
+  staffName: s.staff_name || 'Staff Member',
+  staffRole: s.staff_role || 'Staff',
+  department: s.department || 'General',
+  loginTime: s.login_time ? new Date(s.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+  device: s.device || 'Workstation',
+  ipAddress: s.ip_address || '—',
+  avatarUrl: s.avatar_url || '',
+})
+
 // ---------------------------------------------------------------------------
 // Service — all paths proxied via api-gateway → admin-service (/admin/*)
 // ---------------------------------------------------------------------------
@@ -491,7 +479,7 @@ export const adminService = {
   // Users (FR-53)
   listUsers: async (): Promise<HospitalUser[]> => {
     const [users, deptMap] = await Promise.all([
-      apiClient.get<BackendUser[]>('/admin/shared/users').then((r) => r.data),
+      apiClient.get<BackendUser[]>('/admin/users').then((r) => r.data),
       loadDepartmentNameMap(),
     ])
     return users.map((u) =>
@@ -504,12 +492,13 @@ export const adminService = {
     const created = await apiClient
       .post<BackendUser>('/admin/users', {
         username: data.username,
-        password: data.password ?? 'TemporaryPassword123!',
+        password: data.password ?? 'Gilgal#2026!Staff',
         email: data.email,
         full_name: data.full_name ?? '',
         role: toBackendRole(data.role) ?? 'hospital_user',
         department_id: departmentId,
         phone: data.phone ?? null,
+        mfa_enabled: data.mfaEnabled ?? false,
       })
       .then((r) => r.data)
     const deptMap = await loadDepartmentNameMap()
@@ -528,6 +517,7 @@ export const adminService = {
     if (data.landingDepartment !== undefined) {
       payload.department_id = await resolveDepartmentId(data.landingDepartment)
     }
+    if (data.mfaEnabled !== undefined) payload.mfa_enabled = data.mfaEnabled
     if (data.status !== undefined) payload.is_active = data.status === 'active'
     if (data.password !== undefined) payload.password = data.password
     if (data.forcePasswordChange !== undefined) payload.force_password_change = data.forcePasswordChange
@@ -549,9 +539,9 @@ export const adminService = {
   // Departments (FR-55)
   listDepartments: async (): Promise<Department[]> => {
     const [departments, users] = await Promise.all([
-      apiClient.get<BackendDepartment[]>('/admin/shared/departments').then((r) => r.data),
+      apiClient.get<BackendDepartment[]>('/admin/departments').then((r) => r.data),
       apiClient
-        .get<BackendUser[]>('/admin/shared/users')
+        .get<BackendUser[]>('/admin/users')
         .then((r) => r.data)
         .catch(() => [] as BackendUser[]),
     ])
@@ -589,7 +579,8 @@ export const adminService = {
     return apiClient.patch<BackendDepartment>(`/admin/departments/${id}`, payload).then((r) => r.data)
   },
 
-  deleteDepartment: (id: string) => apiClient.delete(`/admin/departments/${id}`),
+  deleteDepartment: (id: string) =>
+    apiClient.delete(`/admin/departments/${id}`),
 
   // Fee schedules (FR-55) — backend path is /admin/fee-schedules
   listFeeSchedules: (): Promise<FeeItem[]> =>
@@ -631,7 +622,7 @@ export const adminService = {
   // Insurance providers (FR-55)
   listInsuranceProviders: (): Promise<Provider[]> =>
     apiClient
-      .get<BackendProvider[]>('/admin/shared/insurance-providers')
+      .get<BackendProvider[]>('/admin/insurance-providers')
       .then((r) => r.data.map(mapProvider)),
 
   createInsuranceProvider: (data: Omit<Provider, 'id'>): Promise<Provider> =>
@@ -854,69 +845,16 @@ export const adminService = {
     }
   },
 
-  // Active sessions (admin-service)
-  listActiveSessions: (): Promise<ActiveSession[]> =>
-    apiClient
-      .get<BackendSession[]>('/admin/sessions')
-      .then((r) => r.data.map(mapSession)),
-
-  revokeSession: (id: string) => apiClient.delete(`/admin/sessions/${id}`),
-
-  // Roles (FR-53/54) — Keycloak realm roles
-  listRealmRoles: (): Promise<RealmRole[]> =>
-    apiClient.get<BackendRealmRole[]>('/admin/roles').then((r) => r.data.map(mapRealmRole)),
-
-  createRealmRole: (name: string): Promise<void> =>
-    apiClient.post('/admin/roles', { name }).then(() => undefined),
-
-  updateRealmRole: (oldName: string, newName: string): Promise<void> =>
-    apiClient.put(`/admin/roles/${encodeURIComponent(oldName)}`, { name: newName }).then(() => undefined),
-
-  deleteRealmRole: (name: string): Promise<void> =>
-    apiClient.delete(`/admin/roles/${encodeURIComponent(name)}`).then(() => undefined),
-
-  listAssignableRoles: (): Promise<string[]> =>
-    apiClient.get<string[]>('/admin/users/assignable-roles').then((r) => r.data),
-
-  // Global roles (master DB, read-only here)
-  listGlobalRoles: (): Promise<GlobalRole[]> =>
-    apiClient.get<BackendGlobalRole[]>('/admin/global-roles').then((r) => r.data.map(mapGlobalRole)),
-
-  // Tenant custom roles (master DB, synced to Keycloak)
-  listTenantRoles: (): Promise<TenantRole[]> =>
-    apiClient.get<BackendTenantRole[]>('/admin/tenant-roles').then((r) => r.data.map(mapTenantRole)),
-
-  createTenantRole: (data: { name: string; description?: string }): Promise<TenantRole> =>
-    apiClient
-      .post<BackendTenantRole>('/admin/tenant-roles', {
-        name: data.name,
-        description: data.description || null,
-      })
-      .then((r) => mapTenantRole(r.data)),
-
-  updateTenantRole: (id: string, data: { name?: string; description?: string }): Promise<TenantRole> => {
-    const payload: Record<string, unknown> = {}
-    if (data.name !== undefined) payload.name = data.name
-    if (data.description !== undefined) payload.description = data.description
-    return apiClient
-      .patch<BackendTenantRole>(`/admin/tenant-roles/${id}`, payload)
-      .then((r) => mapTenantRole(r.data))
+  // Sessions (FR-53) — proxied via api-gateway → admin-service (/admin/sessions)
+  listActiveSessions: async (): Promise<ActiveSession[]> => {
+    const sessions = await apiClient
+      .get<BackendActiveSession[]>('/admin/sessions')
+      .then((r) => r.data)
+    return sessions.map(mapSession)
   },
 
-  deleteTenantRole: (id: string): Promise<void> =>
-    apiClient.delete(`/admin/tenant-roles/${id}`).then(() => undefined),
-
-  // Permissions (FR-54) — per-role module/action ACL matrix
-  listPermissions: (): Promise<RolePermission[]> =>
-    apiClient.get<BackendPermission[]>('/admin/permissions').then((r) => r.data.map(mapPermission)),
-
-  updatePermissions: (
-    roleName: string,
-    data: { modules: string[]; actions: string[] },
-  ): Promise<RolePermission> =>
-    apiClient
-      .put<BackendPermission>(`/admin/permissions/${encodeURIComponent(roleName)}`, data)
-      .then((r) => mapPermission(r.data)),
+  revokeSession: (id: string) =>
+    apiClient.delete(`/admin/sessions/${id}`),
 
   // Wards & beds (catalog owned by admin-service)
   listWards: (): Promise<WardItem[]> =>

@@ -13,33 +13,50 @@ export function AddStaffPage() {
     ? staffList.find((s) => s.id === selectedStaffId)
     : null;
 
+  // Triggers password generation adhering to security rules (8+ chars, upper, lower, digit, symbol)
+  const generateRandomPassword = () => {
+    const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lowers = 'abcdefghijkmnopqrstuvwxyz';
+    const numbers = '23456789';
+    const symbols = '!@#$%^&*';
+    const all = uppers + lowers + numbers + symbols;
+
+    let pwd = '';
+    pwd += uppers.charAt(Math.floor(Math.random() * uppers.length));
+    pwd += lowers.charAt(Math.floor(Math.random() * lowers.length));
+    pwd += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    pwd += symbols.charAt(Math.floor(Math.random() * symbols.length));
+    for (let i = 0; i < 8; i++) {
+      pwd += all.charAt(Math.floor(Math.random() * all.length));
+    }
+    return pwd.split('').sort(() => 0.5 - Math.random()).join('');
+  };
+
   // State values for form fields
   const [name, setName] = useState(staffMember ? staffMember.name : '');
   const [email, setEmail] = useState(staffMember ? staffMember.email : '');
   const [phone, setPhone] = useState(staffMember ? staffMember.phone.replace('+255 ', '') : '');
-  const [role, setRole] = useState<'doctor' | 'nurse' | 'admin' | 'tech'>(
+  const [role, setRole] = useState<string>(
     staffMember ? staffMember.role : 'doctor'
-  );
-  const [landingDepartment, setLandingDepartment] = useState(
-    staffMember ? staffMember.landingDepartment : ''
-  );
-  const [additionalDepts, setAdditionalDepts] = useState<string[]>(
-    staffMember ? staffMember.additionalDepartments : []
   );
   const [mfaEnabled, setMfaEnabled] = useState(
     staffMember ? staffMember.mfaEnabled : true
   );
-  const [tempPassword, setTempPassword] = useState('');
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [tempPassword, setTempPassword] = useState(() => generateRandomPassword());
+  const [showPassword, setShowPassword] = useState(true);
+  const [copied, setCopied] = useState(false);
 
-  // Generates randomized temporary passwords for staff account setups
-  const generatePassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    let pass = '';
-    for (let i = 0; i < 12; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+  const handleGeneratePassword = () => {
+    setTempPassword(generateRandomPassword());
+    setCopied(false);
+  };
+
+  const handleCopyPassword = () => {
+    if (tempPassword) {
+      navigator.clipboard.writeText(tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-    setTempPassword(pass);
   };
 
   useEffect(() => {
@@ -59,13 +76,6 @@ export function AddStaffPage() {
     setActiveView('staff');
   };
 
-  // Check additional departments selection
-  const handleDeptCheckChange = (dept: string) => {
-    setAdditionalDepts((prev) =>
-      prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
-    );
-  };
-
   // Handles submissions of personnel data records
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,15 +86,20 @@ export function AddStaffPage() {
       return;
     }
 
+    if (!isEditMode && (!tempPassword || tempPassword.length < 8)) {
+      alert('Password must be at least 8 characters long.');
+      return;
+    }
+
     const payload = {
       name,
       email,
       phone: phone ? `+255 ${phone}` : '',
       role,
-      landingDepartment,
-      additionalDepartments: additionalDepts,
+      landingDepartment: '',
       mfaEnabled,
-      avatarUrl: ''
+      avatarUrl: '',
+      password: tempPassword
     };
 
     if (isEditMode && selectedStaffId) {
@@ -205,12 +220,16 @@ export function AddStaffPage() {
                   id="primaryRole"
                   className="w-full appearance-none border border-border-subtle rounded text-xs px-3 py-2 bg-surface-white focus:outline-none focus:border-primary pr-10"
                   value={role}
-                  onChange={(e) => setRole(e.target.value as 'doctor' | 'nurse' | 'admin' | 'tech')}
+                  onChange={(e) => setRole(e.target.value)}
                 >
                   <option value="doctor">Doctor (Clinical Staff)</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="tech">Technician</option>
-                  <option value="admin">Administrator</option>
+                  <option value="triage_nurse">Triage Nurse (OPD Vitals)</option>
+                  <option value="ward_nurse">Ward Nurse (Inpatient Care)</option>
+                  <option value="receptionist">Receptionist (Patient Registration)</option>
+                  <option value="lab_technician">Lab Technician (Laboratory Services)</option>
+                  <option value="pharmacist">Pharmacist (Pharmacy &amp; Dispensing)</option>
+                  <option value="billing_officer">Billing Officer (Finance &amp; Payments)</option>
+                  <option value="hospital_admin">Administrator (System Admin)</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-secondary">
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
@@ -219,94 +238,59 @@ export function AddStaffPage() {
                 </div>
               </div>
               <p className="text-[10px] text-secondary mt-1">
-                Grants privileges corresponding to clinical role specifications.
+                Role automatically grants portal privileges and assigns landing department.
               </p>
             </div>
 
-            {/* Department Assignment */}
-            <div className="bg-surface-container-low rounded-lg p-4 border border-border-subtle">
-              <label className="block font-label-md text-[11px] font-bold tracking-wide uppercase text-on-surface-variant mb-3">
-                Primary Department (Login Landing) <span className="text-error">*</span>
-              </label>
-              <p className="text-[10px] text-secondary mb-4">
-                Staff will land on this department automatically after login.
-              </p>
-              <div className="space-y-3">
-                {departments.length === 0 ? (
-                  <p className="text-[11px] text-secondary">No departments configured yet.</p>
-                ) : (
-                  departments.map((dept) => (
-                    <label key={dept.id} className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        checked={landingDepartment === dept.name}
-                        className="mt-0.5 w-4 h-4 text-primary bg-surface-white border-border-subtle focus:ring-primary"
-                        name="dept_landing"
-                        type="radio"
-                        onChange={() => setLandingDepartment(dept.name)}
-                      />
-                      <span className="block font-body-sm font-medium text-xs text-on-surface">
-                        {dept.name}
+            {/* MFA requirements switch card */}
+            <div className={`p-4 rounded-xl border transition-all duration-200 ${
+              mfaEnabled
+                ? 'bg-primary-container/10 border-primary/30 shadow-sm'
+                : 'bg-surface-bright border-border-subtle'
+            }`}>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                    mfaEnabled
+                      ? 'bg-primary text-on-primary shadow-sm'
+                      : 'bg-surface-container text-secondary'
+                  }`}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                      {mfaEnabled ? 'shield_lock' : 'lock_open'}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-headline-sm text-sm font-semibold text-on-surface m-0">
+                        Multi-Factor Authentication (MFA)
+                      </h3>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        mfaEnabled
+                          ? 'bg-[#E3FCEF] text-[#006644] border border-[#006644]/20'
+                          : 'bg-surface-container text-secondary border border-border-subtle'
+                      }`}>
+                        {mfaEnabled ? 'Enabled' : 'Disabled'}
                       </span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
+                    </div>
+                    <p className="text-xs text-secondary mt-0.5">
+                      {mfaEnabled
+                        ? 'Mandatory 2FA security verification required on login for this account.'
+                        : 'MFA is currently disabled for this staff account.'}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Additional departments checklist */}
-            <div>
-              <label className="block font-label-md text-[11px] font-bold tracking-wide uppercase text-on-surface-variant mb-1.5">
-                Read-only access to additional departments (optional)
-              </label>
-              <div className="border border-border-subtle rounded-md bg-surface-white max-h-40 overflow-y-auto">
-                {departments
-                  .filter((dept) => dept.name !== landingDepartment)
-                  .map((dept) => {
-                    const isChecked = additionalDepts.includes(dept.name);
-                    return (
-                      <div
-                        key={dept.id}
-                        className={`px-3 py-2 border-b border-border-subtle last:border-b-0 hover:bg-surface-bright flex items-center gap-2 ${
-                          isChecked ? 'bg-row-hover' : ''
-                        }`}
-                      >
-                        <input
-                          checked={isChecked}
-                          onChange={() => handleDeptCheckChange(dept.name)}
-                          className="w-4 h-4 text-primary border-border-subtle rounded focus:ring-primary"
-                          type="checkbox"
-                        />
-                        <span className={`text-xs ${isChecked ? 'text-primary font-semibold' : 'text-on-surface'}`}>
-                          {dept.name}
-                        </span>
-                      </div>
-                    );
-                  })}
+                {/* Native Checkbox Toggle Switch (Fixed Animation) */}
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={mfaEnabled}
+                    onChange={(e) => setMfaEnabled(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-surface-variant rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/40 transition-colors duration-300 peer-checked:bg-primary peer-checked:shadow-[0_0_10px_rgba(0,102,204,0.3)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all after:duration-300 peer-checked:after:left-[22px] peer-checked:after:border-white"></div>
+                </label>
               </div>
-            </div>
-
-            {/* MFA requirements switch */}
-            <div className="flex items-center justify-between py-3 border-t border-border-subtle">
-              <div>
-                <h3 className="font-body-sm font-medium text-sm text-on-surface flex items-center gap-1.5">
-                  Require Multi-Factor Authentication
-                  <span className="material-symbols-outlined text-secondary" style={{ fontSize: '16px' }}>
-                    lock
-                  </span>
-                </h3>
-                <p className="text-[10px] text-secondary">
-                  Mandatory authentication security policy for administrative roles.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  checked={mfaEnabled}
-                  onChange={(e) => setMfaEnabled(e.target.checked)}
-                  className="sr-only peer"
-                  type="checkbox"
-                />
-                <div className="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
-              </label>
             </div>
           </div>
         </section>
@@ -314,78 +298,97 @@ export function AddStaffPage() {
         {/* 3. Account Setup Card */}
         {!isEditMode && (
           <section className="bg-surface-white border border-border-subtle rounded-2xl p-lg shadow-sm">
-            <div className="border-b border-border-subtle pb-3 mb-5">
+            <div className="border-b border-border-subtle pb-3 mb-5 flex items-center justify-between">
               <h2 className="font-headline-sm text-base font-semibold text-on-surface m-0">
-                Account Setup
+                Account Setup &amp; Password
               </h2>
+              <button
+                type="button"
+                onClick={handleGeneratePassword}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors border-0 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">autorenew</span>
+                <span>Generate Random</span>
+              </button>
             </div>
-            <div className="space-y-6">
-              {/* Password setup triggers */}
+            <div className="space-y-4">
               <div>
-                <label className="block font-label-md text-[11px] font-bold tracking-wide uppercase text-on-surface-variant mb-1.5">
-                  Temporary Password
+                <label htmlFor="tempPassword" className="block font-label-md text-[11px] font-bold tracking-wide uppercase text-on-surface-variant mb-1.5">
+                  Temporary Password <span className="text-error">*</span>
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
+                      id="tempPassword"
                       className="w-full border border-border-subtle rounded text-xs px-3 py-2 pr-10 bg-surface-white font-mono focus:outline-none focus:border-primary"
-                      readOnly
-                      type="text"
+                      type={showPassword ? 'text' : 'password'}
                       value={tempPassword}
+                      onChange={(e) => setTempPassword(e.target.value)}
+                      placeholder="Enter or generate temporary password"
+                      required
                     />
                     <button
                       type="button"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-primary bg-transparent border-0 cursor-pointer"
-                      aria-label="Toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-secondary hover:text-on-surface bg-transparent border-0 cursor-pointer"
+                      title={showPassword ? 'Hide password' : 'Show password'}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        visibility
+                      <span className="material-symbols-outlined text-[18px]">
+                        {showPassword ? 'visibility_off' : 'visibility'}
                       </span>
                     </button>
                   </div>
                   <button
                     type="button"
-                    onClick={generatePassword}
-                    className="px-3 py-2 text-primary text-xs font-semibold hover:bg-surface-container-low rounded transition-colors bg-transparent border-0 cursor-pointer"
+                    onClick={handleCopyPassword}
+                    className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-secondary hover:text-primary border border-border-subtle rounded bg-surface-white hover:bg-surface-container-low transition-colors cursor-pointer"
+                    title="Copy password to clipboard"
                   >
-                    Regenerate
+                    <span className="material-symbols-outlined text-[16px]">
+                      {copied ? 'check' : 'content_copy'}
+                    </span>
+                    <span>{copied ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
               </div>
-              <p className="text-[10px] text-secondary">
-                A password reset will be required on first login. Share this temporary password with the new staff member securely.
-              </p>
+
+              <div className="flex items-start gap-3 bg-surface-bright p-3.5 rounded-lg border border-border-subtle">
+                <div className="mt-0.5 text-primary shrink-0">
+                  <span className="material-symbols-outlined text-[20px]">info</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] text-secondary leading-relaxed m-0">
+                    Set a custom temporary password or click <strong className="text-on-surface">Generate Random</strong> for an automatic secure password. The user will be prompted to update their password on first login.
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
         )}
 
         {/* Form Actions Footer Bar */}
-        <div className="fixed bottom-0 right-0 left-0 lg:left-[240px] bg-surface-white border-t border-border-subtle p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-40">
-          <div className="max-w-[720px] mx-auto flex justify-between items-center px-md">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 text-secondary text-xs font-semibold hover:text-on-surface transition-colors border border-transparent hover:border-border-subtle rounded bg-transparent cursor-pointer"
-            >
-              Cancel
-            </button>
-            <div className="flex gap-3">
+        <footer className="fixed bottom-16 lg:bottom-0 left-0 right-0 lg:left-auto lg:right-0 w-full lg:w-[calc(100%-240px)] bg-surface-white border-t border-border-subtle px-lg py-md z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+          <div className="max-w-[720px] mx-auto flex flex-col items-center">
+            <div className="flex items-center justify-between w-full gap-md">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 border border-border-subtle rounded text-secondary hover:bg-surface-bright text-xs font-semibold transition-colors bg-transparent cursor-pointer"
+                style={{ padding: '0 32px', height: '48px', minWidth: '120px' }}
+                className="rounded-lg border border-border-subtle text-secondary font-headline-sm hover:bg-surface-container-low transition-colors bg-white cursor-pointer flex items-center justify-center"
               >
-                Save as Draft
+                Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-primary text-on-primary rounded text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-2 shadow-sm border-0 cursor-pointer"
+                style={{ backgroundColor: '#0052CC', color: 'white', padding: '0 32px', height: '48px', minWidth: '160px' }}
+                className="rounded-lg font-headline-sm flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-md border-0 cursor-pointer"
               >
-                {isEditMode ? 'Save Changes' : 'Create Account'}
+                <span>{isEditMode ? 'Save Changes' : 'Add User'}</span>
+                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
               </button>
             </div>
           </div>
-        </div>
+        </footer>
       </form>
     </div>
   );
