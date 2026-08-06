@@ -176,15 +176,15 @@ export const ActiveSessionsPage: React.FC = () => {
         {/* Scrollable table container */}
         <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
           <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead className="sticky top-0 z-10 bg-surface-container-low shadow-xs">
+            <thead className="sticky top-0 z-10 bg-surface-bright shadow-xs">
               <tr className="border-b border-border-subtle">
-                <th className="px-lg py-3 font-label-md text-outline uppercase tracking-wider">Staff Name</th>
-                <th className="px-md py-3 font-label-md text-outline uppercase tracking-wider">Role</th>
-                <th className="px-md py-3 font-label-md text-outline uppercase tracking-wider">Active Workspace</th>
-                <th className="px-md py-3 font-label-md text-outline uppercase tracking-wider">Login Time</th>
-                <th className="px-md py-3 font-label-md text-outline uppercase tracking-wider">Duration</th>
-                <th className="px-md py-3 font-label-md text-outline uppercase tracking-wider">IP / Device</th>
-                <th className="px-lg py-3 font-label-md text-outline uppercase tracking-wider text-right">Actions</th>
+                <th className="px-lg py-3 font-label-md text-label-md text-secondary uppercase tracking-wider">Staff Name</th>
+                <th className="px-md py-3 font-label-md text-label-md text-secondary uppercase tracking-wider">Role</th>
+                <th className="px-md py-3 font-label-md text-label-md text-secondary uppercase tracking-wider">Active Workspace</th>
+                <th className="px-md py-3 font-label-md text-label-md text-secondary uppercase tracking-wider">Login Time</th>
+                <th className="px-md py-3 font-label-md text-label-md text-secondary uppercase tracking-wider">Duration</th>
+                <th className="px-md py-3 font-label-md text-label-md text-secondary uppercase tracking-wider">IP / Device</th>
+                <th className="px-lg py-3 font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle bg-surface-white">
