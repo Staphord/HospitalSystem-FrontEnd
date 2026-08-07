@@ -143,17 +143,7 @@ interface BackendSetting {
   updated_at?: string | null
 }
 
-interface BackendSession {
-  id: string
-  staff_id: string
-  staff_name: string
-  staff_role: string
-  department?: string | null
-  login_time: string
-  device: string
-  ip_address: string
-  avatar_url?: string
-}
+type BackendSession = BackendActiveSession
 
 interface BackendLoginHistory {
   timestamp: string
@@ -176,6 +166,33 @@ interface BackendBackup {
   error: string | null
   started_at: string
   finished_at: string | null
+}
+
+interface BackendRealmRole {
+  id: string
+  name: string
+  description?: string | null
+}
+
+interface BackendGlobalRole {
+  global_role_id: string
+  name: string
+  description?: string | null
+}
+
+interface BackendTenantRole {
+  tenant_role_id: string
+  name: string
+  description?: string | null
+  created_by?: string | null
+  created_at: string
+}
+
+interface BackendPermission {
+  role_name: string
+  modules: string[]
+  actions: string[]
+  updated_at: string
 }
 
 // ---------------------------------------------------------------------------
@@ -425,18 +442,7 @@ const formatDuration = (loginTime: string): string => {
   return `${h}h ${m}m`
 }
 
-const mapSession = (s: BackendSession): ActiveSession => ({
-  id: s.id,
-  staffId: s.staff_id,
-  staffName: s.staff_name,
-  staffRole: s.staff_role,
-  avatarUrl: s.avatar_url || '',
-  department: s.department || '—',
-  loginTime: new Date(s.login_time).toLocaleString(),
-  duration: formatDuration(s.login_time),
-  device: s.device || 'Web Browser',
-  ipAddress: s.ip_address || '—',
-})
+
 
 const formatBytes = (bytes: number | null): string => {
   if (!bytes || bytes <= 0) return '—'
@@ -466,6 +472,7 @@ const mapSession = (s: BackendActiveSession): ActiveSession => ({
   staffRole: s.staff_role || 'Staff',
   department: s.department || 'General',
   loginTime: s.login_time ? new Date(s.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+  duration: s.login_time ? formatDuration(s.login_time) : undefined,
   device: s.device || 'Workstation',
   ipAddress: s.ip_address || '—',
   avatarUrl: s.avatar_url || '',
@@ -655,6 +662,9 @@ export const adminService = {
     apiClient.delete(`/admin/insurance-providers/${id}`),
 
   // Hospital profile + KV settings (FR-55)
+  getHospitalProfile: () =>
+    apiClient.get<BackendHospitalProfile>('/admin/hospital-profile').then((r) => r.data),
+
   getSettings: async (): Promise<Record<string, string | null>> => {
     const [profile, kv] = await Promise.all([
       apiClient
@@ -930,4 +940,58 @@ export const adminService = {
       }
     )
   },
+
+  // Backups
+  listBackups: (): Promise<BackupItem[]> =>
+    apiClient.get<BackendBackup[]>('/admin/backups').then((r) => r.data.map(mapBackup)),
+
+  triggerBackup: (): Promise<BackupItem> =>
+    apiClient.post<BackendBackup>('/admin/backups').then((r) => mapBackup(r.data)),
+
+  downloadBackup: async (id: string, filename: string): Promise<void> => {
+    const response = await apiClient.get(`/admin/backups/${id}/download`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  },
+
+  // Roles (Realm, Global, Tenant)
+  listRealmRoles: (): Promise<RealmRole[]> =>
+    apiClient.get<BackendRealmRole[]>('/admin/roles/realm').then((r) => r.data.map(mapRealmRole)),
+
+  createRealmRole: (name: string, description?: string): Promise<RealmRole> =>
+    apiClient.post<BackendRealmRole>('/admin/roles/realm', { name, description }).then((r) => mapRealmRole(r.data)),
+
+  updateRealmRole: (name: string, newName: string, description?: string): Promise<RealmRole> =>
+    apiClient.patch<BackendRealmRole>(`/admin/roles/realm/${name}`, { name: newName, description }).then((r) => mapRealmRole(r.data)),
+
+  deleteRealmRole: (name: string): Promise<void> =>
+    apiClient.delete(`/admin/roles/realm/${name}`),
+
+  listGlobalRoles: (): Promise<GlobalRole[]> =>
+    apiClient.get<BackendGlobalRole[]>('/admin/roles/global').then((r) => r.data.map(mapGlobalRole)),
+
+  listTenantRoles: (): Promise<TenantRole[]> =>
+    apiClient.get<BackendTenantRole[]>('/admin/roles/tenant').then((r) => r.data.map(mapTenantRole)),
+
+  createTenantRole: (data: { name: string; description?: string }): Promise<TenantRole> =>
+    apiClient.post<BackendTenantRole>('/admin/roles/tenant', { name: data.name, description: data.description }).then((r) => mapTenantRole(r.data)),
+
+  updateTenantRole: (id: string, data: { name?: string; description?: string }): Promise<TenantRole> =>
+    apiClient.patch<BackendTenantRole>(`/admin/roles/tenant/${id}`, data).then((r) => mapTenantRole(r.data)),
+
+  deleteTenantRole: (id: string): Promise<void> =>
+    apiClient.delete(`/admin/roles/tenant/${id}`),
+
+  // Permissions
+  listPermissions: (): Promise<RolePermission[]> =>
+    apiClient.get<BackendPermission[]>('/admin/permissions').then((r) => r.data.map(mapPermission)),
+
+  updatePermissions: (roleName: string, data: { modules: string[]; actions: string[] }): Promise<RolePermission> =>
+    apiClient.put<BackendPermission>(`/admin/permissions/${roleName}`, data).then((r) => mapPermission(r.data)),
 }

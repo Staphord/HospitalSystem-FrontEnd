@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { wardService } from '@/api/services/ward'
+import { useAuth } from '@/hooks/useAuth'
 import type { AdmissionCondition } from '@/api/types/ward'
 
 interface Patient {
@@ -45,6 +46,9 @@ function conditionBadge(condition: Patient['condition']) {
 }
 
 export function MyPatientsPage() {
+  const { user } = useAuth()
+  const hospitalName = user?.hospital_name || 'Hospital System'
+
   const [isLoading, setIsLoading] = useState(true)
   const [patients, setPatients] = useState<Patient[]>([])
   const [filterCondition, setFilterCondition] = useState<string>('All Conditions')
@@ -460,7 +464,7 @@ export function MyPatientsPage() {
 
       {/* Footer */}
       <footer className="py-lg px-xl bg-surface-container-low border-t border-border-default flex justify-between items-center text-label-sm text-secondary rounded-lg">
-        <div>© 2026 Muhimbili National Hospital • Clinical Information System</div>
+        <div>© {new Date().getFullYear()} {hospitalName} • Clinical Information System</div>
         <div className="flex gap-4">
           <a href="#" className="hover:text-primary">
             Privacy Policy

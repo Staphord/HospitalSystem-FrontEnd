@@ -143,6 +143,8 @@ function LabelPreviewCard({
   labelData?: LabelGenerateResponse | null
   dispensedBy: string
 }) {
+  const { user } = useAuth()
+  const hospitalName = user?.hospital_name || 'Hospital System'
   const deptLine = labelData?.department_subtitle || 'Pharmacy Dept | +255 22 215 1350'
 
   return (
@@ -158,7 +160,7 @@ function LabelPreviewCard({
       </div>
       <div className="text-center border-b border-border-subtle pb-2 mb-2">
         <p className="text-[11px] font-bold uppercase text-on-surface m-0">
-          Muhimbili National Hospital
+          {hospitalName}
         </p>
         <p className="text-[10px] text-secondary m-0">{deptLine}</p>
       </div>

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 
 // Renders the active session monitor with bento metrics, table, chart, and security panel
 export const ActiveSessionsPage: React.FC = () => {
-  const { sessions, revokeSession, setActiveView, alerts } = useApp();
+  const { sessions, revokeSession, setActiveView, alerts, refreshSessions } = useApp();
   const [countdown, setCountdown] = useState(30);
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);

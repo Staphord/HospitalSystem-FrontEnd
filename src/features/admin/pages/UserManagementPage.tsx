@@ -76,13 +76,6 @@ export const UserManagementPage: React.FC = () => {
   const activeCount = staffList.filter((s) => s.status === 'active').length;
   const inactiveCount = staffList.filter((s) => s.status !== 'active').length;
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery, roleFilter, deptFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
-  const pagedStaff = filteredStaff.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
   const handleExport = () => {
     const header = ['Name', 'ID', 'Role', 'Department', 'Status', 'Created At'];
     const rows = filteredStaff.map((s) => [

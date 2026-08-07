@@ -11,6 +11,7 @@ import { getRadiologyNavIcon, isRadiologyNavItemActive } from '@/app/layout/radi
 import { getPharmacyNavIcon, getPharmacyNavLabel, isPharmacyNavItemActive } from '@/app/layout/pharmacyNavUtils'
 import { toast } from 'sonner'
 
+
 export function Sidebar() {
   const { hasRole, hasAnyRole, isSuperAdmin, isHospitalAdmin } = usePermissions()
   const { user, clearAuth, refreshToken, tenantId } = useAuth()
@@ -19,13 +20,20 @@ export function Sidebar() {
 
   const navItems = isSuperAdmin() ? MASTER_NAV : HOSPITAL_NAV
 
-  // Retrieve dynamic hospital name from /me response or local mock store
+  // Retrieve dynamic hospital name and logo from user session, stored profile, or tenant config
   const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
   const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId)
+  const storedProfile = JSON.parse(localStorage.getItem('hospital_profile') || '{}')
+
   const hospitalName =
     user?.hospital_name ||
+    storedProfile.hospital_name ||
     (currentTenant ? currentTenant.hospital_name : null) ||
-    'Muhimbili National Hospital'
+    'Hospital System'
+  const hospitalLogo =
+    user?.logo_url ||
+    storedProfile.logo_url ||
+    (currentTenant ? currentTenant.logo_url : null)
 
   const handleLogout = async () => {
     try {
@@ -260,11 +268,20 @@ export function Sidebar() {
       <aside className="sidebar admin-portal-theme bg-surface-white border-r border-border-subtle flex flex-col h-screen overflow-hidden" style={{ padding: 0 }}>
         {/* Brand logo header */}
         <div className="px-md py-lg flex items-center space-x-sm" style={{ padding: '24px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0" style={{ width: '40px', height: '40px', borderRadius: '9999px', backgroundColor: '#0052cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '20px' }}>
-              festival
-            </span>
-          </div>
+          {hospitalLogo ? (
+            <img
+              src={hospitalLogo}
+              alt={hospitalName}
+              className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle"
+              style={{ width: '40px', height: '40px', borderRadius: '9999px', objectFit: 'cover', flexShrink: 0 }}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0" style={{ width: '40px', height: '40px', borderRadius: '9999px', backgroundColor: '#0052cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', flexShrink: 0 }}>
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '20px' }}>
+                local_hospital
+              </span>
+            </div>
+          )}
           <div className="overflow-hidden" style={{ overflow: 'hidden' }}>
             <h1 className="font-headline-sm text-[14px] leading-tight truncate text-on-surface" style={{ fontFamily: 'Manrope, sans-serif', fontSize: '14px', fontWeight: 600, lineHeight: 1.25, margin: 0, color: '#191c1e', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
               {hospitalName}
@@ -397,16 +414,20 @@ export function Sidebar() {
 
     return (
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
-        <div className="flex flex-col py-lg px-md gap-xs">
-          <div className="flex items-center gap-sm">
-            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+        <div className="px-md py-lg flex items-center gap-sm">
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
               <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
-              Muhimbili National Hospital
-            </span>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
+            </h2>
+            <span className="text-secondary font-body-sm text-[11px]">Reception</span>
           </div>
-          <span className="text-secondary font-body-sm pl-[40px]">Reception</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm">
@@ -471,16 +492,20 @@ export function Sidebar() {
 
     return (
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
-        <div className="flex flex-col py-lg px-md gap-xs">
-          <div className="flex items-center gap-sm">
-            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+        <div className="px-md py-lg flex items-center gap-sm">
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
               <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
-              Muhimbili National Hospital
-            </span>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
+            </h2>
+            <span className="text-secondary font-body-sm text-[11px]">Triage</span>
           </div>
-          <span className="text-secondary font-body-sm pl-[40px]">Triage</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm">
@@ -582,18 +607,18 @@ export function Sidebar() {
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-container-lowest border-r border-border-default overflow-hidden shrink-0 z-20">
         {/* Sidebar Header */}
         <div className="px-md py-lg flex items-center gap-sm">
-          <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary overflow-hidden">
-            <img
-              alt="MNH Logo"
-              className="w-8 h-8 object-contain"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCD6nezhmZs5POhK3Vky4O660tEr-1VxPx-p4eii19B5Bna4xh5Cmfx-NY706Y3e46lIHPvt0sa2OCMdSYV3DOmOknxxYt9t62NgeasTgqrohv4JhaV5rlSfNfCDD7b6B7QI8xU2lmNIDn86cO9kYavue1I6s6bozim3_xsegFaZnIDFwCJj0CpSa-Wn94d2M-o0xw6lQbvHk0YhFJpf6CG7Hz1rhQ2Iu3kHTZRcpY6N-pkB1jH01iHrvbOgmSpL63QHs5XiqsVEQ"
-            />
-          </div>
-          <div>
-            <h2 className="font-headline-sm text-label-md font-bold text-on-surface leading-tight">
-              Muhimbili National Hospital
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
+              <span className="material-symbols-outlined text-[20px]">local_hospital</span>
+            </div>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-label-md font-bold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
             </h2>
-            <p className="font-label-sm text-[11px] text-outline">General Ward</p>
+            <p className="font-label-sm text-[11px] text-outline m-0">General Ward</p>
           </div>
         </div>
 
@@ -683,16 +708,20 @@ export function Sidebar() {
 
     return (
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
-        <div className="flex flex-col py-lg px-md gap-xs">
-          <div className="flex items-center gap-sm">
-            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+        <div className="px-md py-lg flex items-center gap-sm">
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
               <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
-              Muhimbili National Hospital
-            </span>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
+            </h2>
+            <span className="text-secondary font-body-sm text-[11px]">Laboratory</span>
           </div>
-          <span className="text-secondary font-body-sm pl-[40px]">Laboratory</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm space-y-lg">
@@ -882,16 +911,20 @@ export function Sidebar() {
 
     return (
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
-        <div className="flex flex-col py-lg px-md gap-xs">
-          <div className="flex items-center gap-sm">
-            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+        <div className="px-md py-lg flex items-center gap-sm">
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
               <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
-              Muhimbili National Hospital
-            </span>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
+            </h2>
+            <span className="text-secondary font-body-sm text-[11px]">Radiology</span>
           </div>
-          <span className="text-secondary font-body-sm pl-[40px]">Radiology</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm space-y-lg">
@@ -959,16 +992,20 @@ export function Sidebar() {
 
     return (
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
-        <div className="flex flex-col py-lg px-md gap-xs">
-          <div className="flex items-center gap-sm">
-            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+        <div className="px-md py-lg flex items-center gap-sm">
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
               <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
-              Muhimbili National Hospital
-            </span>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
+            </h2>
+            <span className="text-secondary font-body-sm text-[11px]">Pharmacy</span>
           </div>
-          <span className="text-secondary font-body-sm pl-[40px]">Pharmacy</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto nav-scrollbar py-sm">
@@ -1062,16 +1099,20 @@ export function Sidebar() {
 
     return (
       <aside className="hidden lg:flex flex-col h-screen w-sidebar-width bg-surface-white border-r border-border-subtle overflow-hidden shrink-0">
-        <div className="flex flex-col py-lg px-md gap-xs">
-          <div className="flex items-center gap-sm">
-            <div className="w-8 h-8 rounded bg-reception-primary flex items-center justify-center text-white shrink-0">
+        <div className="px-md py-lg flex items-center gap-sm">
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
               <span className="material-symbols-outlined text-[20px]">local_hospital</span>
             </div>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight">
-              Muhimbili National Hospital
-            </span>
+          )}
+          <div className="overflow-hidden">
+            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface leading-tight truncate m-0">
+              {hospitalName}
+            </h2>
+            <span className="text-secondary font-body-sm text-[11px]">Consultation Portal</span>
           </div>
-          <span className="text-secondary font-body-sm pl-[40px]">Consultation Portal</span>
         </div>
 
         {/* Navigation */}
@@ -1136,11 +1177,20 @@ export function Sidebar() {
   return (
     <aside className="sidebar admin-portal-theme bg-surface-white border-r border-border-subtle flex flex-col h-screen overflow-hidden" style={{ padding: 0 }}>
       <div className="px-md py-lg flex items-center space-x-sm" style={{ padding: '24px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0" style={{ width: '40px', height: '40px', borderRadius: '9999px', backgroundColor: '#0052cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', flexShrink: 0 }}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '20px' }}>
-            local_hospital
-          </span>
-        </div>
+        {hospitalLogo ? (
+          <img
+            src={hospitalLogo}
+            alt={hospitalName}
+            className="w-10 h-10 rounded-full object-cover shrink-0 border border-border-subtle"
+            style={{ width: '40px', height: '40px', borderRadius: '9999px', objectFit: 'cover', flexShrink: 0 }}
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0" style={{ width: '40px', height: '40px', borderRadius: '9999px', backgroundColor: '#0052cc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: '20px' }}>
+              local_hospital
+            </span>
+          </div>
+        )}
         <div className="overflow-hidden" style={{ overflow: 'hidden' }}>
           <h1 className="font-headline-sm text-[14px] leading-tight truncate text-on-surface" style={{ fontFamily: 'Manrope, sans-serif', fontSize: '14px', fontWeight: 600, lineHeight: 1.25, margin: 0, color: '#191c1e', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
             {isSuperAdmin() ? 'Hospital PMS' : hospitalName}
