@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { radiologyService } from '@/api/services/radiology'
-import { EQUIPMENT_STATUS } from '@/features/radiology/data/mockRadiologyDashboard'
+import { EQUIPMENT_STATUS } from '@/features/radiology/data/equipmentPlaceholder'
 import type {
   EquipmentStatus,
   ImagingRequest,
@@ -218,7 +218,13 @@ function EquipmentMonitoringCard() {
       <div className="flex items-center gap-sm mb-lg">
         <span className="material-symbols-outlined text-primary">settings_input_component</span>
         <h2 className="text-headline-sm font-headline-sm text-on-surface m-0">Equipment Monitoring</h2>
+        <span className="ml-auto px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded bg-surface-container text-secondary">
+          Preview
+        </span>
       </div>
+      <p className="text-label-sm text-secondary -mt-sm mb-md">
+        Sample data — not yet connected to live equipment status.
+      </p>
       <div className="space-y-md">
         {EQUIPMENT_STATUS.map((item) => {
           const config = EQUIPMENT_STATUS_CONFIG[item.status]
