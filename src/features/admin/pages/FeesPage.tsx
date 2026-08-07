@@ -108,15 +108,7 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
 export function FeesPage() {
   const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingFee, setEditingFee] = useState<FeeItem | null>(null);
-  const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState('Consultation');
-  const [formAmount, setFormAmount] = useState('');
-  const [formInsuranceCovered, setFormInsuranceCovered] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [feeToDelete, setFeeToDelete] = useState<FeeItem | null>(null);
+
 
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
   const [currencyFilter, setCurrencyFilter] = useState('TZS');
