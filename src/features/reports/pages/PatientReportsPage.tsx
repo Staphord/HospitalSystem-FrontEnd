@@ -183,7 +183,7 @@ export const PatientReportsPage: React.FC = () => {
     : 0;
   const avgWaitMin = Math.round(avgWaitSec / 60);
 
-  const maxWaitMinutes = Math.max(...waitTimesList.map(item => Math.round((item.avg_wait_seconds || 0) / 60)), 1);
+  const maxWaitMinutes = Math.max(...waitTimesList.map(item => Math.round((item.avg_wait_seconds || 0) / 60)), 15);
 
   const dischargedCount = dischargeData?.discharged ?? dischargeData?.completed ?? 0;
   const occupiedBeds = bedData?.occupied ?? 0;
@@ -585,34 +585,83 @@ export const PatientReportsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Wait Times by Department Visual */}
+        {/* Wait Times by Department Visual Card */}
         <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm flex flex-col">
           <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center bg-surface-container-lowest">
-            <h4 className="font-headline-sm text-headline-sm text-on-surface m-0">Average Wait Time by Queue</h4>
-            <span className="text-label-sm text-secondary font-medium">In Minutes</span>
+            <div>
+              <h4 className="font-headline-sm text-headline-sm text-on-surface m-0">Average Wait Time by Queue</h4>
+              <p className="text-body-sm text-[12px] text-secondary m-0 mt-0.5">
+                Calculated from patient queue logs
+              </p>
+            </div>
+            <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
+              Avg: {avgWaitMin} min
+            </span>
           </div>
+
           <div className="p-lg space-y-3.5 flex-1 flex flex-col justify-center bg-surface-white">
             {waitTimesList.length === 0 ? (
-              <div className="text-center text-outline my-auto font-body-sm py-8">
-                No queue wait time data recorded for this hospital during the selected period.
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
+                  <span className="material-symbols-outlined text-[28px]">timer_off</span>
+                </div>
+                <p className="text-body-md font-semibold text-on-surface mb-1">No Queue Data Logged</p>
+                <p className="text-label-sm text-secondary max-w-xs">
+                  No queue wait time records found for this hospital during the selected date range.
+                </p>
               </div>
             ) : (
               waitTimesList.map((item, idx) => {
                 const mins = item.avg_wait_seconds ? Math.round(item.avg_wait_seconds / 60) : 0;
                 const pct = maxWaitMinutes > 0 ? Math.min(Math.max(Math.round((mins / maxWaitMinutes) * 100), 8), 100) : 8;
+                const rawType = item.queue_type.toLowerCase();
                 const label = item.queue_type
                   .split('_')
                   .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                   .join(' ');
+
+                const iconName = rawType.includes('reception')
+                  ? 'desk'
+                  : rawType.includes('triage')
+                  ? 'clinical_notes'
+                  : rawType.includes('consultation') || rawType.includes('doctor')
+                  ? 'medical_information'
+                  : rawType.includes('lab')
+                  ? 'biotech'
+                  : rawType.includes('radio')
+                  ? 'radiology'
+                  : rawType.includes('pharm')
+                  ? 'prescriptions'
+                  : 'bed';
+
                 return (
-                  <div key={idx} className="flex items-center gap-4">
-                    <span className="w-28 text-[11px] font-semibold text-outline text-right uppercase tracking-wider truncate">
-                      {label}
-                    </span>
-                    <div className="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden p-0.5">
-                      <div className="h-full bg-gradient-to-r from-primary to-[#00B8D9] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                  <div key={idx} className="group flex flex-col gap-1.5 p-2 rounded-lg hover:bg-surface-container-lowest transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px] text-primary shrink-0">{iconName}</span>
+                        <span className="font-body-sm font-semibold text-on-surface text-xs">{label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.samples != null && item.samples > 0 && (
+                          <span className="text-[10px] font-medium text-outline bg-surface-container px-2 py-0.5 rounded">
+                            {item.samples} served
+                          </span>
+                        )}
+                        <span className="font-headline-sm text-xs font-bold text-primary">{mins} min</span>
+                      </div>
                     </div>
-                    <span className="w-12 text-[11px] font-bold text-secondary">{mins} min</span>
+
+                    {/* Progress Bar Line Indicator */}
+                    <div className="w-full h-3 bg-[#E2E8F0] rounded-full overflow-hidden flex items-center border border-border-subtle/50 shadow-inner">
+                      <div
+                        className="h-full rounded-full transition-all duration-700 ease-out shadow-xs"
+                        style={{
+                          width: `${Math.max(pct, 12)}%`,
+                          backgroundColor: '#0052cc',
+                          backgroundImage: 'linear-gradient(to right, #0052cc, #00b8d9, #36b37e)',
+                        }}
+                      />
+                    </div>
                   </div>
                 );
               })
