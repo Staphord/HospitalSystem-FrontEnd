@@ -3,7 +3,7 @@ import {
   SCHEDULE_END_HOUR,
   SCHEDULE_ROW_HEIGHT_PX,
   SCHEDULE_START_HOUR,
-} from '@/features/radiology/data/mockImagingSchedule'
+} from '@/features/radiology/data/scheduleLayout'
 export const SCHEDULE_MODALITY_COLORS: Record<
   ScheduleModality,
   { bg: string; label: string; dot: string }
