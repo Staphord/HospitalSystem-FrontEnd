@@ -83,7 +83,7 @@ const ToggleSwitch: React.FC<{
 // Renders settings control panel, regional restrictions, and contact details
 export const SettingsPage: React.FC = () => {
   const { setActiveView } = useApp();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
 
   const hospitalName = user?.hospital_name || 'Hospital'
 
@@ -244,6 +244,18 @@ export const SettingsPage: React.FC = () => {
       .then(() => {
         setSaveSuccess(true);
         setIsDirty(false);
+        const profileData = {
+          hospital_name: settings.hospitalName,
+          logo_url: settings.logoUrl,
+        };
+        localStorage.setItem('hospital_profile', JSON.stringify(profileData));
+        if (user) {
+          setUser({
+            ...user,
+            hospital_name: settings.hospitalName,
+            logo_url: settings.logoUrl,
+          });
+        }
         setTimeout(() => {
           setSaveSuccess(false);
         }, 2000);

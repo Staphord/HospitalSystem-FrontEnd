@@ -201,7 +201,7 @@ function ReceptionQueueViewModal({
   )
 }
 
-function AdminDashboardContent({ hospitalName }: { hospitalName: string }) {
+function AdminDashboardContent({ hospitalName, hospitalLogo }: { hospitalName: string; hospitalLogo?: string | null }) {
   const { stats, alerts, departments, sessions, setActiveView } = useApp()
   const previewSessions = sessions.slice(0, 3)
 
@@ -211,7 +211,11 @@ function AdminDashboardContent({ hospitalName }: { hospitalName: string }) {
       <div className="w-full lg:w-[70%] flex flex-col gap-lg">
         {/* Status operational banner */}
         <div className="w-full flex items-center gap-sm p-md bg-[#e6f6ef] border border-success/20 rounded-lg">
-          <span className="material-symbols-outlined text-success">check_circle</span>
+          {hospitalLogo ? (
+            <img src={hospitalLogo} alt={hospitalName} className="w-6 h-6 rounded-full object-cover shrink-0" />
+          ) : (
+            <span className="material-symbols-outlined text-success">check_circle</span>
+          )}
           <span className="font-headline-sm text-on-surface text-[14px]">
             All Systems Operational — {hospitalName}
           </span>
@@ -843,16 +847,20 @@ export function DashboardPage() {
     )
   }
 
-  // Retrieve dynamic hospital name based on the active tenant ID
+  // Retrieve dynamic hospital name and logo based on active tenant
   const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
   const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId)
   const hospitalName =
     user?.hospital_name ||
     (currentTenant ? currentTenant.hospital_name : null) ||
-    'Muhimbili National Hospital'
+    'Hospital System'
+  const hospitalLogo =
+    user?.logo_url ||
+    (currentTenant ? currentTenant.logo_url : null) ||
+    null
 
   if (isHospitalAdmin) {
-    return <AdminDashboardContent hospitalName={hospitalName} />
+    return <AdminDashboardContent hospitalName={hospitalName} hospitalLogo={hospitalLogo} />
   }
 
   return (

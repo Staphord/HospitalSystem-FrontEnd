@@ -662,6 +662,9 @@ export const adminService = {
     apiClient.delete(`/admin/insurance-providers/${id}`),
 
   // Hospital profile + KV settings (FR-55)
+  getHospitalProfile: () =>
+    apiClient.get<BackendHospitalProfile>('/admin/hospital-profile').then((r) => r.data),
+
   getSettings: async (): Promise<Record<string, string | null>> => {
     const [profile, kv] = await Promise.all([
       apiClient
