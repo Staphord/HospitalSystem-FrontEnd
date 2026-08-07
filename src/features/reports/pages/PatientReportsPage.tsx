@@ -37,6 +37,9 @@ export const PatientReportsPage: React.FC = () => {
   const [dischargeData, setDischargeData] = useState<DischargeReportResponse | null>(null);
   const [bedData, setBedData] = useState<BedOccupancyReportResponse | null>(null);
 
+  // Hover state for interactive chart tooltip
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+
   // Pagination & Page Size State (matching ActiveSessionsPage)
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -171,23 +174,98 @@ export const PatientReportsPage: React.FC = () => {
   const totalPatients = censusData?.active_patients ?? 0;
   const totalVisits = censusData?.total_visits ?? 0;
 
+  // Strict hospital queue wait times calculations from backend API
   const waitTimesList = waitTimeData?.by_queue_type || [];
+
   const validWaitSeconds = waitTimesList.filter((w) => w.avg_wait_seconds != null);
   const avgWaitSec = validWaitSeconds.length > 0
     ? validWaitSeconds.reduce((acc, curr) => acc + (curr.avg_wait_seconds || 0), 0) / validWaitSeconds.length
     : 0;
   const avgWaitMin = Math.round(avgWaitSec / 60);
 
+  const maxWaitMinutes = Math.max(...waitTimesList.map(item => Math.round((item.avg_wait_seconds || 0) / 60)), 1);
+
   const dischargedCount = dischargeData?.discharged ?? dischargeData?.completed ?? 0;
   const occupiedBeds = bedData?.occupied ?? 0;
   const totalBeds = bedData?.total ?? 0;
   const bedOccupancyPct = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
-  // Chart max calculation
-  const visitsByDay = censusData?.visits_by_day || [];
-  const maxVisitsDay = Math.max(...visitsByDay.map((v) => v.visits), 1);
+  // Strict hospital daily visit chart data mapped directly from backend API
+  const getDailyVisitsData = () => {
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
 
-  // Pagination calculation matching ActiveSessionsPage pattern
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+      return [];
+    }
+
+    const rawVisits = censusData?.visits_by_day || [];
+    const backendMap = new Map<string, number>();
+    rawVisits.forEach((v) => {
+      backendMap.set(v.date, v.visits);
+    });
+
+    const list: Array<{ date: string; visits: number }> = [];
+    const curr = new Date(start);
+    let count = 0;
+    while (curr <= end && count < 31) {
+      const dateIso = curr.toISOString().split('T')[0];
+      const displayLabel = curr.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      // Strictly map actual visits for this hospital, defaulting to 0 if none recorded
+      const visits = backendMap.get(dateIso) ?? backendMap.get(displayLabel) ?? 0;
+
+      list.push({ date: displayLabel, visits });
+      curr.setDate(curr.getDate() + 1);
+      count++;
+    }
+    return list;
+  };
+
+  const dailyVisitsData = getDailyVisitsData();
+  const maxVisitsDay = Math.max(...dailyVisitsData.map((v) => v.visits), 10);
+
+  // SVG Line Chart coordinates & Bezier path calculation
+  const svgWidth = 600;
+  const svgHeight = 220;
+  const paddingLeft = 45;
+  const paddingRight = 20;
+  const paddingTop = 25;
+  const paddingBottom = 35;
+
+  const points = dailyVisitsData.map((v, i) => {
+    const x = paddingLeft + (i / (dailyVisitsData.length - 1 || 1)) * (svgWidth - paddingLeft - paddingRight);
+    const y = svgHeight - paddingBottom - (v.visits / maxVisitsDay) * (svgHeight - paddingTop - paddingBottom);
+    return { x, y, visits: v.visits, date: v.date };
+  });
+
+  const getSmoothBezierPath = (pts: Array<{ x: number; y: number }>) => {
+    if (pts.length === 0) return '';
+    if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+
+    let path = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i === 0 ? i : i - 1];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+    return path;
+  };
+
+  const linePath = getSmoothBezierPath(points);
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1].x} ${svgHeight - paddingBottom} L ${points[0].x} ${svgHeight - paddingBottom} Z`
+    : '';
+
+  // Pagination calculation
   const totalEntries = reports.length;
   const totalPages = Math.ceil(totalEntries / pageSize) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages);
@@ -355,64 +433,184 @@ export const PatientReportsPage: React.FC = () => {
 
       {/* Visual Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-lg">
-        {/* Patient Census Visual */}
+        {/* Daily Visit Volume Area Line Graph (Matching reference design) */}
         <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm flex flex-col">
-          <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center bg-surface-white">
-            <h4 className="font-headline-sm text-headline-sm text-on-surface">Daily Visit Volume</h4>
-            <span className="text-label-sm text-secondary">{fromDate} to {toDate}</span>
+          <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center bg-surface-container-lowest">
+            <div>
+              <h4 className="font-headline-sm text-headline-sm text-on-surface m-0">Daily Visit Volume</h4>
+              <p className="text-body-sm text-[12px] text-secondary m-0 mt-0.5">
+                {fromDate} to {toDate}
+              </p>
+            </div>
+            <span className="text-label-sm text-secondary font-semibold">
+              {dailyVisitsData.reduce((acc, curr) => acc + curr.visits, 0)} Total Visits
+            </span>
           </div>
-          <div className="p-lg h-64 flex items-end gap-1.5 relative mt-auto">
-            {visitsByDay.length === 0 ? (
-              <div className="w-full text-center text-outline my-auto font-body-sm">
-                No visit records for selected period
-              </div>
-            ) : (
-              <div className="flex-1 h-full flex items-end justify-between gap-1 overflow-x-auto">
-                {visitsByDay.map((v, i) => {
-                  const pct = Math.max(Math.round((v.visits / maxVisitsDay) * 100), 8);
+
+          <div className="p-md flex-1 flex flex-col justify-center bg-surface-white">
+            <div className="w-full relative">
+              <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto overflow-visible">
+                <defs>
+                  <linearGradient id="visitGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2563EB" stopOpacity="0.22" />
+                    <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Y-Axis Horizontal Gridlines & Values */}
+                {[1, 0.75, 0.5, 0.25, 0].map((step, idx) => {
+                  const yVal = paddingTop + (1 - step) * (svgHeight - paddingTop - paddingBottom);
+                  const numVal = Math.round(maxVisitsDay * step);
                   return (
-                    <div
-                      key={i}
-                      title={`${v.date}: ${v.visits} visits`}
-                      className="flex-1 bg-primary rounded-t-sm hover:opacity-80 transition-all cursor-pointer min-w-[8px]"
-                      style={{ height: `${pct}%` }}
-                    />
+                    <g key={idx}>
+                      <text
+                        x={paddingLeft - 10}
+                        y={yVal + 4}
+                        textAnchor="end"
+                        className="text-[10px] font-semibold fill-secondary select-none"
+                      >
+                        {numVal}
+                      </text>
+                      <line
+                        x1={paddingLeft}
+                        y1={yVal}
+                        x2={svgWidth - paddingRight}
+                        y2={yVal}
+                        stroke="#E2E8F0"
+                        strokeDasharray="4 4"
+                      />
+                    </g>
                   );
                 })}
-              </div>
-            )}
-          </div>
-          <div className="px-lg pb-4 text-[11px] text-outline text-center bg-surface-white border-t border-border-subtle pt-2">
-            Data sourced from tenant visit logs.
+
+                {/* Translucent Area Gradient Fill */}
+                <path d={areaPath} fill="url(#visitGradient)" />
+
+                {/* Smooth Bezier Line Path */}
+                <path
+                  d={linePath}
+                  fill="none"
+                  stroke="#2563EB"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+
+                {/* Data Points (Circles) & Interactive Floating Tooltip Badge */}
+                {points.map((pt, i) => {
+                  const isHovered = hoveredBarIndex === i;
+                  return (
+                    <g
+                      key={i}
+                      onMouseEnter={() => setHoveredBarIndex(i)}
+                      onMouseLeave={() => setHoveredBarIndex(null)}
+                      className="cursor-pointer"
+                    >
+                      {/* Vertical highlight line on hover */}
+                      {isHovered && (
+                        <line
+                          x1={pt.x}
+                          y1={paddingTop}
+                          x2={pt.x}
+                          y2={svgHeight - paddingBottom}
+                          stroke="#2563EB"
+                          strokeWidth="1.5"
+                          strokeDasharray="3 3"
+                        />
+                      )}
+
+                      {/* Outer Circle Ring */}
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={isHovered ? '7' : '4.5'}
+                        fill="#FFFFFF"
+                        stroke="#2563EB"
+                        strokeWidth="2.5"
+                        className="transition-all duration-200"
+                      />
+
+                      {/* Floating Dark Tooltip Badge (Exact design matching user image) */}
+                      {isHovered && (
+                        <g transform={`translate(${Math.min(Math.max(pt.x, 50), svgWidth - 50)}, ${Math.max(pt.y - 30, 10)})`}>
+                          <rect
+                            x="-36"
+                            y="-14"
+                            width="72"
+                            height="24"
+                            rx="6"
+                            fill="#0F172A"
+                            className="shadow-xl"
+                          />
+                          <text
+                            x="0"
+                            y="2"
+                            textAnchor="middle"
+                            className="text-[11px] font-bold fill-white select-none"
+                          >
+                            {pt.visits} Visits
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {/* X-Axis Dates Labels */}
+                {points.map((pt, i) => {
+                  const total = points.length;
+                  const showLabel =
+                    total <= 10 ||
+                    i === 0 ||
+                    i === total - 1 ||
+                    i === Math.floor(total / 2) ||
+                    i === Math.floor(total / 4) ||
+                    i === Math.floor((3 * total) / 4);
+
+                  if (!showLabel) return null;
+                  return (
+                    <text
+                      key={i}
+                      x={pt.x}
+                      y={svgHeight - 10}
+                      textAnchor="middle"
+                      className="text-[10px] font-semibold fill-secondary select-none"
+                    >
+                      {pt.date}
+                    </text>
+                  );
+                })}
+              </svg>
+            </div>
           </div>
         </div>
 
         {/* Wait Times by Department Visual */}
         <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm flex flex-col">
-          <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center bg-surface-white">
-            <h4 className="font-headline-sm text-headline-sm text-on-surface">Average Wait Time by Queue</h4>
-            <span className="text-label-sm text-secondary">In Minutes</span>
+          <div className="px-lg py-md border-b border-border-subtle flex justify-between items-center bg-surface-container-lowest">
+            <h4 className="font-headline-sm text-headline-sm text-on-surface m-0">Average Wait Time by Queue</h4>
+            <span className="text-label-sm text-secondary font-medium">In Minutes</span>
           </div>
-          <div className="p-lg space-y-3 flex-1 flex flex-col justify-center bg-surface-white">
+          <div className="p-lg space-y-3.5 flex-1 flex flex-col justify-center bg-surface-white">
             {waitTimesList.length === 0 ? (
-              <div className="text-center text-outline my-auto font-body-sm">
-                No queue data available for selected period
+              <div className="text-center text-outline my-auto font-body-sm py-8">
+                No queue wait time data recorded for this hospital during the selected period.
               </div>
             ) : (
               waitTimesList.map((item, idx) => {
                 const mins = item.avg_wait_seconds ? Math.round(item.avg_wait_seconds / 60) : 0;
-                const pct = Math.min(Math.max(mins * 3, 10), 100);
+                const pct = maxWaitMinutes > 0 ? Math.min(Math.max(Math.round((mins / maxWaitMinutes) * 100), 8), 100) : 8;
                 const label = item.queue_type
                   .split('_')
                   .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                   .join(' ');
                 return (
                   <div key={idx} className="flex items-center gap-4">
-                    <span className="w-28 text-[11px] font-medium text-outline text-right uppercase tracking-wider truncate">
+                    <span className="w-28 text-[11px] font-semibold text-outline text-right uppercase tracking-wider truncate">
                       {label}
                     </span>
-                    <div className="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden">
-                      <div className="h-full bg-primary-container rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="flex-1 h-3 bg-surface-container-low rounded-full overflow-hidden p-0.5">
+                      <div className="h-full bg-gradient-to-r from-primary to-[#00B8D9] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="w-12 text-[11px] font-bold text-secondary">{mins} min</span>
                   </div>
