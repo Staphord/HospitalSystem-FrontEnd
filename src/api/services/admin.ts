@@ -116,6 +116,37 @@ interface BackendDashboardReport {
   generated_at: string
 }
 
+export interface PatientCensusReportResponse {
+  from: string
+  to: string
+  active_patients: number
+  total_visits: number
+  visits_by_day: Array<{ date: string; visits: number }>
+}
+
+export interface WaitTimeReportResponse {
+  from: string
+  to: string
+  by_queue_type: Array<{ queue_type: string; avg_wait_seconds: number | null; samples: number }>
+}
+
+export interface DischargeReportResponse {
+  from: string
+  to: string
+  discharged?: number
+  completed?: number
+  cancelled?: number
+  source?: string
+}
+
+export interface BedOccupancyReportResponse {
+  total: number
+  available: number
+  occupied: number
+  by_ward: Array<{ ward_name: string; total: number; available: number; occupied: number }>
+}
+
+
 interface BackendAuditLog {
   log_id: string
   user_id: string
@@ -854,6 +885,33 @@ export const adminService = {
       return []
     }
   },
+
+  // Operational Reports (FR-57)
+  getPatientCensusReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<PatientCensusReportResponse>('/admin/reports/patient-census', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getWaitTimesReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<WaitTimeReportResponse>('/admin/reports/wait-times', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getDischargesReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<DischargeReportResponse>('/admin/reports/discharges', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getBedOccupancyReport: () =>
+    apiClient
+      .get<BedOccupancyReportResponse>('/admin/reports/bed-occupancy')
+      .then((r) => r.data),
 
   // Sessions (FR-53) — proxied via api-gateway → admin-service (/admin/sessions)
   listActiveSessions: async (): Promise<ActiveSession[]> => {
