@@ -279,17 +279,8 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="max-w-[1440px] mx-auto p-lg space-y-lg">
-      <div className="mb-lg">
-        <div className="flex justify-between items-start">
-          <div>
-            <nav className="flex text-label-sm text-outline mt-1">
-              <span>Hospital Configuration</span>
-              <span className="mx-2">/</span>
-              <span className="text-secondary">General Settings</span>
-            </nav>
-          </div>
-          
-          <button
+      <div className="mb-lg flex justify-end items-center">
+        <button
             onClick={handleSaveChanges}
             disabled={!isDirty || isSaving}
             className={`font-label-md px-lg py-2 rounded-lg transition-all ${
@@ -311,7 +302,6 @@ export const SettingsPage: React.FC = () => {
               'Save Changes'
             )}
           </button>
-        </div>
       </div>
 
       {/* Grid Settings Layout */}
