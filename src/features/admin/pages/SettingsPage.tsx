@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { useApp } from '@/features/admin/context/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import { adminService } from '@/api/services/admin';
 import { masterService } from '@/api/services/master';
 import type { Subscription } from '@/api/types/master';
+
+const DEFAULT_LOGO_URL =
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuBOkSEIEBn5FTWAiYZwMS5C0gihlB36KbhJH2Dr-TWLrqVZ9dagCtqPeVwRE2zJeY3KtvRGTZyrIahD42wBAhzbBcNSni9xx0Mz1Bk1xGWIXo_NKENVrXkuXA_rl9tBxxKbTKMZQkQdH94H0gAc8wBIaq4IV-mNjpiXuM80b3XB_HA1T3PtgA7DTppa7Top6SnqzaCTpHkhlth_-vSd_ZajpKC5lIwHwJ0XX3GT4YWa5rdApiJxEaZh0du11E7z6Ryz5AxdUMLW8wm_';
 
 interface ContactInfo {
   name: string;
@@ -15,6 +18,7 @@ interface ContactInfo {
 
 interface SettingsState {
   hospitalName: string;
+  logoUrl: string;
   address: string;
   city: string;
   country: string;
@@ -36,6 +40,46 @@ interface SettingsState {
   renewalReminders: boolean;
 }
 
+const ToggleSwitch: React.FC<{
+  checked: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+}> = ({ checked, onChange, ariaLabel }) => (
+  <button
+    type="button"
+    onClick={onChange}
+    aria-label={ariaLabel}
+    style={{
+      position: 'relative',
+      display: 'inline-flex',
+      alignItems: 'center',
+      width: '36px',
+      height: '20px',
+      borderRadius: '10px',
+      border: 'none',
+      cursor: 'pointer',
+      background: checked ? '#0052cc' : '#c1c7d0',
+      transition: 'background 0.2s',
+      padding: 0,
+      flexShrink: 0,
+    }}
+  >
+    <span
+      style={{
+        position: 'absolute',
+        width: '14px',
+        height: '14px',
+        borderRadius: '50%',
+        background: '#ffffff',
+        top: '3px',
+        left: checked ? '19px' : '3px',
+        transition: 'left 0.2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }}
+    />
+  </button>
+);
+
 // Renders settings control panel, regional restrictions, and contact details
 export const SettingsPage: React.FC = () => {
   const { setActiveView } = useApp();
@@ -43,8 +87,11 @@ export const SettingsPage: React.FC = () => {
 
   const hospitalName = user?.hospital_name || 'Hospital'
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [settings, setSettings] = useState<SettingsState>({
     hospitalName,
+    logoUrl: '',
     address: 'Kalenga St, Dar es Salaam',
     city: 'Dar es Salaam',
     country: 'Tanzania',
@@ -98,6 +145,7 @@ export const SettingsPage: React.FC = () => {
         setSettings((prev) => ({
           ...prev,
           hospitalName: stored.hospital_name ?? prev.hospitalName,
+          logoUrl: stored.logo_url ?? prev.logoUrl,
           address: stored.address ?? prev.address,
           city: stored.city ?? prev.city,
           country: stored.country ?? prev.country,
@@ -140,13 +188,36 @@ export const SettingsPage: React.FC = () => {
     setIsDirty(true);
   };
 
-  // Persist settings to admin-service (key-value store, FR-55)
+  // Handles image file selection and converts to Data URL
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo file size must be less than 2MB.');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file (PNG, JPG, WEBP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64 = evt.target?.result as string;
+      if (base64) {
+        handleChange((prev) => ({ ...prev, logoUrl: base64 }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Persist settings to admin-service (key-value store + master profile, FR-55)
   const handleSaveChanges = () => {
     if (!isDirty || isSaving) return;
     setIsSaving(true);
 
     adminService.updateSettings({
       hospital_name: settings.hospitalName,
+      logo_url: settings.logoUrl,
       address: settings.address,
       city: settings.city,
       country: settings.country,
@@ -178,7 +249,16 @@ export const SettingsPage: React.FC = () => {
         }, 2000);
       })
       .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to save settings.');
+        const detail = err.response?.data?.detail;
+        const errorMsg =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+            ? detail.map((d: any) => d.msg || d.detail || JSON.stringify(d)).join(', ')
+            : typeof detail === 'object' && detail !== null
+            ? JSON.stringify(detail)
+            : 'Failed to save settings.';
+        toast.error(errorMsg);
       })
       .finally(() => {
         setIsSaving(false);
@@ -237,17 +317,27 @@ export const SettingsPage: React.FC = () => {
               <div className="flex-shrink-0">
                 <label className="text-label-md text-outline block mb-2 font-semibold">Hospital Logo</label>
                 <div className="flex items-center gap-lg">
-                  <div className="w-20 h-20 rounded-full border-2 border-primary/20 p-1">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/png, image/jpeg, image/webp"
+                    className="hidden"
+                    onChange={handleLogoSelect}
+                  />
+                  <div className="w-20 h-20 rounded-full border-2 border-primary/20 p-1 flex-shrink-0">
                     <img
-                      alt="Muhimbili National Hospital Logo"
+                      alt="Hospital Logo"
                       className="w-full h-full rounded-full object-cover"
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOkSEIEBn5FTWAiYZwMS5C0gihlB36KbhJH2Dr-TWLrqVZ9dagCtqPeVwRE2zJeY3KtvRGTZyrIahD42wBAhzbBcNSni9xx0Mz1Bk1xGWIXo_NKENVrXkuXA_rl9tBxxKbTKMZQkQdH94H0gAc8wBIaq4IV-mNjpiXuM80b3XB_HA1T3PtgA7DTppa7Top6SnqzaCTpHkhlth_-vSd_ZajpKC5lIwHwJ0XX3GT4YWa5rdApiJxEaZh0du11E7z6Ryz5AxdUMLW8wm_"
+                      src={settings.logoUrl || DEFAULT_LOGO_URL}
                     />
                   </div>
-                  <div className="flex-1 border-2 border-dashed border-border-subtle rounded-xl p-md text-center hover:border-primary transition-colors cursor-pointer group">
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 border-2 border-dashed border-border-subtle rounded-xl p-md text-center hover:border-primary transition-colors cursor-pointer group"
+                  >
                     <span className="material-symbols-outlined text-outline group-hover:text-primary transition-colors">upload_file</span>
-                    <p className="text-label-md text-outline mt-1">Drag and drop or <span className="text-primary">browse</span></p>
-                    <p className="text-label-sm text-outline-variant mt-0.5">PNG, JPG up to 2MB</p>
+                    <p className="text-label-md text-outline mt-1">Click to select or <span className="text-primary">browse</span></p>
+                    <p className="text-label-sm text-outline-variant mt-0.5">PNG, JPG, WEBP up to 2MB</p>
                   </div>
                 </div>
               </div>
@@ -463,20 +553,11 @@ export const SettingsPage: React.FC = () => {
                     <p className="text-label-sm text-outline">Mandatory multi-factor authentication for all portal admins.</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleChange(prev => ({ ...prev, mfaAdmins: !prev.mfaAdmins }))}
-                  className={`w-11 h-6 rounded-full relative transition-all shadow-inner ${
-                    settings.mfaAdmins ? 'bg-primary' : 'bg-gray-200'
-                  }`}
-                  aria-label="Toggle MFA requirement for admins"
-                >
-                  <div
-                    className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
-                      settings.mfaAdmins ? 'right-[2px]' : 'left-[2px]'
-                    }`}
-                  />
-                </button>
+                <ToggleSwitch
+                  checked={settings.mfaAdmins}
+                  onChange={() => handleChange(prev => ({ ...prev, mfaAdmins: !prev.mfaAdmins }))}
+                  ariaLabel="Toggle MFA requirement for admins"
+                />
               </div>
               <div className="flex items-center justify-between p-md border border-border-subtle rounded-lg">
                 <div className="flex items-center gap-3">
@@ -486,20 +567,11 @@ export const SettingsPage: React.FC = () => {
                     <p className="text-label-sm text-outline">Require MFA for hospital medical staff access.</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleChange(prev => ({ ...prev, mfaDoctors: !prev.mfaDoctors }))}
-                  className={`w-11 h-6 rounded-full relative transition-all shadow-inner ${
-                    settings.mfaDoctors ? 'bg-primary' : 'bg-gray-200'
-                  }`}
-                  aria-label="Toggle MFA requirement for doctors"
-                >
-                  <div
-                    className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
-                      settings.mfaDoctors ? 'right-[2px]' : 'left-[2px]'
-                    }`}
-                  />
-                </button>
+                <ToggleSwitch
+                  checked={settings.mfaDoctors}
+                  onChange={() => handleChange(prev => ({ ...prev, mfaDoctors: !prev.mfaDoctors }))}
+                  ariaLabel="Toggle MFA requirement for doctors"
+                />
               </div>
             </div>
           </div>
@@ -657,66 +729,61 @@ export const SettingsPage: React.FC = () => {
             </h3>
           </div>
           <div className="p-lg space-y-md">
-            <label className="flex items-start gap-4 p-2 hover:bg-row-hover rounded-lg transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.criticalLabAlerts}
-                onChange={(e) => handleChange(prev => ({ ...prev, criticalLabAlerts: e.target.checked }))}
-                className="mt-1 w-5 h-5 rounded border-border-subtle text-primary focus:ring-primary"
-              />
+            <div className="flex items-center justify-between p-md hover:bg-row-hover rounded-lg transition-colors">
               <div>
                 <p className="text-body-md font-bold">Critical Lab Value Alerts</p>
                 <p className="text-body-sm text-outline">Instant notification when laboratory results exceed critical safety thresholds.</p>
               </div>
-            </label>
-            <label className="flex items-start gap-4 p-2 hover:bg-row-hover rounded-lg transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.lowStockAlerts}
-                onChange={(e) => handleChange(prev => ({ ...prev, lowStockAlerts: e.target.checked }))}
-                className="mt-1 w-5 h-5 rounded border-border-subtle text-primary focus:ring-primary"
+              <ToggleSwitch
+                checked={settings.criticalLabAlerts}
+                onChange={() => handleChange(prev => ({ ...prev, criticalLabAlerts: !prev.criticalLabAlerts }))}
+                ariaLabel="Toggle Critical Lab Value Alerts"
               />
+            </div>
+            <div className="flex items-center justify-between p-md hover:bg-row-hover rounded-lg transition-colors">
               <div>
                 <p className="text-body-md font-bold">Low Pharmacy Stock Alerts</p>
                 <p className="text-body-sm text-outline">Weekly reports and instant alerts when essential medication stock is below 10%.</p>
               </div>
-            </label>
-            <label className="flex items-start gap-4 p-2 hover:bg-row-hover rounded-lg transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.overduePatientAlerts}
-                onChange={(e) => handleChange(prev => ({ ...prev, overduePatientAlerts: e.target.checked }))}
-                className="mt-1 w-5 h-5 rounded border-border-subtle text-primary focus:ring-primary"
+              <ToggleSwitch
+                checked={settings.lowStockAlerts}
+                onChange={() => handleChange(prev => ({ ...prev, lowStockAlerts: !prev.lowStockAlerts }))}
+                ariaLabel="Toggle Low Pharmacy Stock Alerts"
               />
+            </div>
+            <div className="flex items-center justify-between p-md hover:bg-row-hover rounded-lg transition-colors">
               <div>
                 <p className="text-body-md font-bold">Overdue Patient Alerts</p>
                 <p className="text-body-sm text-outline">Notify when patient appointments are missed or follow-ups are delayed by &gt;48h.</p>
               </div>
-            </label>
-            <label className="flex items-start gap-4 p-2 hover:bg-row-hover rounded-lg transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.maintenanceNotices}
-                onChange={(e) => handleChange(prev => ({ ...prev, maintenanceNotices: e.target.checked }))}
-                className="mt-1 w-5 h-5 rounded border-border-subtle text-primary focus:ring-primary"
+              <ToggleSwitch
+                checked={settings.overduePatientAlerts}
+                onChange={() => handleChange(prev => ({ ...prev, overduePatientAlerts: !prev.overduePatientAlerts }))}
+                ariaLabel="Toggle Overdue Patient Alerts"
               />
+            </div>
+            <div className="flex items-center justify-between p-md hover:bg-row-hover rounded-lg transition-colors">
               <div>
                 <p className="text-body-md font-bold">System Maintenance Notices</p>
                 <p className="text-body-sm text-outline">Updates regarding planned downtime, security patches, and system upgrades.</p>
               </div>
-            </label>
-            <label className="flex items-start gap-4 p-2 hover:bg-row-hover rounded-lg transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings.renewalReminders}
-                onChange={(e) => handleChange(prev => ({ ...prev, renewalReminders: e.target.checked }))}
-                className="mt-1 w-5 h-5 rounded border-border-subtle text-primary focus:ring-primary"
+              <ToggleSwitch
+                checked={settings.maintenanceNotices}
+                onChange={() => handleChange(prev => ({ ...prev, maintenanceNotices: !prev.maintenanceNotices }))}
+                ariaLabel="Toggle System Maintenance Notices"
               />
+            </div>
+            <div className="flex items-center justify-between p-md hover:bg-row-hover rounded-lg transition-colors">
               <div>
                 <p className="text-body-md font-bold">Subscription Renewal Reminders</p>
                 <p className="text-body-sm text-outline">Billing notifications sent 30, 15, and 7 days before the renewal date.</p>
               </div>
-            </label>
+              <ToggleSwitch
+                checked={settings.renewalReminders}
+                onChange={() => handleChange(prev => ({ ...prev, renewalReminders: !prev.renewalReminders }))}
+                ariaLabel="Toggle Subscription Renewal Reminders"
+              />
+            </div>
           </div>
         </section>
       </div>
