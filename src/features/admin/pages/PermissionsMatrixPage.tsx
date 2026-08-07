@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { RolePermission } from '@/api/types/admin';
@@ -15,7 +16,40 @@ interface DraftPermission {
   actions: Set<string>;
 }
 
+const BUILTIN_SYSTEM_ROLES = [
+  'hospital_admin',
+  'hospital_user',
+  'receptionist',
+  'triage_nurse',
+  'nurse',
+  'clinician',
+  'doctor',
+  'lab_technician',
+  'radiographer',
+  'pharmacist',
+  'cashier',
+  'patient',
+];
+
+const DEFAULT_SYSTEM_PERMISSIONS: Record<string, { modules: string[]; actions: string[] }> = {
+  hospital_admin: { modules: MODULES, actions: ACTIONS },
+  hospital_user: { modules: ['reception', 'triage', 'consultation'], actions: ['read'] },
+  receptionist: { modules: ['reception', 'billing', 'reports'], actions: ['create', 'read', 'update'] },
+  triage_nurse: { modules: ['triage', 'reception', 'consultation'], actions: ['create', 'read', 'update'] },
+  nurse: { modules: ['triage', 'ward', 'consultation'], actions: ['create', 'read', 'update'] },
+  clinician: { modules: ['consultation', 'ward', 'reports', 'triage'], actions: ['create', 'read', 'update'] },
+  doctor: { modules: ['consultation', 'ward', 'laboratory', 'radiology', 'pharmacy', 'reports'], actions: ['create', 'read', 'update'] },
+  lab_technician: { modules: ['laboratory', 'reports'], actions: ['create', 'read', 'update'] },
+  radiographer: { modules: ['radiology', 'reports'], actions: ['create', 'read', 'update'] },
+  pharmacist: { modules: ['pharmacy', 'billing', 'reports'], actions: ['create', 'read', 'update'] },
+  cashier: { modules: ['billing', 'reception', 'reports'], actions: ['create', 'read', 'update'] },
+  patient: { modules: ['reception'], actions: ['read'] },
+};
+
 export function PermissionsMatrixPage() {
+  const [searchParams] = useSearchParams();
+  const highlightedRole = searchParams.get('role');
+
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, DraftPermission>>({});
@@ -23,12 +57,48 @@ export function PermissionsMatrixPage() {
 
   const fetchPermissions = () => {
     setLoading(true);
-    adminService
-      .listPermissions()
-      .then((rows) => {
-        setPermissions(rows);
+    Promise.all([
+      adminService.listPermissions().catch(() => []),
+      adminService.listTenantRoles().catch(() => []),
+      adminService.listRealmRoles().catch(() => []),
+    ])
+      .then(([rows, tenantRoles, realmRoles]) => {
+        const existingRoles = new Set((rows || []).map((r) => r.roleName.toLowerCase()));
+
+        // Collect all custom tenant roles and realm roles
+        const allRolesFromList = [
+          ...BUILTIN_SYSTEM_ROLES,
+          ...(tenantRoles || []).map((r) => r.name),
+          ...(realmRoles || []).map((r) => r.name),
+        ];
+
+        const missingPerms: RolePermission[] = [];
+        allRolesFromList.forEach((roleName) => {
+          if (!existingRoles.has(roleName.toLowerCase())) {
+            existingRoles.add(roleName.toLowerCase());
+            missingPerms.push({
+              roleName,
+              modules: DEFAULT_SYSTEM_PERMISSIONS[roleName]?.modules || ['reception', 'reports'],
+              actions: DEFAULT_SYSTEM_PERMISSIONS[roleName]?.actions || ['read'],
+            });
+          }
+        });
+
+        // Ensure URL target role is also included if present
+        if (highlightedRole && !existingRoles.has(highlightedRole.toLowerCase())) {
+          existingRoles.add(highlightedRole.toLowerCase());
+          missingPerms.push({
+            roleName: highlightedRole,
+            modules: ['reception', 'reports'],
+            actions: ['read'],
+          });
+        }
+
+        const merged = [...missingPerms, ...(rows || [])];
+        setPermissions(merged);
+
         const nextDrafts: Record<string, DraftPermission> = {};
-        rows.forEach((row) => {
+        merged.forEach((row) => {
           nextDrafts[row.roleName] = {
             modules: new Set(row.modules),
             actions: new Set(row.actions),
@@ -46,6 +116,18 @@ export function PermissionsMatrixPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPermissions();
   }, []);
+
+  useEffect(() => {
+    if (highlightedRole && !loading) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`role-card-${highlightedRole.toLowerCase()}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedRole, loading]);
 
   const toggleModule = (roleName: string, mod: string) => {
     setDrafts((prev) => {
@@ -121,8 +203,15 @@ export function PermissionsMatrixPage() {
           {permissions.map((perm) => {
             const draft = drafts[perm.roleName] || { modules: new Set<string>(), actions: new Set<string>() };
             const dirty = isDirty(perm.roleName);
+            const isHighlighted = highlightedRole && highlightedRole.toLowerCase() === perm.roleName.toLowerCase();
             return (
-              <div key={perm.roleName} className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+              <div
+                key={perm.roleName}
+                id={`role-card-${perm.roleName.toLowerCase()}`}
+                className={`bg-surface-white border rounded-xl overflow-hidden shadow-sm transition-all ${
+                  isHighlighted ? 'border-primary ring-2 ring-primary/30 shadow-md' : 'border-border-subtle'
+                }`}
+              >
                 <div className="px-lg py-md border-b border-border-subtle flex items-center justify-between bg-white">
                   <h3 className="font-headline-sm text-headline-sm text-on-surface capitalize">{perm.roleName.replace(/_/g, ' ')}</h3>
                   <button

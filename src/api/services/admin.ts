@@ -1023,7 +1023,15 @@ export const adminService = {
     apiClient.get<BackendRealmRole[]>('/admin/roles/realm').then((r) => r.data.map(mapRealmRole)),
 
   createRealmRole: (name: string, description?: string): Promise<RealmRole> =>
-    apiClient.post<BackendRealmRole>('/admin/roles/realm', { name, description }).then((r) => mapRealmRole(r.data)),
+    apiClient
+      .post<BackendRealmRole>('/admin/roles/realm', { name, description })
+      .catch((err) => {
+        if (err.response?.status === 405) {
+          return apiClient.post<BackendRealmRole>('/admin/roles/realm/', { name, description });
+        }
+        throw err;
+      })
+      .then((r) => mapRealmRole(r.data)),
 
   updateRealmRole: (name: string, newName: string, description?: string): Promise<RealmRole> =>
     apiClient.patch<BackendRealmRole>(`/admin/roles/realm/${name}`, { name: newName, description }).then((r) => mapRealmRole(r.data)),
@@ -1038,7 +1046,15 @@ export const adminService = {
     apiClient.get<BackendTenantRole[]>('/admin/roles/tenant').then((r) => r.data.map(mapTenantRole)),
 
   createTenantRole: (data: { name: string; description?: string }): Promise<TenantRole> =>
-    apiClient.post<BackendTenantRole>('/admin/roles/tenant', { name: data.name, description: data.description }).then((r) => mapTenantRole(r.data)),
+    apiClient
+      .post<BackendTenantRole>('/admin/roles/tenant', { name: data.name, description: data.description })
+      .catch((err) => {
+        if (err.response?.status === 405) {
+          return apiClient.post<BackendTenantRole>('/admin/roles/tenant/', { name: data.name, description: data.description });
+        }
+        throw err;
+      })
+      .then((r) => mapTenantRole(r.data)),
 
   updateTenantRole: (id: string, data: { name?: string; description?: string }): Promise<TenantRole> =>
     apiClient.patch<BackendTenantRole>(`/admin/roles/tenant/${id}`, data).then((r) => mapTenantRole(r.data)),

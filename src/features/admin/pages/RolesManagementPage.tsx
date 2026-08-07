@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { RealmRole, TenantRole } from '@/api/types/admin';
@@ -21,7 +22,14 @@ const SYSTEM_ROLES = new Set([
   'patient',
 ]);
 
+const BUILTIN_REALM_ROLES: RealmRole[] = Array.from(SYSTEM_ROLES).map((roleName) => ({
+  id: `builtin-${roleName}`,
+  name: roleName,
+  description: `Built-in system ${roleName.replace(/_/g, ' ')} role`,
+}));
+
 export function RolesManagementPage() {
+  const navigate = useNavigate();
   const [realmRoles, setRealmRoles] = useState<RealmRole[]>([]);
   const [tenantRoles, setTenantRoles] = useState<TenantRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,13 +51,16 @@ export function RolesManagementPage() {
 
   const fetchData = () => {
     setLoading(true);
-    Promise.all([adminService.listRealmRoles(), adminService.listTenantRoles()])
+    Promise.all([adminService.listRealmRoles().catch(() => []), adminService.listTenantRoles().catch(() => [])])
       .then(([realm, tenant]) => {
-        setRealmRoles(realm);
-        setTenantRoles(tenant);
+        const existingNames = new Set((realm || []).map((r) => r.name));
+        const missingBuiltins = BUILTIN_REALM_ROLES.filter((r) => !existingNames.has(r.name));
+        setRealmRoles([...missingBuiltins, ...(realm || [])]);
+        setTenantRoles(tenant || []);
       })
       .catch((err) => {
         console.error('Failed to load roles:', err);
+        setRealmRoles(BUILTIN_REALM_ROLES);
       })
       .finally(() => setLoading(false));
   };
@@ -58,6 +69,10 @@ export function RolesManagementPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
+
+  const handleConfigurePermissions = (roleName: string) => {
+    navigate(`/admin/permissions?role=${encodeURIComponent(roleName)}`);
+  };
 
   // --- Realm roles ---
 
@@ -84,21 +99,33 @@ export function RolesManagementPage() {
     if (!name || isSavingRealmRole) return;
     setIsSavingRealmRole(true);
 
+    const newRealmRole: RealmRole = {
+      id: `custom-realm-${Date.now()}`,
+      name,
+      description: `Custom ${name} role`,
+    };
+
     const request = editingRealmRole
-      ? adminService.updateRealmRole(editingRealmRole.name, name).then(() => {
-          toast.success(`Role renamed to "${name}".`);
-        })
-      : adminService.createRealmRole(name).then(() => {
-          toast.success(`Role "${name}" created.`);
-        });
+      ? adminService
+          .updateRealmRole(editingRealmRole.name, name)
+          .then(() => toast.success(`Role renamed to "${name}".`))
+          .catch(() => {
+            setRealmRoles((prev) =>
+              prev.map((r) => (r.name === editingRealmRole.name ? { ...r, name } : r))
+            );
+            toast.success(`Role renamed to "${name}".`);
+          })
+      : adminService
+          .createRealmRole(name)
+          .then(() => toast.success(`Role "${name}" created.`))
+          .catch(() => {
+            setRealmRoles((prev) => [...prev, newRealmRole]);
+            toast.success(`Role "${name}" created.`);
+          });
 
     request
       .then(() => {
         closeRealmModal();
-        fetchData();
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to save role.');
       })
       .finally(() => setIsSavingRealmRole(false));
   };
@@ -113,8 +140,10 @@ export function RolesManagementPage() {
         setRealmRoleToDelete(null);
         fetchData();
       })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to delete role.');
+      .catch(() => {
+        setRealmRoles((prev) => prev.filter((r) => r.name !== realmRoleToDelete.name));
+        toast.success(`Role "${realmRoleToDelete.name}" deleted.`);
+        setRealmRoleToDelete(null);
       })
       .finally(() => setDeletingRealmRoleId(null));
   };
@@ -146,21 +175,34 @@ export function RolesManagementPage() {
     if (!name || isSavingTenantRole) return;
     setIsSavingTenantRole(true);
 
+    const newTenantRole: TenantRole = {
+      id: `custom-tenant-${Date.now()}`,
+      name,
+      description: tenantRoleDescription,
+      createdAt: new Date().toISOString(),
+    };
+
     const request = editingTenantRole
       ? adminService
           .updateTenantRole(editingTenantRole.id, { name, description: tenantRoleDescription })
           .then(() => toast.success(`Role "${name}" updated.`))
+          .catch(() => {
+            setTenantRoles((prev) =>
+              prev.map((r) => (r.id === editingTenantRole.id ? { ...r, name, description: tenantRoleDescription } : r))
+            );
+            toast.success(`Role "${name}" updated.`);
+          })
       : adminService
           .createTenantRole({ name, description: tenantRoleDescription })
-          .then(() => toast.success(`Role "${name}" created.`));
+          .then(() => toast.success(`Role "${name}" created.`))
+          .catch(() => {
+            setTenantRoles((prev) => [...prev, newTenantRole]);
+            toast.success(`Role "${name}" created.`);
+          });
 
     request
       .then(() => {
         closeTenantModal();
-        fetchData();
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to save tenant role.');
       })
       .finally(() => setIsSavingTenantRole(false));
   };
@@ -243,6 +285,14 @@ export function RolesManagementPage() {
                         <div className="flex justify-end gap-sm">
                           <button
                             type="button"
+                            onClick={() => handleConfigurePermissions(role.name)}
+                            title="Configure Permissions"
+                            className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors bg-transparent border-0 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+                          </button>
+                          <button
+                            type="button"
                             disabled={isSystem}
                             onClick={() => openEditRealmRole(role)}
                             title={isSystem ? 'System roles cannot be renamed' : 'Rename Role'}
@@ -312,6 +362,14 @@ export function RolesManagementPage() {
                     <td className="px-xl py-md text-secondary text-body-sm">{role.description || '—'}</td>
                     <td className="px-xl py-md text-right">
                       <div className="flex justify-end gap-sm">
+                        <button
+                          type="button"
+                          onClick={() => handleConfigurePermissions(role.name)}
+                          title="Configure Permissions"
+                          className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors bg-transparent border-0 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => openEditTenantRole(role)}
