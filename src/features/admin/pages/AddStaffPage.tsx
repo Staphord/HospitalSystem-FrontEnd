@@ -60,7 +60,6 @@ export function AddStaffPage() {
   };
 
   useEffect(() => {
-    generatePassword();
     adminService.listDepartments().then((depts) => {
       setDepartments(depts);
       if (!staffMember && depts.length > 0) {

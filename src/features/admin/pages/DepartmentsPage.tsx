@@ -116,6 +116,7 @@ export function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [wards, setWards] = useState<WardItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [isWardModalOpen, setIsWardModalOpen] = useState(false);
@@ -469,7 +470,7 @@ export function DepartmentsPage() {
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            <form onSubmit={handleCreateDepartment}>
+            <form onSubmit={handleSaveDepartment}>
               <div className="px-lg py-lg space-y-md">
                 <div className="space-y-xs">
                   <label className="block font-label-md text-label-md text-secondary">Department Name</label>

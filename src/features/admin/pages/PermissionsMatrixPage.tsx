@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { RolePermission } from '@/api/types/admin';
+import { getStoredTenantRoles, getStoredRealmRoles } from './RolesManagementPage';
 
 const MODULES = [
   'admin', 'reception', 'triage', 'consultation', 'laboratory',
@@ -65,11 +66,16 @@ export function PermissionsMatrixPage() {
       .then(([rows, tenantRoles, realmRoles]) => {
         const existingRoles = new Set((rows || []).map((r) => r.roleName.toLowerCase()));
 
+        const storedTenant = getStoredTenantRoles();
+        const storedRealm = getStoredRealmRoles();
+
         // Collect all custom tenant roles and realm roles
         const allRolesFromList = [
           ...BUILTIN_SYSTEM_ROLES,
           ...(tenantRoles || []).map((r) => r.name),
+          ...storedTenant.map((r) => r.name),
           ...(realmRoles || []).map((r) => r.name),
+          ...storedRealm.map((r) => r.name),
         ];
 
         const missingPerms: RolePermission[] = [];
@@ -182,15 +188,9 @@ export function PermissionsMatrixPage() {
 
   return (
     <div className="max-w-[1024px] mx-auto space-y-lg pb-32">
-      <div className="mb-xl">
-        <nav className="flex items-center gap-xs text-secondary font-label-md text-[11px] uppercase tracking-wider">
-          <span>Hospital Configuration</span>
-          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-          <span className="text-primary font-bold">Permissions</span>
-        </nav>
-        <p className="text-body-sm text-secondary mt-xs">
-          Controls which modules and actions each role can access in the UI. This is a display-level ACL,
-          separate from the role assigned to a user account.
+      <div className="mb-sm">
+        <p className="text-body-sm text-secondary">
+          Controls which modules and actions each role can access in the UI.
         </p>
       </div>
 

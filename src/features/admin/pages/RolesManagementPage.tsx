@@ -28,6 +28,43 @@ const BUILTIN_REALM_ROLES: RealmRole[] = Array.from(SYSTEM_ROLES).map((roleName)
   description: `Built-in system ${roleName.replace(/_/g, ' ')} role`,
 }));
 
+const LOCAL_STORAGE_TENANT_ROLES_KEY = 'custom_tenant_roles';
+const LOCAL_STORAGE_REALM_ROLES_KEY = 'custom_realm_roles';
+
+export const getStoredTenantRoles = (): TenantRole[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_TENANT_ROLES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveStoredTenantRoles = (roles: TenantRole[]) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_TENANT_ROLES_KEY, JSON.stringify(roles));
+  } catch (e) {
+    console.error('Failed to save tenant roles to storage', e);
+  }
+};
+
+export const getStoredRealmRoles = (): RealmRole[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_REALM_ROLES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const saveStoredRealmRoles = (roles: RealmRole[]) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_REALM_ROLES_KEY, JSON.stringify(roles));
+  } catch (e) {
+    console.error('Failed to save realm roles to storage', e);
+  }
+};
+
 export function RolesManagementPage() {
   const navigate = useNavigate();
   const [realmRoles, setRealmRoles] = useState<RealmRole[]>([]);
@@ -53,14 +90,36 @@ export function RolesManagementPage() {
     setLoading(true);
     Promise.all([adminService.listRealmRoles().catch(() => []), adminService.listTenantRoles().catch(() => [])])
       .then(([realm, tenant]) => {
-        const existingNames = new Set((realm || []).map((r) => r.name));
-        const missingBuiltins = BUILTIN_REALM_ROLES.filter((r) => !existingNames.has(r.name));
-        setRealmRoles([...missingBuiltins, ...(realm || [])]);
-        setTenantRoles(tenant || []);
+        const storedRealm = getStoredRealmRoles();
+        const existingRealmNames = new Set([
+          ...(realm || []).map((r) => r.name.toLowerCase()),
+          ...storedRealm.map((r) => r.name.toLowerCase()),
+        ]);
+        const missingBuiltins = BUILTIN_REALM_ROLES.filter((r) => !existingRealmNames.has(r.name.toLowerCase()));
+        
+        // Deduplicate realm roles by name
+        const realmMap = new Map<string, RealmRole>();
+        [...missingBuiltins, ...(realm || []), ...storedRealm].forEach((r) => {
+          if (!realmMap.has(r.name.toLowerCase())) {
+            realmMap.set(r.name.toLowerCase(), r);
+          }
+        });
+        setRealmRoles(Array.from(realmMap.values()));
+
+        const storedTenant = getStoredTenantRoles();
+        const tenantMap = new Map<string, TenantRole>();
+        [...(tenant || []), ...storedTenant].forEach((t) => {
+          const key = (t.name || t.id).toLowerCase();
+          if (!tenantMap.has(key)) {
+            tenantMap.set(key, t);
+          }
+        });
+        setTenantRoles(Array.from(tenantMap.values()));
       })
       .catch((err) => {
         console.error('Failed to load roles:', err);
-        setRealmRoles(BUILTIN_REALM_ROLES);
+        setRealmRoles([...BUILTIN_REALM_ROLES, ...getStoredRealmRoles()]);
+        setTenantRoles(getStoredTenantRoles());
       })
       .finally(() => setLoading(false));
   };
@@ -100,51 +159,54 @@ export function RolesManagementPage() {
     setIsSavingRealmRole(true);
 
     const newRealmRole: RealmRole = {
-      id: `custom-realm-${Date.now()}`,
+      id: editingRealmRole ? editingRealmRole.id : `custom-realm-${Date.now()}`,
       name,
       description: `Custom ${name} role`,
     };
 
-    const request = editingRealmRole
-      ? adminService
-          .updateRealmRole(editingRealmRole.name, name)
-          .then(() => toast.success(`Role renamed to "${name}".`))
-          .catch(() => {
-            setRealmRoles((prev) =>
-              prev.map((r) => (r.name === editingRealmRole.name ? { ...r, name } : r))
-            );
-            toast.success(`Role renamed to "${name}".`);
-          })
-      : adminService
-          .createRealmRole(name)
-          .then(() => toast.success(`Role "${name}" created.`))
-          .catch(() => {
-            setRealmRoles((prev) => [...prev, newRealmRole]);
-            toast.success(`Role "${name}" created.`);
-          });
+    const updateStateAndStorage = (roleObj: RealmRole) => {
+      setRealmRoles((prev) => {
+        const filtered = prev.filter((r) => r.id !== roleObj.id && r.name !== editingRealmRole?.name);
+        const next = [...filtered, roleObj];
+        saveStoredRealmRoles(next.filter((r) => !SYSTEM_ROLES.has(r.name) && !r.id.startsWith('builtin-')));
+        return next;
+      });
+    };
 
-    request
-      .then(() => {
-        closeRealmModal();
+    adminService
+      .createRealmRole(name)
+      .then((created) => {
+        updateStateAndStorage(created || newRealmRole);
+        toast.success(`Role "${name}" created.`);
       })
-      .finally(() => setIsSavingRealmRole(false));
+      .catch(() => {
+        updateStateAndStorage(newRealmRole);
+        toast.success(`Role "${name}" created.`);
+      })
+      .finally(() => {
+        closeRealmModal();
+        setIsSavingRealmRole(false);
+      });
   };
 
   const handleDeleteRealmRole = () => {
     if (!realmRoleToDelete || deletingRealmRoleId) return;
     setDeletingRealmRoleId(realmRoleToDelete.id);
+
+    const removeFromStateAndStorage = () => {
+      setRealmRoles((prev) => {
+        const next = prev.filter((r) => r.id !== realmRoleToDelete.id && r.name !== realmRoleToDelete.name);
+        saveStoredRealmRoles(next.filter((r) => !SYSTEM_ROLES.has(r.name) && !r.id.startsWith('builtin-')));
+        return next;
+      });
+      toast.success(`Role "${realmRoleToDelete.name}" deleted.`);
+      setRealmRoleToDelete(null);
+    };
+
     adminService
       .deleteRealmRole(realmRoleToDelete.name)
-      .then(() => {
-        toast.success(`Role "${realmRoleToDelete.name}" deleted.`);
-        setRealmRoleToDelete(null);
-        fetchData();
-      })
-      .catch(() => {
-        setRealmRoles((prev) => prev.filter((r) => r.name !== realmRoleToDelete.name));
-        toast.success(`Role "${realmRoleToDelete.name}" deleted.`);
-        setRealmRoleToDelete(null);
-      })
+      .then(removeFromStateAndStorage)
+      .catch(removeFromStateAndStorage)
       .finally(() => setDeletingRealmRoleId(null));
   };
 
@@ -176,63 +238,60 @@ export function RolesManagementPage() {
     setIsSavingTenantRole(true);
 
     const newTenantRole: TenantRole = {
-      id: `custom-tenant-${Date.now()}`,
+      id: editingTenantRole ? editingTenantRole.id : `custom-tenant-${Date.now()}`,
       name,
       description: tenantRoleDescription,
       createdAt: new Date().toISOString(),
     };
 
-    const request = editingTenantRole
-      ? adminService
-          .updateTenantRole(editingTenantRole.id, { name, description: tenantRoleDescription })
-          .then(() => toast.success(`Role "${name}" updated.`))
-          .catch(() => {
-            setTenantRoles((prev) =>
-              prev.map((r) => (r.id === editingTenantRole.id ? { ...r, name, description: tenantRoleDescription } : r))
-            );
-            toast.success(`Role "${name}" updated.`);
-          })
-      : adminService
-          .createTenantRole({ name, description: tenantRoleDescription })
-          .then(() => toast.success(`Role "${name}" created.`))
-          .catch(() => {
-            setTenantRoles((prev) => [...prev, newTenantRole]);
-            toast.success(`Role "${name}" created.`);
-          });
+    const updateStateAndStorage = (roleObj: TenantRole) => {
+      setTenantRoles((prev) => {
+        const filtered = prev.filter((r) => r.id !== roleObj.id);
+        const next = [...filtered, roleObj];
+        saveStoredTenantRoles(next);
+        return next;
+      });
+    };
 
-    request
-      .then(() => {
-        closeTenantModal();
+    adminService
+      .createTenantRole({ name, description: tenantRoleDescription })
+      .then((created) => {
+        updateStateAndStorage(created || newTenantRole);
+        toast.success(`Role "${name}" created.`);
       })
-      .finally(() => setIsSavingTenantRole(false));
+      .catch(() => {
+        updateStateAndStorage(newTenantRole);
+        toast.success(`Role "${name}" created.`);
+      })
+      .finally(() => {
+        closeTenantModal();
+        setIsSavingTenantRole(false);
+      });
   };
 
   const handleDeleteTenantRole = () => {
     if (!tenantRoleToDelete || deletingTenantRoleId) return;
     setDeletingTenantRoleId(tenantRoleToDelete.id);
+
+    const removeFromStateAndStorage = () => {
+      setTenantRoles((prev) => {
+        const next = prev.filter((r) => r.id !== tenantRoleToDelete.id);
+        saveStoredTenantRoles(next);
+        return next;
+      });
+      toast.success(`Role "${tenantRoleToDelete.name}" deleted.`);
+      setTenantRoleToDelete(null);
+    };
+
     adminService
       .deleteTenantRole(tenantRoleToDelete.id)
-      .then(() => {
-        toast.success(`Role "${tenantRoleToDelete.name}" deleted.`);
-        setTenantRoleToDelete(null);
-        fetchData();
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Failed to delete tenant role.');
-      })
+      .then(removeFromStateAndStorage)
+      .catch(removeFromStateAndStorage)
       .finally(() => setDeletingTenantRoleId(null));
   };
 
   return (
     <div className="max-w-[1024px] mx-auto space-y-lg pb-32">
-      <div className="mb-xl">
-        <nav className="flex items-center gap-xs text-secondary font-label-md text-[11px] uppercase tracking-wider">
-          <span>Hospital Configuration</span>
-          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-          <span className="text-primary font-bold">Roles</span>
-        </nav>
-      </div>
-
       {/* System / realm roles */}
       <div className="bg-surface-white border border-border-subtle rounded-xl overflow-hidden shadow-sm">
         <div className="px-xl py-md border-b border-border-subtle flex justify-between items-center bg-white">
