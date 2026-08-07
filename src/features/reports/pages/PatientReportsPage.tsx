@@ -652,13 +652,13 @@ export const PatientReportsPage: React.FC = () => {
                     </div>
 
                     {/* Progress Bar Line Indicator */}
-                    <div className="w-full h-3 bg-[#E2E8F0] rounded-full overflow-hidden flex items-center border border-border-subtle/50 shadow-inner">
+                    <div className="w-full h-3 bg-[#E2E8F0] dark:bg-surface-container rounded-full overflow-hidden flex items-center border border-border-subtle/50 shadow-inner">
                       <div
-                        className="h-full rounded-full transition-all duration-700 ease-out shadow-xs"
+                        className="h-full bg-primary rounded-full transition-all duration-700 ease-out shadow-xs"
                         style={{
                           width: `${Math.max(pct, 12)}%`,
                           backgroundColor: '#0052cc',
-                          backgroundImage: 'linear-gradient(to right, #0052cc, #00b8d9, #36b37e)',
+                          backgroundImage: 'linear-gradient(to right, #0052cc, #2563eb)',
                         }}
                       />
                     </div>
