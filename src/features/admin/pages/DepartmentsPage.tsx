@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { clearDepartmentCache } from '@/hooks/useDepartmentStatus';
 import { adminService } from '@/api/services/admin';
 import type { Department, WardItem } from '@/api/types/admin';
 import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
@@ -116,6 +117,7 @@ export function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [wards, setWards] = useState<WardItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [isWardModalOpen, setIsWardModalOpen] = useState(false);
@@ -229,8 +231,13 @@ export function DepartmentsPage() {
     const newActive = !dept.active;
     setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: newActive } : d));
     adminService.updateDepartment(id, { active: newActive })
+      .then(() => {
+        clearDepartmentCache();
+        toast.success(`Department "${dept.name}" ${newActive ? 'activated' : 'deactivated'}.`);
+      })
       .catch((err) => {
         console.error('Failed to update department status:', err);
+        toast.error(err.response?.data?.detail || 'Failed to update department status.');
         setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: dept.active } : d));
       });
   };
@@ -469,7 +476,7 @@ export function DepartmentsPage() {
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            <form onSubmit={handleCreateDepartment}>
+            <form onSubmit={handleSaveDepartment}>
               <div className="px-lg py-lg space-y-md">
                 <div className="space-y-xs">
                   <label className="block font-label-md text-label-md text-secondary">Department Name</label>

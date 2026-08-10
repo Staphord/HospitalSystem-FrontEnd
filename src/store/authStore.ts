@@ -63,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem('impersonated_tenant_id')
         localStorage.removeItem('original_access_token')
         localStorage.removeItem('original_refresh_token')
+        localStorage.removeItem('hospital_profile')
         set({
           accessToken: null,
           refreshToken: null,

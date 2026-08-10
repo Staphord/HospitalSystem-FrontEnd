@@ -116,6 +116,37 @@ interface BackendDashboardReport {
   generated_at: string
 }
 
+export interface PatientCensusReportResponse {
+  from: string
+  to: string
+  active_patients: number
+  total_visits: number
+  visits_by_day: Array<{ date: string; visits: number }>
+}
+
+export interface WaitTimeReportResponse {
+  from: string
+  to: string
+  by_queue_type: Array<{ queue_type: string; avg_wait_seconds: number | null; samples: number }>
+}
+
+export interface DischargeReportResponse {
+  from: string
+  to: string
+  discharged?: number
+  completed?: number
+  cancelled?: number
+  source?: string
+}
+
+export interface BedOccupancyReportResponse {
+  total: number
+  available: number
+  occupied: number
+  by_ward: Array<{ ward_name: string; total: number; available: number; occupied: number }>
+}
+
+
 interface BackendAuditLog {
   log_id: string
   user_id: string
@@ -629,7 +660,7 @@ export const adminService = {
   // Insurance providers (FR-55)
   listInsuranceProviders: (): Promise<Provider[]> =>
     apiClient
-      .get<BackendProvider[]>('/admin/insurance-providers')
+      .get<BackendProvider[]>('/admin/shared/insurance-providers')
       .then((r) => r.data.map(mapProvider)),
 
   createInsuranceProvider: (data: Omit<Provider, 'id'>): Promise<Provider> =>
@@ -855,6 +886,33 @@ export const adminService = {
     }
   },
 
+  // Operational Reports (FR-57)
+  getPatientCensusReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<PatientCensusReportResponse>('/admin/reports/patient-census', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getWaitTimesReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<WaitTimeReportResponse>('/admin/reports/wait-times', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getDischargesReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<DischargeReportResponse>('/admin/reports/discharges', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getBedOccupancyReport: () =>
+    apiClient
+      .get<BedOccupancyReportResponse>('/admin/reports/bed-occupancy')
+      .then((r) => r.data),
+
   // Sessions (FR-53) — proxied via api-gateway → admin-service (/admin/sessions)
   listActiveSessions: async (): Promise<ActiveSession[]> => {
     const sessions = await apiClient
@@ -965,7 +1023,15 @@ export const adminService = {
     apiClient.get<BackendRealmRole[]>('/admin/roles/realm').then((r) => r.data.map(mapRealmRole)),
 
   createRealmRole: (name: string, description?: string): Promise<RealmRole> =>
-    apiClient.post<BackendRealmRole>('/admin/roles/realm', { name, description }).then((r) => mapRealmRole(r.data)),
+    apiClient
+      .post<BackendRealmRole>('/admin/roles/realm', { name, description })
+      .catch((err) => {
+        if (err.response?.status === 405) {
+          return apiClient.post<BackendRealmRole>('/admin/roles/realm/', { name, description });
+        }
+        throw err;
+      })
+      .then((r) => mapRealmRole(r.data)),
 
   updateRealmRole: (name: string, newName: string, description?: string): Promise<RealmRole> =>
     apiClient.patch<BackendRealmRole>(`/admin/roles/realm/${name}`, { name: newName, description }).then((r) => mapRealmRole(r.data)),
@@ -980,7 +1046,15 @@ export const adminService = {
     apiClient.get<BackendTenantRole[]>('/admin/roles/tenant').then((r) => r.data.map(mapTenantRole)),
 
   createTenantRole: (data: { name: string; description?: string }): Promise<TenantRole> =>
-    apiClient.post<BackendTenantRole>('/admin/roles/tenant', { name: data.name, description: data.description }).then((r) => mapTenantRole(r.data)),
+    apiClient
+      .post<BackendTenantRole>('/admin/roles/tenant', { name: data.name, description: data.description })
+      .catch((err) => {
+        if (err.response?.status === 405) {
+          return apiClient.post<BackendTenantRole>('/admin/roles/tenant/', { name: data.name, description: data.description });
+        }
+        throw err;
+      })
+      .then((r) => mapTenantRole(r.data)),
 
   updateTenantRole: (id: string, data: { name?: string; description?: string }): Promise<TenantRole> =>
     apiClient.patch<BackendTenantRole>(`/admin/roles/tenant/${id}`, data).then((r) => mapTenantRole(r.data)),

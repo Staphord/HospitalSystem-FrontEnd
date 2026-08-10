@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 
 export function Sidebar() {
   const { hasRole, hasAnyRole, isSuperAdmin, isHospitalAdmin } = usePermissions()
-  const { user, clearAuth, refreshToken, tenantId } = useAuth()
+  const { user, clearAuth, refreshToken, tenantId, isImpersonating } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -26,14 +26,19 @@ export function Sidebar() {
   const storedProfile = JSON.parse(localStorage.getItem('hospital_profile') || '{}')
 
   const hospitalName =
-    user?.hospital_name ||
-    storedProfile.hospital_name ||
-    (currentTenant ? currentTenant.hospital_name : null) ||
-    'Hospital System'
+    isSuperAdmin() && !isImpersonating
+      ? 'HospitalFlow Platform'
+      : user?.hospital_name ||
+        storedProfile.hospital_name ||
+        (currentTenant ? currentTenant.hospital_name : null) ||
+        'Hospital System'
+
   const hospitalLogo =
-    user?.logo_url ||
-    storedProfile.logo_url ||
-    (currentTenant ? currentTenant.logo_url : null)
+    isSuperAdmin() && !isImpersonating
+      ? null
+      : user?.logo_url ||
+        storedProfile.logo_url ||
+        (currentTenant ? currentTenant.logo_url : null)
 
   const handleLogout = async () => {
     try {

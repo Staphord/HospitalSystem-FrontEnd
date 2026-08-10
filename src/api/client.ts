@@ -108,7 +108,7 @@ apiClient.interceptors.response.use(
 )
 
 // MOCK API LAYER & PERSISTENT LOCAL STORAGE STATE
-const MOCK_ENABLED = true // Frontend-only flow enabled by default
+const MOCK_ENABLED = import.meta.env.VITE_USE_MOCK === 'true'
 
 // Initial Mock Data Helpers
 export const initLocalStorage = () => {
@@ -853,6 +853,10 @@ apiClient.defaults.adapter = async (config) => {
     url.includes('/auth/password-reset') ||
     url.includes('/auth/mfa/') ||
     url.includes('/auth/impersonate') ||
+    url.includes('/admin/departments') ||
+    url.includes('/departments') ||
+    url.includes('/admin/beds') ||
+    url.includes('/admin/wards') ||
     url.includes('/me') ||
     url.includes('/superadmin/') ||
     url.includes('/tenants') ||

@@ -5,6 +5,7 @@ import { HospitalLayout } from '@/app/layout/HospitalLayout'
 import { MasterLayout } from '@/app/layout/MasterLayout'
 import { ProtectedRoute } from '@/app/router/ProtectedRoute'
 import { RoleRoute } from '@/app/router/RoleRoute'
+import { DepartmentGuard } from '@/components/auth/DepartmentGuard'
 import { ROLES } from '@/lib/roles'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { HospitalLoginPage } from '@/features/auth/pages/HospitalLoginPage'
@@ -192,91 +193,144 @@ export const routes = [
           {
             element: <RoleRoute allowed={[ROLES.hospitalAdmin, ROLES.receptionist]} />,
             children: [
-              { path: '/reception/register', element: <PatientRegistrationPage /> },
-              { path: '/reception/search', element: <PatientSearchPage /> },
-              { path: '/reception/queue', element: <VisitQueuePage /> },
+              {
+                element: <DepartmentGuard moduleName="reception" />,
+                children: [
+                  { path: '/reception/register', element: <PatientRegistrationPage /> },
+                  { path: '/reception/search', element: <PatientSearchPage /> },
+                  { path: '/reception/queue', element: <VisitQueuePage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.triageNurse, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/triage/queue', element: <TriageQueuePage /> },
-              { path: '/triage/history', element: <TriageHistoryPage /> },
-              { path: '/triage/history/:patientId', element: <TriageHistoryPatientPage /> },
-              { path: '/triage/assess/:visitId', element: <TriageAssessPage /> },
+              {
+                element: <DepartmentGuard moduleName="triage" />,
+                children: [
+                  { path: '/triage/queue', element: <TriageQueuePage /> },
+                  { path: '/triage/history', element: <TriageHistoryPage /> },
+                  { path: '/triage/history/:patientId', element: <TriageHistoryPatientPage /> },
+                  { path: '/triage/assess/:visitId', element: <TriageAssessPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.wardNurse, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/ward/dashboard', element: <WardNurseDashboard /> },
-              { path: '/ward/beds', element: <BedMapPage /> },
-              { path: '/ward/patients', element: <MyPatientsPage /> },
-              { path: '/ward/patients/:patientId/notes', element: <NursingNotesPage /> },
-              { path: '/ward/visitors', element: <VisitorLogPage /> },
-              { path: '/ward/visitors/active', element: <ActiveVisitorsPage /> },
-              { path: '/ward/handover', element: <ShiftHandoverPage /> },
+              {
+                element: <DepartmentGuard moduleName="ward" />,
+                children: [
+                  { path: '/ward/dashboard', element: <WardNurseDashboard /> },
+                  { path: '/ward/beds', element: <BedMapPage /> },
+                  { path: '/ward/patients', element: <MyPatientsPage /> },
+                  { path: '/ward/patients/:patientId/notes', element: <NursingNotesPage /> },
+                  { path: '/ward/visitors', element: <VisitorLogPage /> },
+                  { path: '/ward/visitors/active', element: <ActiveVisitorsPage /> },
+                  { path: '/ward/handover', element: <ShiftHandoverPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.doctor, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/consultation/queue', element: <ConsultationQueuePage /> },
-              { path: '/consultation/encounter/:visitId', element: <EncounterPage /> },
-              { path: '/consultation/results', element: <InvestigationResultsPage /> },
-              { path: '/consultation/inpatient', element: <InpatientPage /> },
-              { path: '/consultation/inpatient/:admissionId/orders', element: <InpatientOrdersPage /> },
-              { path: '/consultation/inpatient/:admissionId/discharge', element: <InpatientDischargePage /> },
-              { path: '/consultation/history', element: <ConsultationHistoryPage /> },
-              { path: '/consultation/history/:patientId', element: <ConsultationHistoryPatientPage /> },
-              { path: '/consultation/referrals', element: <MyReferralsPage /> },
+              {
+                element: <DepartmentGuard moduleName="consultation" />,
+                children: [
+                  { path: '/consultation/queue', element: <ConsultationQueuePage /> },
+                  { path: '/consultation/encounter/:visitId', element: <EncounterPage /> },
+                  { path: '/consultation/results', element: <InvestigationResultsPage /> },
+                  { path: '/consultation/inpatient', element: <InpatientPage /> },
+                  { path: '/consultation/inpatient/:admissionId/orders', element: <InpatientOrdersPage /> },
+                  { path: '/consultation/inpatient/:admissionId/discharge', element: <InpatientDischargePage /> },
+                  { path: '/consultation/history', element: <ConsultationHistoryPage /> },
+                  { path: '/consultation/history/:patientId', element: <ConsultationHistoryPatientPage /> },
+                  { path: '/consultation/referrals', element: <MyReferralsPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/laboratory/requests', element: <LabRequestsPage /> },
-              { path: '/laboratory/requests/:requestId', element: <LabRequestDetailPage /> },
+              {
+                element: <DepartmentGuard moduleName="laboratory" />,
+                children: [
+                  { path: '/laboratory/requests', element: <LabRequestsPage /> },
+                  { path: '/laboratory/requests/:requestId', element: <LabRequestDetailPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.labTechnician, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/laboratory/results', element: <LabResultsPage /> },
-              { path: '/laboratory/specimens', element: <SpecimenTrackingPage /> },
+              {
+                element: <DepartmentGuard moduleName="laboratory" />,
+                children: [
+                  { path: '/laboratory/results', element: <LabResultsPage /> },
+                  { path: '/laboratory/specimens', element: <SpecimenTrackingPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.radiographer, ROLES.doctor, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/radiology/requests', element: <ImagingRequestsPage /> },
-              { path: '/radiology/requests/:requestId/report', element: <ImagingReportPage /> },
-              { path: '/radiology/schedule', element: <ImagingSchedulePage /> },
+              {
+                element: <DepartmentGuard moduleName="radiology" />,
+                children: [
+                  { path: '/radiology/requests', element: <ImagingRequestsPage /> },
+                  { path: '/radiology/requests/:requestId/report', element: <ImagingReportPage /> },
+                  { path: '/radiology/schedule', element: <ImagingSchedulePage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.pharmacist, ROLES.hospitalAdmin]} />,
             children: [
-              { path: '/pharmacy/queue', element: <PrescriptionQueuePage /> },
-              { path: '/pharmacy/queue/:prescriptionId/dispense', element: <DispensePrescriptionPage /> },
-              { path: '/pharmacy/dispense', element: <Navigate to="/pharmacy/queue" replace /> },
-              { path: '/pharmacy/stock', element: <StockManagementPage /> },
+              {
+                element: <DepartmentGuard moduleName="pharmacy" />,
+                children: [
+                  { path: '/pharmacy/queue', element: <PrescriptionQueuePage /> },
+                  { path: '/pharmacy/queue/:prescriptionId/dispense', element: <DispensePrescriptionPage /> },
+                  { path: '/pharmacy/dispense', element: <Navigate to="/pharmacy/queue" replace /> },
+                  { path: '/pharmacy/stock', element: <StockManagementPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist]} />,
             children: [
-              { path: '/billing', element: <Navigate to="/billing/dashboard" replace /> },
-              { path: '/billing/dashboard', element: <CashierDashboard /> },
-              { path: '/billing/bills', element: <BillsPage /> },
-              { path: '/billing/bills/:billId', element: <BillDetailsPage /> },
-              { path: '/billing/payment/:billId', element: <ProcessingPaymentPage /> },
-              { path: '/billing/summary', element: <DailySummaryPage /> },
+              {
+                element: <DepartmentGuard moduleName="billing" />,
+                children: [
+                  { path: '/billing', element: <Navigate to="/billing/dashboard" replace /> },
+                  { path: '/billing/dashboard', element: <CashierDashboard /> },
+                  { path: '/billing/bills', element: <BillsPage /> },
+                  { path: '/billing/bills/:billId', element: <BillDetailsPage /> },
+                  { path: '/billing/payment/:billId', element: <ProcessingPaymentPage /> },
+                  { path: '/billing/summary', element: <DailySummaryPage /> },
+                ],
+              },
             ],
           },
           {
             element: <RoleRoute allowed={[ROLES.triageNurse,ROLES.wardNurse, ROLES.doctor, ROLES.hospitalAdmin]} />,
-            children: [{ path: '/ward/admissions', element: <AdmissionsPage /> }, { path: '/ward/orders', element: <WardInpatientOrdersPage /> }],
+            children: [
+              {
+                element: <DepartmentGuard moduleName="ward" />,
+                children: [
+                  { path: '/ward/admissions', element: <AdmissionsPage /> },
+                  { path: '/ward/orders', element: <WardInpatientOrdersPage /> },
+                ],
+              },
+            ],
           },
           { path: '/notifications', element: <NotificationsPage /> },
           { path: '/profile', element: <ProfilePage /> },
