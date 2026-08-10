@@ -10,6 +10,7 @@ import { DoctorDashboardContent } from '@/features/consultation/components/Docto
 import { LabDashboardContent } from '@/features/laboratory/components/LabDashboardContent'
 import { PharmacyDashboardContent } from '@/features/pharmacy/components/PharmacyDashboardContent'
 import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
+import { DepartmentGuard } from '@/components/auth/DepartmentGuard'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
 import { toast } from 'sonner'
 import { formatShortDateTime } from '@/lib/localization'
@@ -478,28 +479,49 @@ export function DashboardPage() {
   }, [isReceptionist])
 
   if (isRadiographer) {
-    return <RadiologyDashboardContent />
+    return (
+      <DepartmentGuard moduleName="radiology">
+        <RadiologyDashboardContent />
+      </DepartmentGuard>
+    )
   }
 
   if (isLabTechnician) {
-    return <LabDashboardContent />
+    return (
+      <DepartmentGuard moduleName="laboratory">
+        <LabDashboardContent />
+      </DepartmentGuard>
+    )
   }
 
   if (isPharmacist) {
-    return <PharmacyDashboardContent />
+    return (
+      <DepartmentGuard moduleName="pharmacy">
+        <PharmacyDashboardContent />
+      </DepartmentGuard>
+    )
   }
 
   if (isDoctor) {
-    return <DoctorDashboardContent />
+    return (
+      <DepartmentGuard moduleName="consultation">
+        <DoctorDashboardContent />
+      </DepartmentGuard>
+    )
   }
 
   if (isTriageNurse) {
-    return <TriageDashboardContent />
+    return (
+      <DepartmentGuard moduleName="triage">
+        <TriageDashboardContent />
+      </DepartmentGuard>
+    )
   }
 
   if (isReceptionist) {
     return (
-      <div className="max-w-container-max mx-auto h-full flex flex-col gap-lg xl:gap-xl">
+      <DepartmentGuard moduleName="reception">
+        <div className="max-w-container-max mx-auto h-full flex flex-col gap-lg xl:gap-xl">
         <div className="lg:grid lg:grid-cols-12 gap-lg h-full">
           {/* Left Column (65%) */}
           <div className="lg:col-span-8 flex flex-col gap-lg h-full">
@@ -844,6 +866,7 @@ export function DashboardPage() {
           />
         )}
       </div>
+      </DepartmentGuard>
     )
   }
 

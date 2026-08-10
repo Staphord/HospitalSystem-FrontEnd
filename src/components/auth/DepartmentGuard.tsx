@@ -1,6 +1,8 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { useDepartmentStatus } from '@/hooks/useDepartmentStatus';
+import { useAuthStore } from '@/store/authStore';
+import { toast } from 'sonner';
 
 interface DepartmentGuardProps {
   moduleName: 'reception' | 'triage' | 'consultation' | 'laboratory' | 'radiology' | 'pharmacy' | 'ward' | 'billing';
@@ -9,8 +11,19 @@ interface DepartmentGuardProps {
 
 export function DepartmentGuard({ moduleName, children }: DepartmentGuardProps) {
   const { getDepartmentStatus } = useDepartmentStatus();
+  const navigate = useNavigate();
+  const clearAuth = useAuthStore((s) => s.clearAuth);
   
   const { isInactive, deptName } = getDepartmentStatus(moduleName);
+
+  useEffect(() => {
+    if (isInactive) {
+      clearAuth();
+      const message = `The ${deptName || moduleName} department has been temporarily deactivated by hospital administration. You have been logged out.`;
+      toast.error(message, { id: 'dept-deactivated-toast', duration: 6000 });
+      navigate('/login', { replace: true });
+    }
+  }, [isInactive, deptName, moduleName, clearAuth, navigate]);
 
   if (isInactive === null) {
     // Show strict loading state to prevent flash of unprotected content
@@ -25,25 +38,10 @@ export function DepartmentGuard({ moduleName, children }: DepartmentGuardProps) 
   }
 
   if (isInactive) {
-    return (
-      <div className="max-w-2xl mx-auto my-12 p-8 bg-surface-white border border-border-subtle rounded-2xl shadow-sm text-center space-y-4">
-        <div className="w-16 h-16 mx-auto rounded-full bg-error/10 text-error flex items-center justify-center">
-          <span className="material-symbols-outlined text-[36px]">block</span>
-        </div>
-        <h2 className="text-xl font-bold text-on-surface">Department Temporarily Suspended</h2>
-        <p className="text-secondary text-sm max-w-md mx-auto">
-          The <strong>{deptName || moduleName}</strong> department is currently deactivated by the hospital administration. Operational access to this module is temporarily suspended.
-        </p>
-        <button
-          onClick={() => window.history.back()}
-          className="px-5 py-2.5 bg-primary text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-all border-0 cursor-pointer shadow-sm"
-        >
-          Go Back
-        </button>
-      </div>
-    );
+    return null;
   }
 
   return <>{children || <Outlet />}</>;
 }
+
 

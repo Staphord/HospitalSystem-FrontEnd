@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { clearDepartmentCache } from '@/hooks/useDepartmentStatus';
 import { adminService } from '@/api/services/admin';
 import type { Department, WardItem } from '@/api/types/admin';
 import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
@@ -231,6 +232,7 @@ export function DepartmentsPage() {
     setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: newActive } : d));
     adminService.updateDepartment(id, { active: newActive })
       .then(() => {
+        clearDepartmentCache();
         toast.success(`Department "${dept.name}" ${newActive ? 'activated' : 'deactivated'}.`);
       })
       .catch((err) => {
