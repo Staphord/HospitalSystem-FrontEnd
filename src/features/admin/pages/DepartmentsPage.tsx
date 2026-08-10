@@ -230,8 +230,12 @@ export function DepartmentsPage() {
     const newActive = !dept.active;
     setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: newActive } : d));
     adminService.updateDepartment(id, { active: newActive })
+      .then(() => {
+        toast.success(`Department "${dept.name}" ${newActive ? 'activated' : 'deactivated'}.`);
+      })
       .catch((err) => {
         console.error('Failed to update department status:', err);
+        toast.error(err.response?.data?.detail || 'Failed to update department status.');
         setDepartments(prev => prev.map(d => d.id === id ? { ...d, active: dept.active } : d));
       });
   };
