@@ -19,60 +19,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const storedProfile = JSON.parse(localStorage.getItem('hospital_profile') || '{}')
+    const roles = useAuthStore.getState().roles || []
+    const isSuperAdmin = roles.includes('super_admin')
+    const isImpersonating = useAuthStore.getState().isImpersonating
 
     usersService
       .getMe()
       .then((u) => {
+        const isUserSuperAdmin = isSuperAdmin || u.role === 'super_admin'
         const mergedUser = {
           ...u,
-          hospital_name: u.hospital_name || storedProfile.hospital_name || null,
-          logo_url: (u as any).logo_url || storedProfile.logo_url || null,
+          hospital_name: isUserSuperAdmin && !isImpersonating ? null : (u.hospital_name || storedProfile.hospital_name || null),
+          logo_url: isUserSuperAdmin && !isImpersonating ? null : ((u as any).logo_url || storedProfile.logo_url || null),
         }
         setUser(mergedUser)
 
-    adminService
-      .getHospitalProfile()
-      .then((hp) => {
-        if (hp.hospital_name || hp.logo_url) {
-          const profileData = {
-            hospital_name: hp.hospital_name || null,
-            logo_url: hp.logo_url || null,
-          }
-          localStorage.setItem('hospital_profile', JSON.stringify(profileData))
-          useAuthStore.setState((state) => ({
-            user: state.user
-              ? {
-                  ...state.user,
-                  hospital_name: hp.hospital_name || state.user.hospital_name || null,
-                  logo_url: hp.logo_url || state.user.logo_url || null,
-                }
-              : null,
-          }))
+        if (isUserSuperAdmin && !isImpersonating) {
+          return
         }
-      })
-      .catch(() => {
-        // Fallback to getSettings if admin user
-        adminService.getSettings()
-          .then((st) => {
-            if (st.hospital_name || st.logo_url) {
-              const updatedProfile = {
-                hospital_name: st.hospital_name || storedProfile.hospital_name || null,
-                logo_url: st.logo_url || storedProfile.logo_url || null,
+
+        adminService
+          .getHospitalProfile()
+          .then((hp) => {
+            if (hp.hospital_name || hp.logo_url) {
+              const profileData = {
+                hospital_name: hp.hospital_name || null,
+                logo_url: hp.logo_url || null,
               }
-              localStorage.setItem('hospital_profile', JSON.stringify(updatedProfile))
+              localStorage.setItem('hospital_profile', JSON.stringify(profileData))
               useAuthStore.setState((state) => ({
                 user: state.user
                   ? {
                       ...state.user,
-                      hospital_name: st.hospital_name || state.user.hospital_name || null,
-                      logo_url: st.logo_url || state.user.logo_url || null,
+                      hospital_name: hp.hospital_name || state.user.hospital_name || null,
+                      logo_url: hp.logo_url || state.user.logo_url || null,
                     }
                   : null,
               }))
             }
           })
-          .catch(() => {})
-      })
+          .catch(() => {
+            // Fallback to getSettings if admin user
+            adminService.getSettings()
+              .then((st) => {
+                if (st.hospital_name || st.logo_url) {
+                  const updatedProfile = {
+                    hospital_name: st.hospital_name || storedProfile.hospital_name || null,
+                    logo_url: st.logo_url || storedProfile.logo_url || null,
+                  }
+                  localStorage.setItem('hospital_profile', JSON.stringify(updatedProfile))
+                  useAuthStore.setState((state) => ({
+                    user: state.user
+                      ? {
+                          ...state.user,
+                          hospital_name: st.hospital_name || state.user.hospital_name || null,
+                          logo_url: st.logo_url || state.user.logo_url || null,
+                        }
+                      : null,
+                  }))
+                }
+              })
+              .catch(() => {})
+          })
       })
       .catch((err) => {
         // Clear auth only when the server explicitly rejects the token

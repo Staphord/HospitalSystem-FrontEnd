@@ -660,7 +660,7 @@ export const adminService = {
   // Insurance providers (FR-55)
   listInsuranceProviders: (): Promise<Provider[]> =>
     apiClient
-      .get<BackendProvider[]>('/admin/insurance-providers')
+      .get<BackendProvider[]>('/admin/shared/insurance-providers')
       .then((r) => r.data.map(mapProvider)),
 
   createInsuranceProvider: (data: Omit<Provider, 'id'>): Promise<Provider> =>
