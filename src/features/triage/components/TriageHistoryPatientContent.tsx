@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { TriageHistorySearchResult, TriageVisitRecord, VisitOutcome } from '@/features/triage/types/triageHistory'
 import { triageService } from '@/api/services/triage'
+import { toast } from 'sonner'
 
 const PAGE_SIZE = 5
 

@@ -16,8 +16,6 @@ interface LineItemState {
   dispense: boolean
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 function formatDoctorName(prescribedBy?: string | null): string {
   if (!prescribedBy || !prescribedBy.trim()) {
     return 'Dr. Staff Doctor'
@@ -229,7 +227,7 @@ export function DispensePrescriptionContent() {
         const initialStates: Record<string, LineItemState> = {}
         prescRes.prescriptions.forEach((item) => {
           initialStates[item.prescription_id] = {
-            qty: item.quantity_prescribed || 0,
+            qty: (item as any).quantity_prescribed || item.quantity || 0,
             dispense: item.status === 'pending',
           }
         })
@@ -253,7 +251,7 @@ export function DispensePrescriptionContent() {
       )
       for (const item of activeItems) {
         try {
-          const qty = lineStates[item.prescription_id]?.qty || item.quantity_prescribed || 0
+          const qty = lineStates[item.prescription_id]?.qty || (item as any).quantity_prescribed || item.quantity || 0
           const res = await pharmacyService.generateLabel({
             prescription_item_id: item.prescription_id,
             quantity: qty,

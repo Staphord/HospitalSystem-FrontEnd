@@ -369,15 +369,6 @@ function AddMedicationModal({
 
   const handleAdd = () => {
     if (!isValid) return
-    const doseStr = [
-      dose.trim(),
-      route,
-      frequency,
-      duration ? `× ${duration} ${durationUnit}` : '',
-      instructions.trim() ? `(${instructions.trim()})` : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
 
     onAdd({
       id: uid(),

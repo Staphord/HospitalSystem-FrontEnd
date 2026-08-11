@@ -30,10 +30,10 @@ export function TerminateTenantModal({
   tenantName,
   stats = null,
   storageGb = 0,
-  tenantProfile = null,
-  subscriptions = [],
-  invoices = [],
-  auditLogs = [],
+  tenantProfile: _tenantProfile = null,
+  subscriptions: _subscriptions = [],
+  invoices: _invoices = [],
+  auditLogs: _auditLogs = [],
   onSuccess
 }: TerminateTenantModalProps) {
   const isTestingEnv = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom');

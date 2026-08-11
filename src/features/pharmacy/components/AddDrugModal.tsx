@@ -168,7 +168,7 @@ export function AddDrugModal({ onClose, onConfirm }: AddDrugModalProps) {
               <select
                 id="category"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => setCategory(e.target.value as any)}
                 className="w-full px-md py-2 border border-border-subtle rounded-lg text-body-sm focus:ring-1 focus:ring-primary focus:border-primary bg-surface-white"
               >
                 {STOCK_CATEGORIES.map((cat) => (

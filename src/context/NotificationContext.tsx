@@ -27,7 +27,7 @@ const NotificationContext = createContext<NotificationContextType>({
 export const useNotifications = () => useContext(NotificationContext)
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, token } = useAuth()
+  const { isAuthenticated } = useAuth()
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -91,9 +91,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Establish real-time EventSource stream when authenticated
   useEffect(() => {
-    if (!isAuthenticated || !token) return
+    const accessToken = localStorage.getItem('accessToken') || ''
+    if (!isAuthenticated || !accessToken) return
 
-    const streamUrl = `/api/v1/notifications/stream?token=${encodeURIComponent(token)}`
+    const streamUrl = `/api/v1/notifications/stream?token=${encodeURIComponent(accessToken)}`
     let eventSource: EventSource | null = null
 
     try {
@@ -139,7 +140,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         eventSource.close()
       }
     }
-  }, [isAuthenticated, token])
+  }, [isAuthenticated])
 
   return (
     <NotificationContext.Provider

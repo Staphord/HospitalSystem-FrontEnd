@@ -41,7 +41,7 @@ export function TriageHistoryPatientPage() {
           gender: p.gender.charAt(0).toUpperCase() + p.gender.slice(1),
           age,
           dob: dobFormatted,
-          phone: p.phone_primary,
+          phone: p.phone_primary || '—',
           lastTriageCategory: 'None',
           lastAssessedAt: 'Never',
           assessmentCount: 0,

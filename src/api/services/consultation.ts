@@ -6,7 +6,7 @@ import type {
   InvestigationRequestResponse, 
   PrescriptionResponse 
 } from '@/api/types/consultation'
-import type { Referral, NewReferralInput } from '@/features/consultation/types/referrals'
+import type { NewReferralInput } from '@/features/consultation/types/referrals'
 
 export const consultationService = {
   /** Fetch active doctor queue for consultation */

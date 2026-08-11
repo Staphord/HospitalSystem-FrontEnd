@@ -198,12 +198,12 @@ export function StaffDetailPage() {
             Full Access
           </span>
         </div>
-        {staff.additionalDepartments.length > 0 && (
+        {staff.additionalDepartments && staff.additionalDepartments.length > 0 && (
           <>
             <div className="w-px h-6 bg-border-subtle hidden md:block"></div>
             <div className="flex items-center gap-base flex-wrap">
               <span className="font-label-md text-label-md text-secondary">Additional:</span>
-              {staff.additionalDepartments.map((dept) => (
+              {staff.additionalDepartments?.map((dept) => (
                 <span key={dept} className="bg-row-hover text-primary font-label-md text-label-md px-sm py-xs rounded-full flex items-center gap-xs">
                   {dept}
                   <span className="w-1 h-1 rounded-full bg-primary mx-xs"></span>
@@ -280,7 +280,7 @@ export function StaffDetailPage() {
             <div>
               <label className="block font-label-md text-label-md text-outline uppercase mb-xs">Additional Departments</label>
               <div className="font-body-md text-body-md text-on-surface">
-                {staff.additionalDepartments.length > 0 ? staff.additionalDepartments.join(', ') : 'None'}
+                {staff.additionalDepartments && staff.additionalDepartments.length > 0 ? staff.additionalDepartments.join(', ') : 'None'}
               </div>
             </div>
             <div>

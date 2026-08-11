@@ -426,7 +426,7 @@ export function TriageDashboardContent() {
                         <td className="px-lg py-md">{row.arrival}</td>
                         <td className="px-lg py-md">
                           {(() => {
-                            const arrDate = new Date(row.created_at)
+                            const arrDate = new Date(row.created_at || row.arrival || Date.now())
                             const mins = Math.max(0, Math.floor((now - arrDate.getTime()) / 60000))
                             const liveColor = row.priority === 'emergency'
                               ? 'text-error'

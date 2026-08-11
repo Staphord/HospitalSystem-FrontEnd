@@ -703,7 +703,7 @@ export function TriageQueueContent() {
                       <td className="px-md py-md font-body-sm text-body-sm text-secondary">{patient.arrival}</td>
                       <td className="px-md py-md">
                         {(() => {
-                          const arrDate = new Date(patient.created_at)
+                          const arrDate = new Date(patient.created_at || patient.arrival || Date.now())
                           const doneDate = patient.completed_at ? new Date(patient.completed_at) : null
                           const isDone = patient.status === 'completed' || patient.status === 'skipped'
                           let mins = 0

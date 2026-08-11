@@ -296,7 +296,7 @@ export function InpatientOrdersPage() {
   const { admissionId } = useParams<{ admissionId: string }>()
   const navigate = useNavigate()
 
-  const [patient, setPatient] = useState<AdmittedPatient | null>(null)
+  const [patient, setPatient] = useState<any>(null)
   const [orders, setOrders] = useState<InpatientOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)

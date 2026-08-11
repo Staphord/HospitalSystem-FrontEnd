@@ -33,18 +33,38 @@ export function AddStaffPage() {
   };
 
   // State values for form fields
-  const [name, setName] = useState(staffMember ? staffMember.name : '');
-  const [email, setEmail] = useState(staffMember ? staffMember.email : '');
-  const [phone, setPhone] = useState(staffMember ? staffMember.phone.replace('+255 ', '') : '');
-  const [role, setRole] = useState<string>(
-    staffMember ? staffMember.role : 'doctor'
-  );
-  const [mfaEnabled, setMfaEnabled] = useState(
-    staffMember ? staffMember.mfaEnabled : true
-  );
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<string>('doctor');
+  const [mfaEnabled, setMfaEnabled] = useState(true);
   const [tempPassword, setTempPassword] = useState(() => generateRandomPassword());
   const [showPassword, setShowPassword] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (isEditMode) {
+      if (staffMember) {
+        setName(staffMember.name || '');
+        setEmail(staffMember.email || '');
+        setPhone(staffMember.phone ? staffMember.phone.replace(/^\+255\s*/, '') : '');
+        setRole(staffMember.role || 'doctor');
+        setMfaEnabled(staffMember.mfaEnabled ?? true);
+      } else if (selectedStaffId) {
+        adminService.getUser(selectedStaffId)
+          .then((u) => {
+            if (u) {
+              setName(u.full_name || u.username || '');
+              setEmail(u.email || '');
+              setPhone(u.phone ? u.phone.replace(/^\+255\s*/, '') : '');
+              setRole(u.role || 'doctor');
+              setMfaEnabled(u.mfaEnabled ?? true);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [isEditMode, selectedStaffId, staffMember]);
 
   const handleGeneratePassword = () => {
     setTempPassword(generateRandomPassword());
@@ -59,14 +79,82 @@ export function AddStaffPage() {
     }
   };
 
+  const SYSTEM_ROLES_LIST = [
+    { value: 'hospital_admin', label: 'Administrator (System Admin)' },
+    { value: 'doctor', label: 'Doctor (Clinical Staff)' },
+    { value: 'triage_nurse', label: 'Triage Nurse (OPD Vitals)' },
+    { value: 'ward_nurse', label: 'Ward Nurse (Inpatient Care)' },
+    { value: 'nurse', label: 'General Nurse' },
+    { value: 'clinician', label: 'Clinician' },
+    { value: 'receptionist', label: 'Receptionist (Patient Registration)' },
+    { value: 'lab_technician', label: 'Lab Technician (Laboratory Services)' },
+    { value: 'radiographer', label: 'Radiographer (Imaging)' },
+    { value: 'pharmacist', label: 'Pharmacist (Pharmacy & Dispensing)' },
+    { value: 'billing_officer', label: 'Billing Officer (Finance & Payments)' },
+    { value: 'cashier', label: 'Cashier (Payments)' },
+  ];
+
+  const [rolesList, setRolesList] = useState<Array<{ value: string; label: string }>>(SYSTEM_ROLES_LIST);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+
   useEffect(() => {
-    adminService.listDepartments().then((depts) => {
-      setDepartments(depts);
-      if (!staffMember && depts.length > 0) {
-        setLandingDepartment((prev) => prev || depts[0].name);
-      }
-    }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    adminService.listDepartments().catch(() => {});
+
+    setLoadingRoles(true);
+    Promise.all([
+      adminService.listRealmRoles().catch(() => []),
+      adminService.listTenantRoles().catch(() => []),
+    ])
+      .then(([realm, tenant]) => {
+        const storedRealm = (() => {
+          try {
+            const raw = localStorage.getItem('custom_realm_roles');
+            return raw ? JSON.parse(raw) : [];
+          } catch {
+            return [];
+          }
+        })();
+        const storedTenant = (() => {
+          try {
+            const raw = localStorage.getItem('custom_tenant_roles');
+            return raw ? JSON.parse(raw) : [];
+          } catch {
+            return [];
+          }
+        })();
+
+        const roleMap = new Map<string, { value: string; label: string }>();
+        SYSTEM_ROLES_LIST.forEach((sys) => {
+          roleMap.set(sys.value.toLowerCase(), sys);
+        });
+
+        const allSources = [...(realm || []), ...(tenant || []), ...storedRealm, ...storedTenant];
+        allSources.forEach((r: any) => {
+          const rawName = r.name || r.id;
+          if (!rawName) return;
+          const val = rawName.toLowerCase();
+          // Filter internal keycloak technical roles
+          if (val.startsWith('default-roles') || val === 'offline_access' || val === 'uma_authorization') return;
+
+          const formattedName = rawName.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+          const desc = r.description ? ` (${r.description})` : '';
+          roleMap.set(val, {
+            value: rawName,
+            label: `${formattedName}${desc}`,
+          });
+        });
+
+        const combined = Array.from(roleMap.values());
+        if (combined.length > 0) {
+          setRolesList(combined);
+          if (!isEditMode && !role) {
+            setRole(combined[0].value);
+          }
+        }
+      })
+      .finally(() => {
+        setLoadingRoles(false);
+      });
   }, []);
 
   // Triggers navigation back to the directory grid
@@ -75,18 +163,23 @@ export function AddStaffPage() {
     setActiveView('staff');
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Handles submissions of personnel data records
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearStaffError();
+    setIsSubmitting(true);
 
     if (!name || !email) {
       alert('Please fill out all required fields.');
+      setIsSubmitting(false);
       return;
     }
 
     if (!isEditMode && (!tempPassword || tempPassword.length < 8)) {
       alert('Password must be at least 8 characters long.');
+      setIsSubmitting(false);
       return;
     }
 
@@ -101,16 +194,38 @@ export function AddStaffPage() {
       password: tempPassword
     };
 
-    if (isEditMode && selectedStaffId) {
-      updateStaff(selectedStaffId, payload);
-      setActiveView('staff');
-    } else {
-      const success = addStaff({ ...payload, password: tempPassword });
-      if (success) {
-        setActiveView('staff');
+    try {
+      if (isEditMode && selectedStaffId) {
+        const success = await updateStaff(selectedStaffId, payload);
+        if (success) {
+          setActiveView('staff');
+        }
+      } else {
+        const success = await addStaff({ ...payload, password: tempPassword });
+        if (success) {
+          setActiveView('staff');
+        }
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const lowerError = (staffError || '').toLowerCase();
+  const isEmailOnlyError = lowerError.includes('email') && !lowerError.includes('username') && !lowerError.includes('full_name');
+  const isNameOnlyError = (lowerError.includes('username') || lowerError.includes('full_name') || (lowerError.includes('name') && !lowerError.includes('email'))) && !lowerError.includes('email');
+
+  const cleanEmailError = isEmailOnlyError
+    ? staffError!.replace(/^Email:\s*/i, '')
+    : (lowerError.includes('email')
+        ? (lowerError.includes('already') || lowerError.includes('exist') || lowerError.includes('registered') ? 'Email already exists.' : 'Invalid email address.')
+        : null);
+
+  const cleanNameError = isNameOnlyError
+    ? staffError!.replace(/^(Username|Name|Full Name):\s*/i, '')
+    : ((lowerError.includes('username') || lowerError.includes('name')) && !lowerError.includes('email') ? 'Full Name must be at least 3 characters.' : null);
+
+  const isGeneralError = !!staffError && !isEmailOnlyError && !isNameOnlyError;
 
   return (
     <div className="max-w-[720px] mx-auto pt-sm px-md w-full pb-32">
@@ -134,8 +249,8 @@ export function AddStaffPage() {
         </span>
       </nav>
 
-      {/* Renders validation errors */}
-      {staffError && (
+      {/* Renders general non-field errors */}
+      {isGeneralError && (
         <div className="mb-md p-md bg-error-container border border-error/20 rounded-lg flex items-center gap-sm">
           <span className="material-symbols-outlined text-error">error</span>
           <span className="font-body-sm text-on-error-container text-xs font-semibold">
@@ -159,13 +274,21 @@ export function AddStaffPage() {
               </label>
               <input
                 id="fullName"
-                className="w-full border border-border-subtle rounded text-xs px-3 py-2 bg-surface-white focus:outline-none focus:border-primary"
+                className={`w-full border rounded text-xs px-3 py-2 bg-surface-white focus:outline-none transition-colors ${
+                  cleanNameError ? 'border-error ring-1 ring-error' : 'border-border-subtle focus:border-primary'
+                }`}
                 placeholder="e.g. Dr. Jane Doe"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+              {cleanNameError && (
+                <p className="text-[11px] text-error font-medium mt-1.5 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{cleanNameError}</span>
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="emailAddress" className="block font-label-md text-[11px] font-bold tracking-wide uppercase text-on-surface-variant mb-1.5">
@@ -173,13 +296,21 @@ export function AddStaffPage() {
               </label>
               <input
                 id="emailAddress"
-                className="w-full border border-border-subtle rounded text-xs px-3 py-2 bg-surface-white focus:outline-none focus:border-primary"
+                className={`w-full border rounded text-xs px-3 py-2 bg-surface-white focus:outline-none transition-colors ${
+                  cleanEmailError ? 'border-error ring-1 ring-error' : 'border-border-subtle focus:border-primary'
+                }`}
                 placeholder="name@muhimbili.go.tz"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              {cleanEmailError && (
+                <p className="text-[11px] text-error font-medium mt-1.5 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{cleanEmailError}</span>
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="phoneNumber" className="block font-label-md text-[11px] font-bold tracking-wide uppercase text-on-surface-variant mb-1.5">
@@ -217,18 +348,16 @@ export function AddStaffPage() {
               <div className="relative">
                 <select
                   id="primaryRole"
-                  className="w-full appearance-none border border-border-subtle rounded text-xs px-3 py-2 bg-surface-white focus:outline-none focus:border-primary pr-10"
+                  className="w-full appearance-none border border-border-subtle rounded text-xs px-3 py-2 bg-surface-white focus:outline-none focus:border-primary pr-10 disabled:opacity-60"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
+                  disabled={loadingRoles}
                 >
-                  <option value="doctor">Doctor (Clinical Staff)</option>
-                  <option value="triage_nurse">Triage Nurse (OPD Vitals)</option>
-                  <option value="ward_nurse">Ward Nurse (Inpatient Care)</option>
-                  <option value="receptionist">Receptionist (Patient Registration)</option>
-                  <option value="lab_technician">Lab Technician (Laboratory Services)</option>
-                  <option value="pharmacist">Pharmacist (Pharmacy &amp; Dispensing)</option>
-                  <option value="billing_officer">Billing Officer (Finance &amp; Payments)</option>
-                  <option value="hospital_admin">Administrator (System Admin)</option>
+                  {rolesList.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-secondary">
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
@@ -379,11 +508,14 @@ export function AddStaffPage() {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 style={{ backgroundColor: '#0052CC', color: 'white', padding: '0 32px', height: '48px', minWidth: '160px' }}
-                className="rounded-lg font-headline-sm flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-md border-0 cursor-pointer"
+                className="rounded-lg font-headline-sm flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-md border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>{isEditMode ? 'Save Changes' : 'Add User'}</span>
-                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                <span>{isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Add User')}</span>
+                {!isSubmitting && (
+                  <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                )}
               </button>
             </div>
           </div>

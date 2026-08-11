@@ -86,6 +86,7 @@ export function PermissionsMatrixPage() {
               roleName,
               modules: DEFAULT_SYSTEM_PERMISSIONS[roleName]?.modules || ['reception', 'reports'],
               actions: DEFAULT_SYSTEM_PERMISSIONS[roleName]?.actions || ['read'],
+              updatedAt: new Date().toISOString(),
             });
           }
         });
@@ -97,6 +98,7 @@ export function PermissionsMatrixPage() {
             roleName: highlightedRole,
             modules: ['reception', 'reports'],
             actions: ['read'],
+            updatedAt: new Date().toISOString(),
           });
         }
 

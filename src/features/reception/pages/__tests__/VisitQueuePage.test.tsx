@@ -40,6 +40,7 @@ const mockQueueData = [
     visit: {
       visit_id: 'v-1',
       visit_number: 'VIS-001',
+      visit_type: 'outpatient',
       payment_type: 'cash',
       status: 'registered',
       queue_number: 'T-001',
@@ -61,6 +62,7 @@ const mockQueueData = [
     visit: {
       visit_id: 'v-2',
       visit_number: 'VIS-002',
+      visit_type: 'outpatient',
       payment_type: 'insurance',
       status: 'triaged',
       queue_number: 'T-002',

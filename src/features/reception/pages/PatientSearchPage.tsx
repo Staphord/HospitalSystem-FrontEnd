@@ -6,7 +6,6 @@ import { adminService } from '@/api/services/admin'
 import type { BackendPatient, BackendInsurancePolicy } from '@/api/types/reception'
 import type { Provider } from '@/api/types/admin'
 
-const FIELD_LABEL = 'block text-label-md font-label-md text-secondary mb-xs'
 const selectChevronStyle = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%234f5f7b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
   backgroundPosition: 'right 8px center',
@@ -27,29 +26,6 @@ const ICON_VARIATION = {
 } as const
 
 type ActiveField = 'id' | 'phone' | 'name'
-
-type SearchState = {
-  results: BackendPatient[]
-  field: ActiveField
-  term: string
-}
-
-function SearchInput({
-  icon,
-  onFocus,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement> & { icon: string }) {
-  return (
-    <div className="relative">
-      <span className={INPUT_ICON_WRAPPER} aria-hidden="true">
-        <span className={INPUT_ICON} style={ICON_VARIATION}>
-          {icon}
-        </span>
-      </span>
-      <input className={INPUT_CLASS} onFocus={onFocus} {...props} />
-    </div>
-  )
-}
 
 function genderBadgeClass(gender: string) {
   switch (gender?.toLowerCase()) {
@@ -232,7 +208,7 @@ function PatientFoundCard({
       // Load policies
       const data = await receptionService
         .getInsurancePolicies(patient.id)
-        .catch(() => (patient.insurance_policies || []) as BackendInsurancePolicy[])
+        .catch(() => ((patient as any).insurance_policies || []) as BackendInsurancePolicy[])
       setPolicies(data)
 
       // Auto-select the first active policy if any
@@ -245,7 +221,7 @@ function PatientFoundCard({
       }
 
       // Check active queue status
-      const activeStatus = await receptionService.getActiveVisit(patient.id).catch(() => ({ active: false }))
+      const activeStatus = await receptionService.getActiveVisit(patient.id).catch(() => ({ active: false })) as any
       if (activeStatus && activeStatus.active) {
         const qStatus = activeStatus.queue_status?.toLowerCase()
         const qType = activeStatus.queue_type?.toLowerCase()
@@ -262,7 +238,7 @@ function PatientFoundCard({
       }
     } catch {
       // Ignore unhandled exceptions safely
-      setPolicies(patient.insurance_policies || [])
+      setPolicies((patient as any).insurance_policies || [])
       setQueueStatus(null)
     } finally {
       setLoadingPolicies(false)
@@ -333,7 +309,7 @@ function PatientFoundCard({
   const handleSavePhone = async () => {
     try {
       const updated = await receptionService.updatePatient(patient.id, {
-        phone_primary: patientPhone.trim() || null,
+        phone_primary: patientPhone.trim() || undefined,
       })
       setIsEditingPhone(false)
       toast.success('Patient phone updated successfully!')
@@ -347,7 +323,7 @@ function PatientFoundCard({
   const handleSaveKinName = async () => {
     try {
       const updated = await receptionService.updatePatient(patient.id, {
-        next_of_kin_name: kinName.trim() || null,
+        next_of_kin_name: kinName.trim() || undefined,
       })
       setIsEditingKinName(false)
       toast.success('Next of kin name updated successfully!')
@@ -361,7 +337,7 @@ function PatientFoundCard({
   const handleSaveKinRelation = async () => {
     try {
       const updated = await receptionService.updatePatient(patient.id, {
-        next_of_kin_relationship: kinRelation.trim() || null,
+        next_of_kin_relationship: kinRelation.trim() || undefined,
       })
       setIsEditingKinRelation(false)
       toast.success('Next of kin relationship updated successfully!')
@@ -375,7 +351,7 @@ function PatientFoundCard({
   const handleSaveKinPhone = async () => {
     try {
       const updated = await receptionService.updatePatient(patient.id, {
-        next_of_kin_phone: kinPhone.trim() || null,
+        next_of_kin_phone: kinPhone.trim() || undefined,
       })
       setIsEditingKinPhone(false)
       toast.success('Next of kin contact updated successfully!')
@@ -1029,10 +1005,10 @@ export function PatientSearchPage() {
 
         if (hasContactChanges) {
           await receptionService.updatePatient(patient.id, {
-            phone_primary: contactDetails.phone.trim() || null,
-            next_of_kin_name: contactDetails.kinName.trim() || null,
-            next_of_kin_relationship: contactDetails.kinRelation.trim() || null,
-            next_of_kin_phone: contactDetails.kinPhone.trim() || null,
+            phone_primary: contactDetails.phone.trim() || undefined,
+            next_of_kin_name: contactDetails.kinName.trim() || undefined,
+            next_of_kin_relationship: contactDetails.kinRelation.trim() || undefined,
+            next_of_kin_phone: contactDetails.kinPhone.trim() || undefined,
           })
           toast.success('Patient contact & Next of Kin updated!')
         }

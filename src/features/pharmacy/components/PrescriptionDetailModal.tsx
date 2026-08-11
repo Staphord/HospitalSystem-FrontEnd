@@ -63,8 +63,6 @@ interface PrescriptionDetailModalProps {
   onDispense: () => void
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 function formatDoctorName(prescribedBy?: string | null): string {
   if (!prescribedBy || !prescribedBy.trim()) {
     return 'Dr. Staff Doctor'
@@ -226,7 +224,7 @@ export function PrescriptionDetailModal({
             <div className="flex justify-between gap-md sm:flex-col sm:justify-start">
               <span className="font-label-md text-label-md text-outline font-bold">Age / Gender</span>
               <span className="font-body-sm text-body-sm">
-                {age} · {detail.gender}
+                {age} · {(detail as any).gender || '—'}
               </span>
             </div>
             <div className="flex justify-between gap-md sm:flex-col sm:justify-start">
@@ -288,16 +286,17 @@ export function PrescriptionDetailModal({
                     const hasInteraction = interactions?.alerts.some(
                       (a) => a.drug_a === line.drug_name || a.drug_b === line.drug_name
                     )
+                    const qty = (line as any).quantity_prescribed || line.quantity || 0
                     return (
                       <tr
-                        key={line.prescription_item_id}
+                        key={(line as any).prescription_item_id || line.prescription_id}
                         className={hasInteraction ? 'bg-error/5' : undefined}
                       >
                         <td className="px-md py-sm">
                           <div className="font-body-sm text-body-sm font-semibold text-on-surface">
                             {line.drug_name}
                           </div>
-                          <div className="font-body-sm text-body-sm text-secondary">{line.category || 'Medication'}</div>
+                          <div className="font-body-sm text-body-sm text-secondary">{(line as any).category || 'Medication'}</div>
                           {hasInteraction && (
                             <span className="inline-flex items-center gap-xs mt-xs text-error font-label-sm text-label-sm">
                               <span className="material-symbols-outlined text-[14px]">warning</span>
@@ -305,11 +304,11 @@ export function PrescriptionDetailModal({
                             </span>
                           )}
                         </td>
-                        <td className="px-md py-sm font-body-sm text-body-sm whitespace-nowrap">{line.dose}</td>
+                        <td className="px-md py-sm font-body-sm text-body-sm whitespace-nowrap">{line.dosage || line.dose}</td>
                         <td className="px-md py-sm font-body-sm text-body-sm whitespace-nowrap">{line.frequency}</td>
                         <td className="px-md py-sm font-body-sm text-body-sm whitespace-nowrap">{line.duration}</td>
                         <td className="px-md py-sm font-body-sm text-body-sm whitespace-nowrap">
-                          {line.quantity_prescribed > 0 ? line.quantity_prescribed : '—'}
+                          {qty > 0 ? qty : '—'}
                         </td>
                         <td className="px-md py-sm font-body-sm text-body-sm text-secondary max-w-[200px]">
                           {line.instructions || '—'}

@@ -180,7 +180,7 @@ function HistoryResultsPanel({
                     {age}y / {p.gender}
                   </td>
                   <td className="px-lg py-md font-body-sm text-body-sm text-on-surface-variant whitespace-nowrap">
-                    {p.phone_primary || '—'}
+                    {(p as any).phone_primary || (p as any).phone || '—'}
                   </td>
                   <td className="px-lg py-md">
                     <span className={`font-body-sm text-body-sm ${p.allergies ? 'text-error font-semibold' : 'text-on-surface-variant'}`}>

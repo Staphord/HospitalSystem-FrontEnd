@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { triageService } from '@/api/services/triage'
-import { getDefaultTriageCategory } from '@/features/triage/data/mockTriageVisits'
+import { getDefaultTriageCategory } from '@/features/triage/utils/triageUtils'
 import {
   COMMON_SYMPTOMS,
   EMPTY_VITALS,

@@ -83,7 +83,7 @@ export const ActiveSessionsPage: React.FC = () => {
 
   // Security audit calculations from alerts
   const highPriorityAlerts = (alerts || []).filter(
-    (a) => a.severity === 'high' || a.title?.toLowerCase().includes('security') || a.title?.toLowerCase().includes('login')
+    (a) => (a.severity as string) === 'high' || (a as any).title?.toLowerCase().includes('security') || (a as any).title?.toLowerCase().includes('login')
   );
   const isSystemStable = highPriorityAlerts.length === 0;
 

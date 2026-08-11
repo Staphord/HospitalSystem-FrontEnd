@@ -1,4 +1,4 @@
-import { Component, ReactNode, useState } from 'react'
+import { Component, type ReactNode, useState } from 'react'
 import { useRouteError, isRouteErrorResponse, useNavigate } from 'react-router-dom'
 
 interface Props {

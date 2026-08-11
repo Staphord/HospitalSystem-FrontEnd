@@ -12,7 +12,6 @@ import { PharmacyDashboardContent } from '@/features/pharmacy/components/Pharmac
 import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
 import { DepartmentGuard } from '@/components/auth/DepartmentGuard'
 import { ROLES, hasEffectiveRole } from '@/lib/roles'
-import { toast } from 'sonner'
 import { formatShortDateTime } from '@/lib/localization'
 import { useNavigate } from 'react-router-dom'
 import { receptionService } from '@/api/services/reception'

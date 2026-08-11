@@ -174,8 +174,6 @@ interface BackendSetting {
   updated_at?: string | null
 }
 
-type BackendSession = BackendActiveSession
-
 interface BackendLoginHistory {
   timestamp: string
   ip?: string | null
@@ -523,6 +521,12 @@ export const adminService = {
     return users.map((u) =>
       mapUser(u, u.department_id ? deptMap.get(u.department_id) : undefined),
     )
+  },
+
+  getUser: async (sub: string): Promise<HospitalUser> => {
+    const u = await apiClient.get<BackendUser>(`/admin/users/${sub}`).then((r) => r.data)
+    const deptMap = await loadDepartmentNameMap()
+    return mapUser(u, u.department_id ? deptMap.get(u.department_id) : undefined)
   },
 
   createUser: async (data: HospitalUserCreate): Promise<HospitalUser> => {
@@ -999,28 +1003,12 @@ export const adminService = {
     )
   },
 
-  // Backups
-  listBackups: (): Promise<BackupItem[]> =>
-    apiClient.get<BackendBackup[]>('/admin/backups').then((r) => r.data.map(mapBackup)),
-
-  triggerBackup: (): Promise<BackupItem> =>
-    apiClient.post<BackendBackup>('/admin/backups').then((r) => mapBackup(r.data)),
-
-  downloadBackup: async (id: string, filename: string): Promise<void> => {
-    const response = await apiClient.get(`/admin/backups/${id}/download`, { responseType: 'blob' })
-    const url = URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-  },
-
   // Roles (Realm, Global, Tenant)
   listRealmRoles: (): Promise<RealmRole[]> =>
-    apiClient.get<BackendRealmRole[]>('/admin/roles/realm').then((r) => r.data.map(mapRealmRole)),
+    apiClient
+      .get<BackendRealmRole[]>('/admin/roles')
+      .catch(() => apiClient.get<BackendRealmRole[]>('/admin/roles/realm'))
+      .then((r) => r.data.map(mapRealmRole)),
 
   createRealmRole: (name: string, description?: string): Promise<RealmRole> =>
     apiClient

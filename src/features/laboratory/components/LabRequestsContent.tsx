@@ -12,13 +12,11 @@ import type {
 } from '@/features/laboratory/types/laboratory'
 
 type PriorityFilter = 'all' | LabRequestPriority
-type StatusFilter = 'all' | 'active' | LabRequestStatus
+type StatusFilter = 'all' | 'active' | 'in_progress' | LabRequestStatus
 
 interface LabRequestsLocationState {
   highlightRequestId?: string
 }
-
-const PAGE_SIZE = 10
 
 function SummaryCards({
   summary,

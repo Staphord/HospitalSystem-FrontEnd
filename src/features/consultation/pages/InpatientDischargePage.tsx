@@ -121,7 +121,7 @@ export function InpatientDischargePage() {
   const { admissionId } = useParams<{ admissionId: string }>()
   const navigate = useNavigate()
 
-  const [patient, setPatient] = useState<AdmittedPatient | null>(null)
+  const [patient, setPatient] = useState<any>(null)
   const [summary, setSummary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
@@ -280,7 +280,7 @@ export function InpatientDischargePage() {
               <div className="pt-sm border-t border-outline-variant">
                 <label className="block font-label-sm text-[10px] text-outline uppercase tracking-tight font-bold mb-sm">Key Clinical Events</label>
                 <ul className="space-y-sm m-0 p-0 list-none">
-                  {summary.keyEvents.map((ev, i) => (
+                  {summary.keyEvents.map((ev: any, i: number) => (
                     <li key={i} className="flex gap-sm">
                       <div className="mt-1.5 w-1.5 h-1.5 bg-primary rounded-full shrink-0" />
                       <p className="font-body-sm text-[12px] leading-tight m-0">

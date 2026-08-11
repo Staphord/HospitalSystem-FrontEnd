@@ -845,9 +845,9 @@ export const SubscriptionPage: React.FC = () => {
 
                     const isCurrent = p.plan_name.toLowerCase() === subscription.plan_name.toLowerCase() &&
                       requestBillingCycle === String(subscription.billing_cycle || '').toLowerCase();
-                    const isPending = !!(tenant && tenant.pending_plan &&
-                      p.plan_name.toLowerCase() === tenant.pending_plan.toLowerCase() &&
-                      requestBillingCycle === String(tenant.pending_billing_cycle || '').toLowerCase());
+                    const isPending = !!(tenant && (tenant as any).pending_plan &&
+                      p.plan_name.toLowerCase() === (tenant as any).pending_plan.toLowerCase() &&
+                      requestBillingCycle === String((tenant as any).pending_billing_cycle || '').toLowerCase());
 
                     const targetPrice = requestBillingCycle === 'annual' ? p.annual_price : p.monthly_price;
                     const priceDiff = targetPrice - currentPrice;

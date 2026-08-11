@@ -274,7 +274,7 @@ export function CashierDashboard() {
             </span>
           </div>
           <div className="flex flex-col gap-sm mt-sm">
-            {revenueBreakdown.map((item) => (
+            {revenueBreakdown.map((item: any) => (
               <div key={item.method} className="flex flex-col gap-xs mt-xs">
                 <div className="flex justify-between items-center">
                   <span className="font-label-sm text-label-sm text-[#42526e] uppercase">
