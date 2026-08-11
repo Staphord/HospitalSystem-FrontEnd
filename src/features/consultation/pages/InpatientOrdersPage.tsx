@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { InpatientPatientHeader } from '@/features/consultation/components/InpatientPatientHeader'
 import { wardService } from '@/api/services/ward'
+import { adminService } from '@/api/services/admin'
 import type {
   InpatientOrder,
   OrderStatus,
@@ -75,9 +76,25 @@ function IssueOrderModal({
   const [urgency, setUrgency] = useState<'stat' | 'urgent' | 'routine'>('routine')
   const [clinicalReason, setClinicalReason] = useState('')
 
+  const [drugList, setDrugList] = useState<string[]>(DRUG_SUGGESTIONS)
+  const [testList, setTestList] = useState<string[]>(TEST_SUGGESTIONS)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
+
+    adminService.listFeeSchedules()
+      .then((items) => {
+        if (items && items.length > 0) {
+          const activeItems = items.filter((i) => i.active).map((i) => i.name)
+          if (activeItems.length > 0) {
+            setTestList(Array.from(new Set([...activeItems, ...TEST_SUGGESTIONS])))
+            setDrugList(Array.from(new Set([...activeItems, ...DRUG_SUGGESTIONS])))
+          }
+        }
+      })
+      .catch(() => {})
+
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
@@ -173,7 +190,7 @@ function IssueOrderModal({
                     className="w-full pl-xl pr-md py-sm border border-border-subtle rounded-lg focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md outline-none"
                   />
                   <datalist id="drug-suggestions">
-                    {DRUG_SUGGESTIONS.map((d) => <option key={d} value={d} />)}
+                    {drugList.map((d) => <option key={d} value={d} />)}
                   </datalist>
                 </div>
               </div>
@@ -242,7 +259,7 @@ function IssueOrderModal({
                 <label className="block font-label-md text-label-md text-outline mb-xs">Test / Imaging</label>
                 <input type="text" value={testName} onChange={(e) => setTestName(e.target.value)} list="test-suggestions" placeholder="Search test name…" className="w-full px-md py-sm border border-border-subtle rounded-lg focus:border-primary focus:ring-1 focus:ring-primary font-body-md text-body-md outline-none" />
                 <datalist id="test-suggestions">
-                  {TEST_SUGGESTIONS.map((t) => <option key={t} value={t} />)}
+                  {testList.map((t) => <option key={t} value={t} />)}
                 </datalist>
               </div>
               <div>

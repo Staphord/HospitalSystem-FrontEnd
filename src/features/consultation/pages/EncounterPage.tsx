@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatShortDateTime, formatPatientAge } from '@/lib/localization'
 import { consultationService } from '@/api/services/consultation'
+import { adminService } from '@/api/services/admin'
 import type { EncounterViewResponse } from '@/api/types/consultation'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -152,14 +153,65 @@ function AddOrderModal({
   onAdd: (order: InvestigationOrder) => void
 }) {
   const [testName, setTestName] = useState('')
+  const [departmentsList, setDepartmentsList] = useState<string[]>([
+    'Laboratory',
+    'Radiology',
+    'Cardiology',
+    'Microbiology',
+  ])
   const [department, setDepartment] = useState('Laboratory')
   const [priority, setPriority] = useState<InvestigationOrder['priority']>('routine')
   const [notes, setNotes] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [testItems, setTestItems] = useState<Array<{ name: string; department?: string }>>([])
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
 
-  const filtered = TEST_SUGGESTIONS.filter((t) =>
-    t.toLowerCase().includes(testName.toLowerCase())
-  )
+  useEffect(() => {
+    // 1. Fetch real active departments configured by Admin
+    adminService.listDepartments()
+      .then((depts) => {
+        if (depts && depts.length > 0) {
+          const activeDepts = depts.map((d) => d.name)
+          if (activeDepts.length > 0) {
+            setDepartmentsList(activeDepts)
+            setDepartment(activeDepts[0])
+          }
+        }
+      })
+      .catch(() => {})
+
+    // 2. Fetch real active fee schedule test items configured by Admin
+    setLoadingCatalog(true)
+    adminService.listFeeSchedules()
+      .then((items) => {
+        if (items && items.length > 0) {
+          const catalogOptions = items.map((i) => {
+            const cat = (i.category || '').toUpperCase()
+            let dept = 'Laboratory'
+            if (cat.includes('RAD') || i.name.toLowerCase().includes('x-ray') || i.name.toLowerCase().includes('ultrasound') || i.name.toLowerCase().includes('ct')) {
+              dept = 'Radiology'
+            } else if (cat.includes('CARD') || i.name.toLowerCase().includes('ecg')) {
+              dept = 'Cardiology'
+            }
+            return { name: i.name, department: dept }
+          })
+          setTestItems(catalogOptions)
+        } else {
+          setTestItems(TEST_SUGGESTIONS.map((t) => ({ name: t, department: t.toLowerCase().includes('x-ray') || t.toLowerCase().includes('ultrasound') ? 'Radiology' : 'Laboratory' })))
+        }
+      })
+      .catch(() => {
+        setTestItems(TEST_SUGGESTIONS.map((t) => ({ name: t, department: 'Laboratory' })))
+      })
+      .finally(() => setLoadingCatalog(false))
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!testName.trim()) return testItems
+    return testItems.filter((t) =>
+      t.name.toLowerCase().includes(testName.toLowerCase())
+    )
+  }, [testItems, testName])
 
   const isValid = testName.trim().length > 0
 
@@ -175,6 +227,14 @@ function AddOrderModal({
       notes: notes.trim() || undefined,
     })
     onClose()
+  }
+
+  const handleSelectTest = (item: { name: string; department?: string }) => {
+    setTestName(item.name)
+    if (item.department && departmentsList.includes(item.department)) {
+      setDepartment(item.department)
+    }
+    setShowSuggestions(false)
   }
 
   return (
@@ -219,22 +279,37 @@ function AddOrderModal({
                 autoFocus
                 onChange={(e) => { setTestName(e.target.value); setShowSuggestions(true) }}
                 onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                placeholder="Search or type test name…"
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                placeholder="Search or select test from catalog…"
                 className="flex-1 border-none bg-transparent p-0 focus:ring-0 font-body-sm text-body-sm outline-none"
               />
             </div>
-            {showSuggestions && testName.length > 0 && filtered.length > 0 && (
-              <ul className="absolute z-10 left-0 right-0 mt-1 bg-surface-white border border-border-subtle rounded-lg shadow-lg max-h-[180px] overflow-y-auto">
-                {filtered.map((s) => (
-                  <li
-                    key={s}
-                    onMouseDown={() => { setTestName(s); setShowSuggestions(false) }}
-                    className="px-md py-sm font-body-sm text-body-sm text-on-surface hover:bg-hover-tint cursor-pointer transition-colors"
-                  >
-                    {s}
+            {showSuggestions && (
+              <ul className="absolute z-10 left-0 right-0 mt-1 bg-surface-white border border-border-subtle rounded-lg shadow-lg max-h-[200px] overflow-y-auto m-0 p-0 list-none">
+                {loadingCatalog ? (
+                  <li className="px-md py-sm font-body-sm text-secondary italic text-xs">
+                    Loading catalog items…
                   </li>
-                ))}
+                ) : filtered.length > 0 ? (
+                  filtered.map((item) => (
+                    <li
+                      key={item.name}
+                      onMouseDown={() => handleSelectTest(item)}
+                      className="px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low cursor-pointer transition-colors flex items-center justify-between border-b border-border-subtle/40 last:border-0"
+                    >
+                      <span className="font-medium text-xs text-on-surface">{item.name}</span>
+                      {item.department && (
+                        <span className="text-[10px] uppercase font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                          {item.department}
+                        </span>
+                      )}
+                    </li>
+                  ))
+                ) : (
+                  <li className="px-md py-sm font-body-sm text-secondary italic text-xs">
+                    No matching catalog items found
+                  </li>
+                )}
               </ul>
             )}
           </div>
@@ -249,11 +324,11 @@ function AddOrderModal({
               onChange={(e) => setDepartment(e.target.value)}
               className="w-full rounded-lg border border-border-subtle bg-surface-white focus:border-primary focus:ring-1 focus:ring-primary font-body-sm text-body-sm px-sm py-2 outline-none transition-all cursor-pointer"
             >
-              <option>Laboratory</option>
-              <option>Radiology</option>
-              <option>Cardiology</option>
-              <option>Microbiology</option>
-              <option>Other</option>
+              {departmentsList.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
             </select>
           </div>
 

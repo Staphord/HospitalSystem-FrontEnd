@@ -4,20 +4,36 @@ import { toast } from 'sonner';
 
 export const ROLE_DEPARTMENT_MAP: Record<string, string> = {
   doctor: 'Consultation',
+  clinician: 'Consultation',
   triage_nurse: 'Triage',
   ward_nurse: 'Ward',
   nurse: 'Triage',
   receptionist: 'Reception',
   lab_technician: 'Laboratory',
   tech: 'Laboratory',
+  radiographer: 'Radiology',
+  radiologist: 'Radiology',
+  radiology: 'Radiology',
+  radiology_tech: 'Radiology',
   pharmacist: 'Pharmacy',
   billing_officer: 'Billing',
+  cashier: 'Billing',
   hospital_admin: 'Admin',
   admin: 'Admin',
 };
 
 export const getLandingDepartmentForRole = (role: string): string => {
-  return ROLE_DEPARTMENT_MAP[role] || 'Admin';
+  const normalized = (role || '').toLowerCase();
+  if (normalized.includes('radio')) return 'Radiology';
+  if (normalized.includes('lab')) return 'Laboratory';
+  if (normalized.includes('pharm')) return 'Pharmacy';
+  if (normalized.includes('recept')) return 'Reception';
+  if (normalized.includes('bill') || normalized.includes('cash')) return 'Billing';
+  if (normalized.includes('ward')) return 'Ward';
+  if (normalized.includes('triage')) return 'Triage';
+  if (normalized.includes('doc') || normalized.includes('clinic')) return 'Consultation';
+
+  return ROLE_DEPARTMENT_MAP[normalized] || 'Admin';
 };
 
 export interface StaffMember {
