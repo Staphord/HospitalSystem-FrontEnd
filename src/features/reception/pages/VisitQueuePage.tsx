@@ -27,8 +27,6 @@ const KPI_VALUE = 'font-headline-md text-[28px] text-on-surface m-0'
 const TH_CLASS =
   'py-md px-md font-label-md text-label-md text-on-surface-variant uppercase tracking-widest border-b border-border-subtle'
 const TD_MUTED = 'py-md px-md font-body-sm text-body-sm text-on-surface-variant'
-const TOOLBAR_BTN =
-  'flex items-center gap-xs px-sm py-xs text-body-sm font-medium text-secondary hover:bg-surface-container transition-colors rounded border-0 bg-transparent cursor-pointer'
 const STATUS_BADGE =
   'inline-flex items-center px-sm py-xs rounded-full font-label-md text-label-md font-bold'
 
@@ -390,7 +388,7 @@ export function VisitQueuePage() {
   const pageStart = (safePage - 1) * pageSize
   const visibleItems = filteredItems.slice(pageStart, pageStart + pageSize)
 
-  const removeItem = async (queueId: string, patientId: string, name: string) => {
+  const removeItem = async (queueId: string, _patientId: string, name: string) => {
     try {
       await receptionService.updateQueueStatus(queueId, 'skipped')
       setQueueItems((prev) => {

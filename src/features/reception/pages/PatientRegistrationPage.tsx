@@ -196,7 +196,7 @@ export function PatientRegistrationPage() {
         setErrors({})
         
         try {
-          const activeStatus = await receptionService.getActiveVisit(exactMatch.id)
+          const activeStatus = await receptionService.getActiveVisit(exactMatch.id) as any
           if (activeStatus.active) {
             const qStatus = activeStatus.queue_status?.toLowerCase()
             const qType = activeStatus.queue_type?.toLowerCase()
@@ -213,6 +213,8 @@ export function PatientRegistrationPage() {
           }
         } catch (queueErr) {
           console.error('Failed to verify active queue status for duplicate', queueErr)
+          setDuplicateQueueStatus(null)
+          setDuplicateQueueNumber(null)
         }
       } else {
         setDuplicatePatient(null)
@@ -220,7 +222,7 @@ export function PatientRegistrationPage() {
         setDuplicateQueueNumber(null)
       }
     } catch (err) {
-      console.error('Failed to check duplicate National ID', err)
+      console.error('Failed to search duplicate patient by National ID:', err)
     } finally {
       setCheckingDuplicate(false)
     }
@@ -266,11 +268,11 @@ export function PatientRegistrationPage() {
           full_name: fullName.trim(),
           date_of_birth: dob,
           gender: genderValue,
-          phone_primary: phone.trim() || null,
-          email: email.trim() || null,
-          next_of_kin_name: nokName.trim() || null,
-          next_of_kin_relationship: nokRelationValue || null,
-          next_of_kin_phone: nokPhone.trim() || null,
+          phone_primary: phone.trim() || undefined,
+          email: email.trim() || undefined,
+          next_of_kin_name: nokName.trim() || undefined,
+          next_of_kin_relationship: nokRelationValue || undefined,
+          next_of_kin_phone: nokPhone.trim() || undefined,
         })
         toast.success('Patient details updated successfully!')
       }

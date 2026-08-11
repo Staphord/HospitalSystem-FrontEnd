@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { consultationService } from '@/api/services/consultation'
 import type { DoctorDashboardStatsResponse } from '@/api/services/consultation'
 
-type UrgencyLevel = 'urgent' | 'consulting' | 'normal'
 type ResultStatus = 'critical' | 'ready' | 'pending'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -376,10 +375,10 @@ function CriticalAlertsCard({
                   {alert.description}
                 </p>
                 <div className="flex gap-sm flex-wrap">
-                  {alert.type === 'triage' ? (
+                  {(alert as any).type === 'triage' || (alert as any).visit_id ? (
                     <button
                       type="button"
-                      onClick={() => navigate(`/consultation/encounter/${alert.visit_id}`)}
+                      onClick={() => navigate(`/consultation/encounter/${(alert as any).visit_id || alert.id}`)}
                       className="text-white text-[12px] px-md py-xs rounded transition-colors border-0 cursor-pointer bg-error hover:opacity-90"
                     >
                       Start Consultation

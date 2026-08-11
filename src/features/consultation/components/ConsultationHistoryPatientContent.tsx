@@ -135,7 +135,7 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
               Visit Record: {visit.visit_id}
             </h5>
             <p className="font-body-sm text-body-sm text-outline mt-xs m-0">
-              Patient: {patientName} · {fmtDate(visit.visit_date)}
+              Patient: {patientName} · {fmtDate((visit as any).visit_date || visit.created_at)}
             </p>
           </div>
           <button
@@ -172,15 +172,15 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
             <>
               <div className="grid grid-cols-2 gap-md">
                 <ReadOnlyField label="Visit Type" value={visit.visit_type ?? '—'} />
-                <ReadOnlyField label="Attending" value={c?.created_by ?? '—'} />
+                <ReadOnlyField label="Attending" value={(c as any)?.created_by || (c as any)?.doctor_name || '—'} />
               </div>
               <ReadOnlyField
                 label="Chief Complaint"
-                value={visit.triage_summary?.chief_complaint ?? '—'}
+                value={(visit as any).triage_summary?.chief_complaint ?? (visit.triage as any)?.chief_complaint ?? '—'}
               />
               <ReadOnlyField
                 label="History of Presenting Illness"
-                value={c?.history_of_presenting_illness ?? '—'}
+                value={c?.presenting_history ?? (c as any)?.history_of_presenting_illness ?? '—'}
               />
               <ReadOnlyField
                 label="Objective Examination"
@@ -217,13 +217,13 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
           )}
 
           {activeTab === 'investigations' && (
-            !c?.investigation_requests?.length ? (
+            !((c as any)?.investigation_requests || c?.investigations)?.length ? (
               <p className="font-body-sm text-body-sm text-outline italic text-center py-xl">
                 No investigations ordered for this visit.
               </p>
             ) : (
               <div className="space-y-sm">
-                {c.investigation_requests.map((inv: any, i) => (
+                {((c as any)?.investigation_requests || c?.investigations || []).map((inv: any, i: number) => (
                   <div key={i} className="bg-surface-container-low p-md rounded-lg space-y-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-body-sm text-body-sm font-semibold text-on-surface">{inv.test_name}</span>
@@ -284,7 +284,7 @@ function VisitDetailModal({ visit, patientName, onClose }: ModalProps) {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      {rx.dose && <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{rx.dose}</p>}
+                      {(rx.dosage || (rx as any).dose) && <p className="font-body-sm text-body-sm text-on-surface-variant m-0">{rx.dosage || (rx as any).dose}</p>}
                       {rx.duration && <p className="font-label-sm text-label-sm text-outline m-0">{rx.duration}</p>}
                     </div>
                   </div>
@@ -334,6 +334,8 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
   const visible = previous_visits.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
   const showingFrom = previous_visits.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
   const showingTo = Math.min(safePage * PAGE_SIZE, previous_visits.length)
+  const lastVisitRaw = (previous_visits[0] as any)?.visit_date || previous_visits[0]?.created_at
+  const lastVisitDate = fmtDate(lastVisitRaw)
 
   const age = calcAge(patient.date_of_birth)
   const avatarInit = initials(patient.full_name)
@@ -347,10 +349,6 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
   const activeConditions = previous_visits.filter(v =>
     v.status !== 'completed' && v.status !== 'discharged'
   ).length
-
-  // Last visit date
-  const lastVisitRaw = previous_visits[0]?.visit_date
-  const lastVisitDate = fmtDate(lastVisitRaw)
 
   return (
     <div className="max-w-container-max mx-auto w-full space-y-lg">
@@ -404,12 +402,12 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
                 <p className="font-body-md text-body-md text-on-surface m-0">{patient.blood_group}</p>
               </div>
             )}
-            {patient.next_of_kin_name && (
+            {((patient as any).next_of_kin_name || (patient as any).next_of_kin) && (
               <div>
                 <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Next of Kin</p>
                 <p className="font-body-md text-body-md text-on-surface m-0">
-                  {patient.next_of_kin_name}
-                  {patient.next_of_kin_relationship ? ` (${patient.next_of_kin_relationship})` : ''}
+                  {(patient as any).next_of_kin_name || (patient as any).next_of_kin}
+                  {(patient as any).next_of_kin_relationship ? ` (${(patient as any).next_of_kin_relationship})` : ''}
                 </p>
               </div>
             )}
@@ -418,60 +416,73 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
       </section>
 
       {/* Summary stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-md">
-        <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm">
-          <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Total Visits</p>
-          <p className="font-headline-md text-headline-md text-on-surface m-0">{previous_visits.length}</p>
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-lg">
+        <div className="bg-surface-white border border-border-subtle rounded-2xl p-lg shadow-sm flex items-center gap-md">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-lg shrink-0">
+            {previous_visits.length}
+          </div>
+          <div>
+            <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Total Visits</p>
+            <p className="font-headline-sm text-headline-sm text-on-surface font-semibold m-0">{previous_visits.length} Recorded</p>
+          </div>
         </div>
-        <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm">
-          <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Last Visit</p>
-          <p className="font-headline-md text-headline-md text-on-surface m-0">{lastVisitDate}</p>
-        </div>
-        <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm">
-          <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Active Encounters</p>
-          <p className="font-headline-md text-headline-md text-primary m-0">{activeConditions}</p>
-        </div>
-        <div className="bg-surface-white border border-border-subtle rounded-xl p-md shadow-sm border-l-4 border-l-error">
-          <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-sm m-0">Known Allergies</p>
-          <p className="font-headline-md text-headline-md text-error m-0">{allergyList.length}</p>
-        </div>
-      </div>
 
-      {/* Allergy alert banner */}
+        <div className="bg-surface-white border border-border-subtle rounded-2xl p-lg shadow-sm flex items-center gap-md">
+          <div className="w-12 h-12 rounded-xl bg-warning/10 text-warning flex items-center justify-center font-bold text-lg shrink-0">
+            {activeConditions}
+          </div>
+          <div>
+            <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Active Visits</p>
+            <p className="font-headline-sm text-headline-sm text-on-surface font-semibold m-0">{activeConditions} In-Progress</p>
+          </div>
+        </div>
+
+        <div className="bg-surface-white border border-border-subtle rounded-2xl p-lg shadow-sm flex items-center gap-md">
+          <div className="w-12 h-12 rounded-xl bg-success/10 text-success flex items-center justify-center font-bold text-lg shrink-0">
+            <span className="material-symbols-outlined text-[24px]">calendar_today</span>
+          </div>
+          <div>
+            <p className="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-xs m-0">Most Recent Visit</p>
+            <p className="font-headline-sm text-headline-sm text-on-surface font-semibold m-0">{lastVisitDate}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Allergy warning banner */}
       {allergyList.length > 0 && (
-        <div className="bg-error-container border border-error rounded-xl p-md flex flex-col gap-sm">
-          {allergyList.map((allergy, i) => (
-            <div key={i} className="flex items-center gap-md">
-              <div className="w-10 h-10 rounded-full bg-error flex items-center justify-center text-white shrink-0">
-                <span className="material-symbols-outlined leading-none">warning</span>
-              </div>
-              <div>
-                <p className="font-headline-sm text-headline-sm text-on-error-container m-0">
-                  Known allergy: {allergy}
-                </p>
-              </div>
+        <div className="bg-error/10 border border-error/20 rounded-2xl p-lg flex items-start gap-md text-error">
+          <span className="material-symbols-outlined text-[24px] shrink-0 mt-0.5">warning</span>
+          <div>
+            <p className="font-label-md text-label-md font-bold uppercase tracking-wider mb-xs m-0">Known Allergies</p>
+            <div className="flex flex-wrap gap-xs mt-xs">
+              {allergyList.map((a, i) => (
+                <span key={i} className="bg-error text-white font-label-sm text-label-sm px-2 py-0.5 rounded-full font-bold">
+                  {a}
+                </span>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       )}
 
-      {/* Visit history table */}
-      <section className="bg-surface-white border border-border-subtle rounded-2xl overflow-visible shadow-sm">
-        <div className="px-lg py-md border-b border-border-subtle bg-surface-container-lowest flex items-center justify-between">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface m-0">Visit History</h3>
+      {/* Visits Table */}
+      <section className="bg-surface-white border border-border-subtle rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-lg border-b border-border-subtle flex flex-wrap items-center justify-between gap-md">
+          <div>
+            <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold m-0">Visit History</h3>
+            <p className="font-body-sm text-body-sm text-outline mt-xs m-0">Select a visit record to inspect full clinical details</p>
+          </div>
+          <span className="bg-surface-container text-secondary font-label-md text-label-md px-3 py-1 rounded-full">
+            {previous_visits.length} Total Visits
+          </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[800px]">
-            <thead className="bg-surface-container-low">
-              <tr>
-                {['Visit Date', 'Visit #', 'Visit Type', 'Chief Complaint', 'Primary Diagnosis', 'Outcome', 'Actions'].map((h, i) => (
-                  <th
-                    key={h}
-                    className={`px-lg py-sm font-label-md text-label-md text-secondary uppercase tracking-widest ${i === 6 ? 'text-right' : 'text-left'}`}
-                  >
-                    {h}
-                  </th>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-surface-bright border-b border-border-subtle font-label-md text-label-md text-secondary uppercase tracking-wider">
+                {['Date', 'Visit ID', 'Type', 'Chief Complaint', 'Primary Diagnosis', 'Outcome', 'Action'].map((h) => (
+                  <th key={h} className="px-lg py-md font-semibold">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -485,7 +496,7 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
               ) : (
                 visible.map((visit) => {
                   const outcome = deriveOutcome(visit)
-                  const chiefComp = visit.triage_summary?.chief_complaint ?? '—'
+                  const chiefComp = (visit as any).triage_summary?.chief_complaint ?? (visit.triage as any)?.chief_complaint ?? '—'
                   const primDiag = visit.consultation?.diagnoses?.find(d => d.diagnosis_type === 'primary')?.diagnosis_name
                     ?? visit.consultation?.diagnoses?.[0]?.diagnosis_name
                     ?? visit.consultation?.clinical_impression
@@ -501,7 +512,7 @@ export function ConsultationHistoryPatientContent({ data }: Props) {
                       aria-label={`View visit ${visit.visit_id}`}
                     >
                       <td className="px-lg py-md font-body-sm text-body-sm font-semibold text-on-surface whitespace-nowrap">
-                        {fmtDate(visit.visit_date)}
+                        {fmtDate((visit as any).visit_date || visit.created_at)}
                       </td>
                       <td className="px-lg py-md font-body-sm text-body-sm text-outline whitespace-nowrap">
                         {String(visit.visit_id).slice(0, 8).toUpperCase()}

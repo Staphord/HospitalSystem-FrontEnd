@@ -10,7 +10,6 @@ import {
 } from '@/api/services/notifications'
 import { useNotifications } from '@/context/NotificationContext'
 
-type CategoryFilter = 'all' | NotificationCategory
 type StatusFilter = 'all' | 'unread'
 
 const PRIORITY_BADGES: Record<string, { label: string; bg: string; text: string }> = {

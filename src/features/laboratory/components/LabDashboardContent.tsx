@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatDoctorName } from '@/lib/localization'
-import { getRowAction, getRowActionButtonClass, getRowActionLabel } from '@/features/laboratory/utils/labRequestActions'
+import { getRowAction } from '@/features/laboratory/utils/labRequestActions'
 import { getLabRequestById } from '@/features/laboratory/utils/labRequestStore'
 import { InvestigationPriorityBadge } from '@/features/laboratory/components/InvestigationPriorityBadge'
 import { CollectSpecimenModal } from '@/features/laboratory/components/CollectSpecimenModal'
@@ -18,7 +18,12 @@ function StatCards({
   stats,
   onNavigate,
 }: {
-  stats: { pendingTests: number; inProgress: number; completedToday: number; criticalValues: number }
+  stats: {
+    pendingTests: number
+    inProgress: number
+    completedToday: number
+    criticalValues: number
+  }
   onNavigate: (path: string) => void
 }) {
   const { pendingTests, inProgress, completedToday, criticalValues } = stats
@@ -116,6 +121,7 @@ function RecentRequestsOverviewCard({
 }: {
   requests: BackendStatRequestItem[]
   onViewAll: () => void
+  onProcess?: (id: string) => void
 }) {
   const activeRequests = requests.filter((item: any) => {
     const s = (item.status || item.status_name || '').toLowerCase()
@@ -157,7 +163,7 @@ function RecentRequestsOverviewCard({
             return (
               <div
                 key={item.id}
-                onClick={() => onProcess(item.id)}
+                onClick={() => onProcess?.(item.id)}
                 className="p-md flex flex-col sm:flex-row sm:items-center justify-between gap-md hover:bg-surface-container-low transition-colors cursor-pointer group"
               >
                 <div className="flex items-center gap-md">
@@ -190,7 +196,7 @@ function RecentRequestsOverviewCard({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onProcess(item.id)
+                      onProcess?.(item.id)
                     }}
                     className={`h-8 font-label-md text-label-md px-3 rounded transition-colors whitespace-nowrap cursor-pointer ${actionDetails.btnClass}`}
                   >

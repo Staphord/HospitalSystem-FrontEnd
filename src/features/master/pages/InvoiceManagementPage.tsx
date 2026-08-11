@@ -1,12 +1,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
 import { masterService } from '@/api/services/master'
 import type { Invoice, Tenant, Subscription, SubscriptionPlan } from '@/api/types/master'
 
 export function InvoiceManagementPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const tenantIdParam = searchParams.get('tenant_id')
 

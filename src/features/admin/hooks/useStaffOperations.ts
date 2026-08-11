@@ -72,8 +72,50 @@ export const useStaffOperations = () => {
     syncBackendUsers();
   }, []);
 
+  const formatBackendError = (err: any): string => {
+    const detail = err.response?.data?.detail;
+    if (!detail) return err.message || 'API operation failed.';
+    
+    if (typeof detail === 'string') {
+      const lower = detail.toLowerCase();
+      if (lower.includes('email') && (lower.includes('already') || lower.includes('exist') || lower.includes('registered'))) {
+        return 'Email: Email already exists.';
+      }
+      return detail;
+    }
+
+    if (Array.isArray(detail)) {
+      return detail
+        .map((d: any) => {
+          const field = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : '';
+          let msg = d.msg ? (d.msg.startsWith('Value error, ') ? d.msg.replace('Value error, ', '') : d.msg) : 'Invalid field';
+          if (field === 'email') {
+            if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist') || msg.toLowerCase().includes('registered')) {
+              msg = 'Email already exists.';
+            }
+            return `Email: ${msg}`;
+          }
+          if (field === 'username' || field === 'full_name' || field === 'name') {
+            return `Username: ${msg}`;
+          }
+          return field && field !== 'body' ? `${field}: ${msg}` : msg;
+        })
+        .join('; ');
+    }
+
+    if (typeof detail === 'object') {
+      const rawMsg = detail.message || detail.msg || JSON.stringify(detail);
+      const lower = String(rawMsg).toLowerCase();
+      if (lower.includes('email') && (lower.includes('already') || lower.includes('exist') || lower.includes('registered'))) {
+        return 'Email: Email already exists.';
+      }
+      return String(rawMsg);
+    }
+    return String(detail);
+  };
+
   // Add staff registration under account plan constraints
-  const addStaff = (data: Omit<StaffMember, 'id' | 'status' | 'createdAt'> & { password?: string }): boolean => {
+  const addStaff = async (data: Omit<StaffMember, 'id' | 'status' | 'createdAt'> & { password?: string }): Promise<boolean> => {
     if (staffList.length >= 20) {
       setError('Plan limit reached: Maximum of 20 active staff accounts allowed.');
       return false;
@@ -82,8 +124,13 @@ export const useStaffOperations = () => {
     const normalizedRole = data.role === 'admin' ? 'hospital_admin' : (data.role === 'tech' ? 'lab_technician' : data.role);
     const derivedDept = data.landingDepartment || getLandingDepartmentForRole(normalizedRole);
 
+    let rawUsername = data.email.split('@')[0].trim();
+    if (rawUsername.length < 3) {
+      rawUsername = `${rawUsername}_staff`;
+    }
+
     const payload = {
-      username: data.email.split('@')[0],
+      username: rawUsername,
       password: data.password || 'Gilgal#2026!Staff',
       email: data.email,
       full_name: data.name,
@@ -94,21 +141,22 @@ export const useStaffOperations = () => {
       avatarUrl: data.avatarUrl || ''
     };
 
-    adminService.createUser(payload)
-      .then(() => {
-        toast.success(`User "${data.name}" created.`);
-        syncBackendUsers();
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'API creation failed.');
-      });
-
-    setError(null);
-    return true;
+    try {
+      await adminService.createUser(payload);
+      toast.success(`User "${data.name}" created.`);
+      syncBackendUsers();
+      setError(null);
+      return true;
+    } catch (err: any) {
+      const msg = formatBackendError(err);
+      toast.error(msg);
+      setError(msg);
+      return false;
+    }
   };
 
   // Modify staff details
-  const updateStaff = (id: string, data: Partial<StaffMember>) => {
+  const updateStaff = async (id: string, data: Partial<StaffMember>): Promise<boolean> => {
     const normalizedRole = data.role ? (data.role === 'admin' ? 'hospital_admin' : (data.role === 'tech' ? 'lab_technician' : data.role)) : undefined;
     const derivedDept = normalizedRole ? getLandingDepartmentForRole(normalizedRole) : data.landingDepartment;
 
@@ -122,14 +170,18 @@ export const useStaffOperations = () => {
       status: data.status
     };
 
-    adminService.updateUser(id, payload)
-      .then(() => {
-        toast.success('User details updated.');
-        syncBackendUsers();
-      })
-      .catch((err) => {
-        toast.error(err.response?.data?.detail || 'Update failed.');
-      });
+    try {
+      await adminService.updateUser(id, payload);
+      toast.success('User details updated.');
+      syncBackendUsers();
+      setError(null);
+      return true;
+    } catch (err: any) {
+      const msg = formatBackendError(err);
+      toast.error(msg);
+      setError(msg);
+      return false;
+    }
   };
 
   // Delete staff profile

@@ -7,7 +7,7 @@ import { SuspendTenantModal } from '@/features/master/components/SuspendTenantMo
 import { TerminateTenantModal } from '@/features/master/components/TerminateTenantModal'
 import type { Tenant, Subscription, Invoice } from '@/api/types/master'
 import type { AuditLog } from '@/api/services/monitoring'
-import { formatTenantDate, formatTenantCurrency, formatTenantDateTime } from '@/lib/localization'
+import { formatTenantDate, formatTenantCurrency } from '@/lib/localization'
 
 export function TenantDetailPage() {
   const { id } = useParams<{ id: string }>()

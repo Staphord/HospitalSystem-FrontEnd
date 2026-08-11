@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { wardService } from '@/api/services/ward'
 import type { AdmittedPatient, AdmissionStatus } from '@/features/consultation/types/inpatientOrders'
 
-const PAGE_SIZE = 5
-
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<AdmissionStatus, { badge: string; rowBg: string; label: string }> = {

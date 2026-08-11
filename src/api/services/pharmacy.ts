@@ -23,11 +23,16 @@ export interface PharmacyQueueResponse {
 
 export interface PrescriptionItem {
   prescription_id: string
+  prescription_item_id?: string
   drug_name: string
   dose: string
+  dosage?: string
   frequency: string
   duration: string
   route: string
+  quantity?: number
+  quantity_prescribed?: number
+  category?: string
   instructions: string | null
   prescribed_by: string
   prescribed_at: string

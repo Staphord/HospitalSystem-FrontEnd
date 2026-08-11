@@ -738,7 +738,7 @@ export function SubscriptionDetailPage() {
       {isChangePlanOpen && (
         <ChangePlanModal
           currentPlanName={subscription.plan_name}
-          currentBillingCycle={subscription.billing_cycle}
+          currentBillingCycle={subscription.billing_cycle || ''}
           onClose={() => setIsChangePlanOpen(false)}
           onSelectPlan={handleChangePlan}
         />

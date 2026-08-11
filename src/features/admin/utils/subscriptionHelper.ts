@@ -184,7 +184,7 @@ export const getSubscriptionBanners = (
   }
 
   // 7. Rejected Request Banner
-  const history = _tenant?.subscription_metadata?.requests_history || [];
+  const history = (_tenant as any)?.subscription_metadata?.requests_history || [];
   const rejectedRequests = history.filter((r: any) => r.status === 'rejected');
   if (rejectedRequests.length > 0) {
     const latestRejected = rejectedRequests[rejectedRequests.length - 1];

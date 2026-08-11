@@ -94,8 +94,8 @@ function StockRowActionsMenu({
   item,
   isOpen,
   onToggle,
-  onStockIn,
-  onStockOut,
+  onStockIn: _onStockIn,
+  onStockOut: _onStockOut,
 }: {
   item: StockItem
   isOpen: boolean
@@ -108,15 +108,13 @@ function StockRowActionsMenu({
       <button
         type="button"
         onClick={(e) => {
-          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const rect = e.currentTarget.getBoundingClientRect()
           onToggle(item.id, rect)
         }}
-        className="p-1 hover:bg-primary/10 text-primary rounded transition-colors bg-transparent border-0 cursor-pointer"
-        title="More Actions"
-        aria-label={`Actions for ${item.drugName}`}
-        aria-expanded={isOpen}
+        className="p-xs text-outline hover:text-on-surface hover:bg-surface-container rounded transition-colors border-0 bg-transparent cursor-pointer"
+        aria-label="Actions"
       >
-        <span className="material-symbols-outlined">more_vert</span>
+        <span className="material-symbols-outlined text-[18px]">more_vert</span>
       </button>
     </div>
   )
@@ -127,6 +125,8 @@ function getRowClass(status: StockStatus): string {
   if (status === 'out_of_stock') return 'hover:bg-primary/5 bg-error/5 transition-colors'
   return 'hover:bg-primary/5 transition-colors'
 }
+
+type StockTab = 'inventory' | 'transactions'
 
 export function StockManagementContent() {
   const [dbItems, setDbItems] = useState<InventoryItem[]>([])
@@ -146,14 +146,13 @@ export function StockManagementContent() {
   const fetchInventory = async () => {
     try {
       setLoading(true)
-      const params = {
+      const res = await pharmacyService.getInventory({
         search: search.trim() || undefined,
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
         low_stock: statusFilter === 'low_stock' ? true : undefined,
         page,
         page_size: STOCK_PAGE_SIZE,
-      }
-      const res = await pharmacyService.getInventory(params)
+      })
       setDbItems(res.items || [])
       setTotalCount(res.total || 0)
     } catch (err) {
@@ -170,10 +169,10 @@ export function StockManagementContent() {
 
   const mappedStockItems = useMemo<StockItem[]>(() => {
     return dbItems.map((item) => {
-      // Format last_restocked_at date as MM/YYYY if available
       let expiry = 'N/A'
-      if (item.last_restocked_at) {
-        const d = new Date(item.last_restocked_at)
+      const restockedAt = (item as any).last_restocked_at || (item as any).created_at
+      if (restockedAt) {
+        const d = new Date(restockedAt)
         expiry = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
       }
       return {

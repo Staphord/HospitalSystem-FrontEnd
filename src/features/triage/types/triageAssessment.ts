@@ -15,8 +15,8 @@ export interface TriageVisit {
   age: number | string
   ageDisplay?: string
   arrival: string
-  created_at: string
-  completed_at: string | null
+  created_at?: string
+  completed_at?: string | null
   waitTime: string
   waitColor: string
   waitWarningIcon?: boolean

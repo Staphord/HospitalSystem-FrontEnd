@@ -26,7 +26,7 @@ export function StockOutModal({ item, onClose, onConfirm }: Props) {
   }, [onClose])
 
   const handleConfirm = () => {
-    if (!canConfirm || reason === '') return
+    if (!canConfirm || !(reason as string)) return
     onConfirm({ quantity: qtyNum, reason, note: note.trim() })
   }
 

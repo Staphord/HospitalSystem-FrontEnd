@@ -19,7 +19,7 @@ interface SpecimensLocationState {
   openModal?: boolean
 }
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 25
 
 function mapBackendToTrackedSpecimen(item: BackendTrackedSpecimenItem): TrackedSpecimen {
   let trackingStatus: SpecimenTrackingStatus = 'collected'
@@ -31,14 +31,11 @@ function mapBackendToTrackedSpecimen(item: BackendTrackedSpecimenItem): TrackedS
 
   return {
     id: item.specimen_label || item.specimen_id.slice(0, 8).toUpperCase(),
-    specimenId: item.specimen_id,
     requestId: item.request_id,
     patientName: item.patient_name,
     patientNumber: item.patient_number,
     testName: item.test_name,
-    testType: item.test_name,
     collectedBy: item.collected_by_name || 'Lab Staff',
-    collectorName: item.collected_by_name || 'Lab Staff',
     collectedAt: formatShortDateTime(item.collected_at),
     status: trackingStatus,
     location: item.collection_site || 'Main Lab',
@@ -166,12 +163,9 @@ export function LabSpecimensContent() {
       const searchMatch =
         !q ||
         (specimen.id || '').toLowerCase().includes(q) ||
-        (specimen.specimenId || '').toLowerCase().includes(q) ||
         (specimen.patientName || '').toLowerCase().includes(q) ||
         (specimen.patientNumber || '').toLowerCase().includes(q) ||
-        (specimen.testType || '').toLowerCase().includes(q) ||
         (specimen.testName || '').toLowerCase().includes(q) ||
-        (specimen.collectorName || '').toLowerCase().includes(q) ||
         (specimen.collectedBy || '').toLowerCase().includes(q) ||
         (specimen.requestId || '').toLowerCase().includes(q)
       return statusMatch && searchMatch
@@ -338,9 +332,9 @@ export function LabSpecimensContent() {
                   const rejected = isSpecimenRejected(specimen)
                   const isComplete =
                     specimen.status === 'complete' ||
-                    specimen.status === 'completed' ||
-                    specimen.status === 'resulted' ||
-                    specimen.status === 'verified'
+                    (specimen.status as string) === 'completed' ||
+                    (specimen.status as string) === 'resulted' ||
+                    (specimen.status as string) === 'verified'
 
                   return (
                     <tr

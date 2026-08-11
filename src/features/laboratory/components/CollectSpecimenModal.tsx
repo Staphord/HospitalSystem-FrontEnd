@@ -44,7 +44,7 @@ export function CollectSpecimenModal({
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handleKey)
-    return () => window.clearTimeout(handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
 
   const handleSubmit = async (e: React.FormEvent) => {

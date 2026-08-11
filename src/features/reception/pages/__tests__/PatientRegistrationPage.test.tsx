@@ -50,7 +50,7 @@ const mockExistingPatient = {
   full_name: 'Jane Smith',
   national_id: '98765',
   date_of_birth: '1995-05-05',
-  gender: 'female',
+  gender: 'female' as const,
   phone_primary: '987654321',
   next_of_kin_name: 'Bob Smith',
   next_of_kin_relationship: 'spouse',
@@ -63,12 +63,12 @@ const mockExistingPatient = {
 describe('PatientRegistrationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: [] })
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: [], total: 0 })
     vi.mocked(receptionService.getActiveVisit).mockResolvedValue({ active: false })
   })
 
   it('renders form inputs correctly', () => {
-    const { container } = render(
+    render(
       <MemoryRouter>
         <PatientRegistrationPage />
       </MemoryRouter>
@@ -150,7 +150,7 @@ describe('PatientRegistrationPage', () => {
   })
 
   it('checks for duplicate National ID, populates details, and disables inputs if patient is active in queue', async () => {
-    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: [mockExistingPatient] })
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: [mockExistingPatient], total: 1 })
     vi.mocked(receptionService.getActiveVisit).mockResolvedValue({
       active: true,
       queue_number: 'TR-0012',
@@ -158,7 +158,7 @@ describe('PatientRegistrationPage', () => {
       queue_type: 'triage',
     })
 
-    const { container } = render(
+    render(
       <MemoryRouter>
         <PatientRegistrationPage />
       </MemoryRouter>

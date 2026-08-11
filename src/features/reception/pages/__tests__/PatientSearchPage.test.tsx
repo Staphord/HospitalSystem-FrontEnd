@@ -45,7 +45,7 @@ const mockPatient = {
   full_name: 'John Doe',
   national_id: '12345',
   date_of_birth: '1990-01-01',
-  gender: 'male',
+  gender: 'male' as const,
   phone_primary: '536637',
   next_of_kin_name: 'Jane Doe',
   next_of_kin_relationship: 'spouse',
@@ -66,7 +66,7 @@ const mockPatient = {
 describe('PatientSearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: [mockPatient] })
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: [mockPatient], total: 1 })
     vi.mocked(receptionService.getActiveVisit).mockResolvedValue({ active: false })
   })
 
@@ -127,7 +127,7 @@ describe('PatientSearchPage', () => {
       mockPatient,
       { ...mockPatient, id: 'pat-456', full_name: 'Jane Smith', patient_number: 'PT-20260713-0004' },
     ]
-    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients })
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients, total: mockMultiplePatients.length })
 
     render(
       <MemoryRouter>
@@ -245,7 +245,7 @@ describe('PatientSearchPage', () => {
       mockPatient,
       { ...mockPatient, id: 'pat-456', full_name: 'Jane Smith', patient_number: 'PT-20260713-0004' },
     ]
-    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients })
+    vi.mocked(receptionService.searchPatients).mockResolvedValue({ patients: mockMultiplePatients, total: mockMultiplePatients.length })
 
     render(
       <MemoryRouter>

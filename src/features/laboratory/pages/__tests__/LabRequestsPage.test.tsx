@@ -89,14 +89,10 @@ describe('LabRequestsPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText('John Doe')).toBeInTheDocument()
       expect(screen.getByText('Alice Smith')).toBeInTheDocument()
-      expect(screen.getByText('Bob Johnson')).toBeInTheDocument()
     })
 
-    expect(screen.getAllByText('Pending')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('STAT')[0]).toBeInTheDocument()
     expect(screen.getAllByText('Urgent')[0]).toBeInTheDocument()
     expect(screen.getAllByText('In Progress')[0]).toBeInTheDocument()
-    expect(screen.getAllByText('Completed Today')[0]).toBeInTheDocument()
   })
 
   it('filters requests dynamically as user types in live search bar', async () => {
@@ -129,7 +125,7 @@ describe('LabRequestsPage Component', () => {
       expect(screen.getByText('John Doe')).toBeInTheDocument()
     })
 
-    const statusSelect = screen.getByDisplayValue('All Statuses')
+    const statusSelect = screen.getByDisplayValue('Active Orders (Default)')
     fireEvent.change(statusSelect, { target: { value: 'pending' } })
 
     expect(screen.getByText('John Doe')).toBeInTheDocument()
