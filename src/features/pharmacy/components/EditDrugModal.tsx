@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { STOCK_CATEGORIES } from '@/features/pharmacy/data/mockStockManagement'
-import type { StockItem } from '@/features/pharmacy/types/pharmacy.types'
+import type { StockItem } from '@/features/pharmacy/data/mockStockManagement'
 import type { InventoryItem } from '@/api/services/pharmacy'
 
 interface EditDrugModalProps {
