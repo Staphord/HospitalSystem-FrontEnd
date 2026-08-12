@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatTzs } from '../data/mockPayments'
+import { billingService } from '@/api/services/billing'
 
 type PaymentView = 'cash' | 'mobile_money' | 'insurance'
 
@@ -123,10 +124,6 @@ function mapBillFromStorage(billId?: string): BillData {
   }
 }
 
-function formatDateLabel(value: string) {
-  const date = new Date(`${value}T00:00:00`)
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).format(date)
-}
 
 function selectInitialView(method: BillData['paymentMethod']): PaymentView {
   if (method === 'Cash') return 'cash'
@@ -146,7 +143,35 @@ export function ProcessingPaymentPage() {
   const { billId } = useParams<{ billId: string }>()
   const navigate = useNavigate()
 
-  const [bill] = useState<BillData>(() => mapBillFromStorage(billId))
+  const [bill, setBill] = useState<BillData>(() => mapBillFromStorage(billId))
+
+  useEffect(() => {
+    if (billId && !billId.startsWith('pay')) {
+      billingService.getBill(billId)
+        .then((realBill) => {
+          if (realBill) {
+            setBill({
+              id: realBill.bill_id,
+              patientName: realBill.patient_name || `Patient (${realBill.patient_id.slice(0, 8)})`,
+              patientNo: realBill.patient_number || `PT-${realBill.patient_id.slice(0, 6).toUpperCase()}`,
+              visitDate: new Date(realBill.created_at).toISOString().split('T')[0],
+              paymentMethod: 'Cash',
+              insurer: null,
+              paid: realBill.status === 'paid' ? Number(realBill.total_amount) : 0,
+              items: realBill.items ? realBill.items.map((it, idx) => ({
+                id: it.item_id || `i${idx}`,
+                category: getCategoryFromLabel(it.description),
+                label: it.description,
+                qty: Number(it.quantity) || 1,
+                unitPrice: Number(it.unit_price) || Number(it.line_total),
+              })) : [],
+            })
+          }
+        })
+        .catch((err) => console.error('Failed to load bill details from backend:', err))
+    }
+  }, [billId])
+
   const grossTotal = bill.items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0)
   const outstandingAmount = Math.max(0, grossTotal - bill.paid)
   const [paymentView, setPaymentView] = useState<PaymentView>(() => selectInitialView(bill.paymentMethod))
@@ -174,7 +199,7 @@ export function ProcessingPaymentPage() {
     setChangeAmount(Number.isFinite(tendered) ? Math.max(0, tendered - outstandingAmount) : 0)
   }, [cashTendered, outstandingAmount, paymentView])
 
-  const handleIssueReceipt = (e?: React.FormEvent) => {
+  const handleIssueReceipt = async (e?: React.FormEvent) => {
     e?.preventDefault()
 
     if (paymentView === 'cash') {
@@ -196,6 +221,19 @@ export function ProcessingPaymentPage() {
       if (!insurerName.trim() || !claimNumber.trim()) {
         toast.error('Please complete the insurance authorization fields.')
         return
+      }
+    }
+
+    // Call real backend payment endpoint if bill has a real UUID
+    if (bill.id && !bill.id.startsWith('pay')) {
+      try {
+        await billingService.recordPayment(bill.id, {
+          amount: outstandingAmount,
+          payment_method: paymentView === 'cash' ? 'Cash' : paymentView === 'mobile_money' ? 'M-Pesa' : 'Card',
+          reference_number: paymentView === 'mobile_money' ? mobileTxnId : claimNumber || undefined,
+        })
+      } catch (err) {
+        console.error('Failed to submit real backend payment:', err)
       }
     }
 

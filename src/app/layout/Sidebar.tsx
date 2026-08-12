@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { HOSPITAL_NAV, MASTER_NAV, ROLES } from '@/lib/roles'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuth } from '@/hooks/useAuth'
 import { authService } from '@/api/services/auth'
+import { masterService } from '@/api/services/master'
 import { getReceptionNavIcon, getReceptionNavLabel } from '@/app/layout/receptionNavUtils'
 import { getTriageNavIcon, getTriageNavLabel } from '@/app/layout/triageNavUtils'
 import { getConsultationNavIcon, getConsultationNavLabel, isConsultationNavItemActive } from '@/app/layout/consultationNavUtils'
@@ -17,6 +19,39 @@ export function Sidebar() {
   const { user, clearAuth, refreshToken, tenantId, isImpersonating } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const [enabledModules, setEnabledModules] = useState<string[]>([
+    'reception',
+    'triage',
+    'consultation',
+    'billing',
+    'ward',
+    'pharmacy',
+    'laboratory',
+    'radiology',
+  ])
+
+  useEffect(() => {
+    if (!isSuperAdmin()) {
+      masterService.getMySubscription()
+        .then((subs) => {
+          const activeSub = subs[0];
+          if (activeSub) {
+            masterService.listMyPlans()
+              .then((plans) => {
+                const planDetails = plans.find(
+                  (p) => p.plan_name.toLowerCase() === activeSub.plan_name.toLowerCase()
+                );
+                if (planDetails && planDetails.modules_included) {
+                  setEnabledModules((prev) => Array.from(new Set([...prev, ...planDetails.modules_included])));
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isSuperAdmin]);
 
   const navItems = isSuperAdmin() ? MASTER_NAV : HOSPITAL_NAV
 
@@ -64,7 +99,15 @@ export function Sidebar() {
 
   // Get navigation items grouped by section
   const getGroupedNav = () => {
-    const visibleItems = navItems.filter((item) => hasAnyRole(item.roles))
+    const visibleItems = navItems.filter((item) => {
+      if (!hasAnyRole(item.roles)) return false
+      
+      if (item.path.includes('/pharmacy') && !enabledModules.includes('pharmacy')) return false
+      if (item.path.includes('/laboratory') && !enabledModules.includes('laboratory')) return false
+      if (item.path.includes('/radiology') && !enabledModules.includes('radiology')) return false
+      
+      return true
+    })
     
     if (isSuperAdmin()) {
       return [
