@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { AddDrugModal } from '@/features/pharmacy/components/AddDrugModal'
+import { EditDrugModal } from '@/features/pharmacy/components/EditDrugModal'
 import { StockInModal } from '@/features/pharmacy/components/StockInModal'
 import { StockOutModal } from '@/features/pharmacy/components/StockOutModal'
 import {
@@ -139,6 +140,7 @@ export function StockManagementContent() {
 
   const [stockInItem, setStockInItem] = useState<StockItem | null>(null)
   const [stockOutItem, setStockOutItem] = useState<StockItem | null>(null)
+  const [editItem, setEditItem] = useState<StockItem | null>(null)
   const [isAddDrugModalOpen, setIsAddDrugModalOpen] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
@@ -295,6 +297,32 @@ export function StockManagementContent() {
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.detail || 'Failed to add new drug.'
+      toast.error(errorMsg)
+    }
+  }
+
+  const handleUpdateDrug = async (
+    inventoryId: string,
+    payload: {
+      drug_name?: string
+      brand_name?: string
+      drug_code?: string
+      category?: string
+      unit?: string
+      reorder_level?: number
+      unit_cost?: number
+      unit_price?: number
+      location?: string
+    }
+  ) => {
+    try {
+      await pharmacyService.updateInventoryItem(inventoryId, payload)
+      setEditItem(null)
+      fetchInventory()
+      toast.success('Successfully updated drug inventory details!')
+    } catch (err: any) {
+      console.error(err)
+      const errorMsg = err.response?.data?.detail || 'Failed to update drug item.'
       toast.error(errorMsg)
     }
   }
@@ -545,6 +573,14 @@ export function StockManagementContent() {
             >
               <button
                 type="button"
+                onClick={() => { setEditItem(activeItem); handleMenuClose() }}
+                className="w-full text-left px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low bg-transparent border-0 cursor-pointer flex items-center gap-sm"
+              >
+                <span className="material-symbols-outlined text-[18px] text-primary">edit</span>
+                Edit Item
+              </button>
+              <button
+                type="button"
                 onClick={() => { setStockInItem(activeItem); handleMenuClose() }}
                 className="w-full text-left px-md py-2 font-body-sm text-body-sm text-on-surface hover:bg-surface-container-low bg-transparent border-0 cursor-pointer flex items-center gap-sm"
               >
@@ -577,6 +613,15 @@ export function StockManagementContent() {
           item={stockOutItem}
           onClose={() => setStockOutItem(null)}
           onConfirm={handleStockOut}
+        />
+      )}
+
+      {editItem && (
+        <EditDrugModal
+          item={editItem}
+          dbItem={dbItems.find((i) => i.inventory_id === editItem.id)}
+          onClose={() => setEditItem(null)}
+          onConfirm={handleUpdateDrug}
         />
       )}
 

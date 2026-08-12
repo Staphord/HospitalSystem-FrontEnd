@@ -241,7 +241,7 @@ export function AddDrugModal({ onClose, onConfirm }: AddDrugModalProps) {
 
             <div className="flex flex-col gap-xs">
               <label className="font-label-md text-label-md text-on-surface-variant font-semibold" htmlFor="unit-cost">
-                Unit Purchase Cost ($)
+                Unit Purchase Cost (TZS)
               </label>
               <input
                 id="unit-cost"
@@ -256,7 +256,7 @@ export function AddDrugModal({ onClose, onConfirm }: AddDrugModalProps) {
 
             <div className="flex flex-col gap-xs">
               <label className="font-label-md text-label-md text-on-surface-variant font-semibold" htmlFor="unit-price">
-                Unit Selling Price ($)
+                Unit Selling Price (TZS)
               </label>
               <input
                 id="unit-price"

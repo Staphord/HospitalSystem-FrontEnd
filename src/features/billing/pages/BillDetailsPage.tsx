@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { formatTzs } from '../data/mockPayments'
 import { billingService } from '@/api/services/billing'
 
@@ -40,6 +41,7 @@ export function BillDetailsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [newDescription, setNewDescription] = useState('')
   const [newPrice, setNewPrice] = useState('')
+  const [addingItem, setAddingItem] = useState(false)
 
   const [bill, setBill] = useState<BillData>({
     id: billId || 'pay4',
@@ -94,44 +96,63 @@ export function BillDetailsPage() {
 
   const handleAddCharge = async () => {
     if (!newDescription.trim() || !newPrice || Number.parseFloat(newPrice) <= 0) {
+      toast.error('Please enter a valid description and price.')
       return
     }
     const priceNum = Number.parseFloat(newPrice)
-    if (bill.id && !bill.id.startsWith('pay')) {
-      try {
-        const updatedBill = await billingService.addBillItem(bill.id, {
+    setAddingItem(true)
+    try {
+      if (bill.id && !bill.id.startsWith('pay')) {
+        await billingService.addBillItem(bill.id, {
           description: newDescription.trim(),
           unit_price: priceNum,
           quantity: 1,
           item_code: 'FEE',
           item_type: 'service',
         })
-        setBill({
-          ...bill,
-          items: updatedBill.items.map((it, idx) => ({
-            id: it.item_id || `i${idx}`,
-            category: getCategoryFromLabel(it.description),
-            label: it.description,
-            qty: Number(it.quantity) || 1,
-            unitPrice: Number(it.unit_price) || Number(it.line_total),
-          })),
-        })
-      } catch (err) {
-        console.error('Failed to add manual charge:', err)
+        const refreshed = await billingService.getBill(bill.id)
+        if (refreshed) {
+          setBill({
+            id: refreshed.bill_id,
+            patientName: refreshed.patient_name || `Patient (${refreshed.patient_id.slice(0, 8)})`,
+            patientNo: refreshed.patient_number || `PT-${refreshed.patient_id.slice(0, 6).toUpperCase()}`,
+            visitDate: new Date(refreshed.created_at).toISOString().split('T')[0],
+            paymentMethod: 'Cash',
+            insurer: null,
+            policyNo: null,
+            paid: refreshed.status === 'paid' ? Number(refreshed.total_amount) : 0,
+            status: refreshed.status === 'paid' ? 'Paid' : 'Unpaid',
+            items: (refreshed.items || []).map((it, idx) => ({
+              id: it.item_id || `i${idx}`,
+              category: getCategoryFromLabel(it.description),
+              label: it.description,
+              qty: Number(it.quantity) || 1,
+              unitPrice: Number(it.unit_price) || Number(it.line_total),
+            })),
+          })
+        }
+        toast.success(`Successfully added fee "${newDescription.trim()}"!`)
+      } else {
+        const newItem: BillItem = {
+          id: `i-${Date.now()}`,
+          category: getCategoryFromLabel(newDescription),
+          label: newDescription.trim(),
+          qty: 1,
+          unitPrice: priceNum,
+        }
+        setBill((prev) => ({ ...prev, items: [...prev.items, newItem] }))
+        toast.success(`Successfully added fee "${newDescription.trim()}"!`)
       }
-    } else {
-      const newItem: BillItem = {
-        id: `i-${Date.now()}`,
-        category: getCategoryFromLabel(newDescription),
-        label: newDescription.trim(),
-        qty: 1,
-        unitPrice: priceNum,
-      }
-      setBill({ ...bill, items: [...bill.items, newItem] })
+      setNewDescription('')
+      setNewPrice('')
+      setShowAddModal(false)
+    } catch (err: any) {
+      console.error('Failed to add manual charge:', err)
+      const msg = err.response?.data?.detail || 'Failed to add fee item to bill.'
+      toast.error(msg)
+    } finally {
+      setAddingItem(false)
     }
-    setNewDescription('')
-    setNewPrice('')
-    setShowAddModal(false)
   }
 
   // Group bill items by category
@@ -306,13 +327,20 @@ export function BillDetailsPage() {
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleAddCharge()
+            }}
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4"
+          >
             <h3 className="m-0 text-base font-bold text-slate-900">Add Service Charge / Fee (FR-34)</h3>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Charge Description</label>
                 <input
                   type="text"
+                  required
                   placeholder="e.g. Consultation Fee, Procedure Charge"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
@@ -323,6 +351,9 @@ export function BillDetailsPage() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Unit Price (TZS)</label>
                 <input
                   type="number"
+                  required
+                  min="0"
+                  step="0.01"
                   placeholder="e.g. 15000"
                   value={newPrice}
                   onChange={(e) => setNewPrice(e.target.value)}
@@ -333,20 +364,21 @@ export function BillDetailsPage() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={addingItem}
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 border-0 cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 border-0 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={handleAddCharge}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 border-0 cursor-pointer"
+                type="submit"
+                disabled={addingItem}
+                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-50 flex items-center gap-1"
               >
-                Add Item
+                {addingItem ? 'Adding...' : 'Add Item'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>
