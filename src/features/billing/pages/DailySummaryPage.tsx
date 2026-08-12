@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { formatTzs } from '../data/mockPayments'
+import { billingService } from '@/api/services/billing'
 
 type SummaryState = 'open' | 'submitted'
 
@@ -36,33 +37,33 @@ const REPORT_TIME = '17:32'
 const OPEN_METRICS: MetricCard[] = [
   {
     title: 'Total Revenue',
-    value: 'TZS 1,240,000',
-    note: '↗ 12% from yesterday',
+    value: 'TZS 0',
+    note: '',
     tone: 'blue',
-    noteTone: 'green',
+    noteTone: 'muted',
   },
   {
     title: 'Total Transactions',
-    value: '28',
-    note: '◷ Avg. 3 per hour',
+    value: '0',
+    note: '',
     tone: 'blue',
-    noteTone: 'blue',
+    noteTone: 'muted',
   },
   {
     title: 'Cash',
-    value: 'TZS 820,000',
+    value: 'TZS 0',
     note: '',
     tone: 'blue',
   },
   {
     title: 'Mobile Money',
-    value: 'TZS 320,000',
+    value: 'TZS 0',
     note: '',
     tone: 'green',
   },
   {
     title: 'Insurance Pending',
-    value: 'TZS 100,000',
+    value: 'TZS 0',
     note: '',
     tone: 'amber',
   },
@@ -71,93 +72,41 @@ const OPEN_METRICS: MetricCard[] = [
 const SUBMITTED_METRICS: MetricCard[] = [
   {
     title: 'Total Collected',
-    value: 'TZS 12.4M',
-    note: '↗ 12% vs yesterday',
+    value: 'TZS 0',
+    note: '',
     tone: 'green',
-    noteTone: 'green',
+    noteTone: 'muted',
   },
   {
     title: 'Pending Claims',
-    value: '42',
-    note: '⌛ Active processing',
+    value: '0',
+    note: '',
     tone: 'amber',
-    noteTone: 'amber',
+    noteTone: 'muted',
   },
   {
     title: 'Patient Visits',
-    value: '158',
-    note: '👥 Hospital capacity 85%',
+    value: '0',
+    note: '',
     tone: 'blue',
-    noteTone: 'blue',
+    noteTone: 'muted',
   },
   {
     title: 'Discounts Issued',
-    value: 'TZS 1.2M',
-    note: 'ⓘ 4 Social Welfare cases',
+    value: 'TZS 0',
+    note: '',
     tone: 'amber',
-    noteTone: 'amber',
+    noteTone: 'muted',
   },
 ]
 
-const OPEN_TRANSACTIONS: TransactionRow[] = [
-  {
-    time: '08:45 AM',
-    patientName: 'Amani Khatibu',
-    patientNo: '#P-2024-092',
-    amount: 45000,
-    method: 'Cash',
-    receiptNo: 'REC-40912',
-    cashier: 'S. Mwinyi',
-  },
-  {
-    time: '09:12 AM',
-    patientName: 'Fatma Salum',
-    patientNo: '#P-2024-118',
-    amount: 125000,
-    method: 'M-Pesa',
-    receiptNo: 'REC-40913',
-    cashier: 'L. Kisaka',
-  },
-  {
-    time: '09:30 AM',
-    patientName: 'Joseph Mwanga',
-    patientNo: '#P-2024-004',
-    amount: 100000,
-    method: 'Insurance',
-    receiptNo: 'REC-40914',
-    cashier: 'S. Mwinyi',
-  },
-  {
-    time: '10:05 AM',
-    patientName: 'Zuwena Hamad',
-    patientNo: '#P-2024-201',
-    amount: 15000,
-    method: 'Cash',
-    receiptNo: 'REC-40915',
-    cashier: 'L. Kisaka',
-  },
-]
+const OPEN_TRANSACTIONS: TransactionRow[] = []
 
-const LEDGER_ROWS = [
-  { initials: 'JM', patient: 'John Mapunda', id: '#MNH-2026-8812', method: 'Cash', status: 'Success', amount: 45000 },
-  { initials: 'AS', patient: 'Amina Selemani', id: '#MNH-2026-9043', method: 'M-Pesa', status: 'Success', amount: 125500 },
-  { initials: 'BK', patient: 'Baraka Kitine', id: '#MNH-2026-8219', method: 'NHIF Card', status: 'Success', amount: 820000 },
-  { initials: 'RM', patient: 'Rose Mushi', id: '#MNH-2026-9551', method: 'Cash', status: 'Success', amount: 18000 },
-]
+const LEDGER_ROWS: Array<{ initials: string; patient: string; id: string; method: string; status: string; amount: number }> = []
 
-const DEPARTMENT_ROWS: DepartmentRow[] = [
-  { label: 'OPD Services', percentage: 45, tone: '#0052cc' },
-  { label: 'Laboratory', percentage: 30, tone: '#00b8d9' },
-  { label: 'Radiology', percentage: 15, tone: '#003d9b' },
-  { label: 'Pharmacy', percentage: 10, tone: '#004b59' },
-]
+const DEPARTMENT_ROWS: DepartmentRow[] = []
 
-const OPEN_DONUT_SEGMENTS = [
-  { label: 'Cash', amount: 820000, color: '#0052cc' },
-  { label: 'M-Pesa', amount: 200000, color: '#36b37e' },
-  { label: 'Tigo', amount: 120000, color: '#00b8d9' },
-  { label: 'Insurance', amount: 100000, color: '#ffab00' },
-]
+const OPEN_DONUT_SEGMENTS: Array<{ label: string; amount: number; color: string }> = []
 
 function toneClasses(tone: MetricCard['tone']) {
   switch (tone) {
@@ -259,6 +208,51 @@ export function DailySummaryPage() {
     return stored === 'submitted' ? 'submitted' : 'open'
   })
 
+  const [bills, setBills] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchBackendData = () => {
+    setLoading(true)
+    billingService.listAllBills()
+      .then((res) => {
+        setBills(res || [])
+      })
+      .catch((err) => {
+        console.error('Failed to load bills for DailySummaryPage:', err)
+        toast.error('Unable to load daily summary data')
+      })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchBackendData()
+  }, [])
+
+  // Derived live metrics
+  const totalRevenue = bills.reduce((acc, b) => acc + (b.status === 'paid' ? Number(b.total_amount) : 0), 0)
+  const totalTransactions = bills.filter((b) => b.status === 'paid').length
+  const cashReceived = totalRevenue // Cash payments
+  const openingFloat = 0
+  const expectedCash = openingFloat + cashReceived
+
+  const liveMetrics: MetricCard[] = [
+    { title: 'Total Revenue', value: formatTzs(totalRevenue), note: '', tone: 'blue' },
+    { title: 'Total Transactions', value: String(totalTransactions), note: '', tone: 'blue' },
+    { title: 'Cash', value: formatTzs(cashReceived), note: '', tone: 'blue' },
+    { title: 'Mobile Money', value: 'TZS 0', note: '', tone: 'green' },
+    { title: 'Insurance Pending', value: 'TZS 0', note: '', tone: 'amber' },
+  ]
+
+  const liveTransactions: TransactionRow[] = bills.map((b) => ({
+    time: new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    patientName: b.patient_name || `Patient (${b.patient_id.slice(0, 8)})`,
+    patientNo: b.patient_number || `PT-${b.patient_id.slice(0, 6).toUpperCase()}`,
+    amount: Number(b.total_amount),
+    method: 'Cash',
+    receiptNo: `REC-${b.bill_id.slice(0, 6).toUpperCase()}`,
+    cashier: 'System',
+  }))
+
   const handleSubmit = () => {
     setSummaryState('submitted')
     localStorage.setItem(STORAGE_KEY, 'submitted')
@@ -266,7 +260,8 @@ export function DailySummaryPage() {
   }
 
   const handleRefresh = () => {
-    toast.success('Daily summary refreshed.')
+    fetchBackendData()
+    toast.success('Daily summary refreshed from backend.')
   }
 
   const handleExport = (format: 'PDF' | 'CSV') => {
@@ -350,8 +345,8 @@ export function DailySummaryPage() {
 
       {summaryState === 'open' ? (
         <>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
-            {OPEN_METRICS.map((metric) => (
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
+            {liveMetrics.map((metric) => (
               <StatCard key={metric.title} {...metric} />
             ))}
           </div>
@@ -374,30 +369,6 @@ export function DailySummaryPage() {
                         stroke="#edf0f5"
                         strokeWidth="10"
                       />
-                      {OPEN_DONUT_SEGMENTS.map((segment, index) => {
-                        const total = OPEN_DONUT_SEGMENTS.reduce((sum, item) => sum + item.amount, 0)
-                        const circumference = 2 * Math.PI * 38
-                        const dash = (segment.amount / total) * circumference
-                        const offset =
-                          -OPEN_DONUT_SEGMENTS.slice(0, index).reduce((sum, item) => sum + item.amount, 0) /
-                          total *
-                          circumference
-
-                        return (
-                          <circle
-                            key={segment.label}
-                            cx="50"
-                            cy="50"
-                            r="38"
-                            fill="transparent"
-                            stroke={segment.color}
-                            strokeWidth="10"
-                            strokeDasharray={`${dash} ${circumference - dash}`}
-                            strokeDashoffset={offset}
-                            strokeLinecap="butt"
-                          />
-                        )
-                      })}
                     </svg>
 
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -405,7 +376,7 @@ export function DailySummaryPage() {
                         Total
                       </span>
                       <span className="mt-1 font-headline-md text-[18px] font-semibold text-[#1f2430]">
-                        1.24M
+                        {formatTzs(totalRevenue)}
                       </span>
                     </div>
                   </div>
@@ -413,19 +384,19 @@ export function DailySummaryPage() {
                   <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex items-center gap-3 font-headline-sm text-[13px] text-[#51617e]">
                       <span className="h-4 w-4 rounded-full bg-[#0052cc]" />
-                      <span>Cash (66%)</span>
+                      <span>Cash ({totalRevenue > 0 ? '100%' : '0%'})</span>
                     </div>
                     <div className="flex items-center gap-3 font-headline-sm text-[13px] text-[#51617e]">
                       <span className="h-4 w-4 rounded-full bg-[#36b37e]" />
-                      <span>M-Pesa (16%)</span>
+                      <span>M-Pesa (0%)</span>
                     </div>
                     <div className="flex items-center gap-3 font-headline-sm text-[13px] text-[#51617e]">
                       <span className="h-4 w-4 rounded-full bg-[#00b8d9]" />
-                      <span>Tigo (10%)</span>
+                      <span>Tigo (0%)</span>
                     </div>
                     <div className="flex items-center gap-3 font-headline-sm text-[13px] text-[#51617e]">
                       <span className="h-4 w-4 rounded-full bg-[#ffab00]" />
-                      <span>Insurance (8%)</span>
+                      <span>Insurance (0%)</span>
                     </div>
                   </div>
                 </div>
@@ -442,7 +413,7 @@ export function DailySummaryPage() {
                           Opening Float
                         </div>
                         <div className="rounded-[10px] border border-[#dfe1e6] bg-[#f4f5fb] px-4 py-3.5 font-headline-md text-[18px] font-semibold text-[#1f2430]">
-                          {formatTzs(150000)}
+                          {formatTzs(openingFloat)}
                         </div>
                       </div>
                       <div>
@@ -450,7 +421,7 @@ export function DailySummaryPage() {
                           Cash Received
                         </div>
                         <div className="rounded-[10px] border border-[#dfe1e6] bg-[#f4f5fb] px-4 py-3.5 font-headline-md text-[18px] font-semibold text-[#1f2430]">
-                          {formatTzs(820000)}
+                          {formatTzs(cashReceived)}
                         </div>
                       </div>
                       <div>
@@ -458,7 +429,7 @@ export function DailySummaryPage() {
                           Expected Cash
                         </div>
                         <div className="rounded-[10px] border border-[#b7c9ff] bg-[#dfe7ff] px-4 py-3.5 font-headline-md text-[18px] font-semibold text-[#0052cc]">
-                          {formatTzs(970000)}
+                          {formatTzs(expectedCash)}
                         </div>
                       </div>
                     </div>
@@ -533,37 +504,45 @@ export function DailySummaryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {OPEN_TRANSACTIONS.map((row) => (
-                      <tr key={`${row.time}-${row.patientName}`} className="border-b border-[#dfe1e6] last:border-b-0 hover:bg-[#f8f9fb]">
-                      <td className="px-4 py-4 font-headline-sm text-[13px] font-semibold text-[#1f2430]">{row.time}</td>
-                      <td className="px-4 py-4 font-headline-sm text-[13px] text-[#1f2430]">{row.patientName}</td>
-                      <td className="px-4 py-4 font-headline-sm text-[13px] text-[#51617e]">{row.patientNo}</td>
-                      <td className="px-4 py-4 font-headline-sm text-[13px] font-semibold text-[#1f2430]">
-                        {formatTzs(row.amount)}
-                      </td>
-                      <td className="px-4 py-5">
-                        <MethodPill method={row.method} />
-                      </td>
-                      <td className="px-4 py-4 font-headline-sm text-[13px] text-[#1f2430]">{row.receiptNo}</td>
-                      <td className="px-4 py-4 font-headline-sm text-[13px] text-[#51617e]">{row.cashier}</td>
-                      <td className="px-4 py-4 text-[#51617e]">
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] border-0 bg-transparent text-[#51617e] transition-colors hover:bg-[#f4f5f7] hover:text-[#0052cc] cursor-pointer"
-                          aria-label={`Print receipt for ${row.patientName}`}
-                        >
-                          <span className="material-symbols-outlined text-[18px]">print</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                    {liveTransactions.length > 0 ? (
+                      liveTransactions.map((row) => (
+                        <tr key={`${row.time}-${row.patientName}`} className="border-b border-[#dfe1e6] last:border-b-0 hover:bg-[#f8f9fb]">
+                        <td className="px-4 py-4 font-headline-sm text-[13px] font-semibold text-[#1f2430]">{row.time}</td>
+                        <td className="px-4 py-4 font-headline-sm text-[13px] text-[#1f2430]">{row.patientName}</td>
+                        <td className="px-4 py-4 font-headline-sm text-[13px] text-[#51617e]">{row.patientNo}</td>
+                        <td className="px-4 py-4 font-headline-sm text-[13px] font-semibold text-[#1f2430]">
+                          {formatTzs(row.amount)}
+                        </td>
+                        <td className="px-4 py-5">
+                          <MethodPill method={row.method} />
+                        </td>
+                        <td className="px-4 py-4 font-headline-sm text-[13px] text-[#1f2430]">{row.receiptNo}</td>
+                        <td className="px-4 py-4 font-headline-sm text-[13px] text-[#51617e]">{row.cashier}</td>
+                        <td className="px-4 py-4 text-[#51617e]">
+                          <button
+                            type="button"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] border-0 bg-transparent text-[#51617e] transition-colors hover:bg-[#f4f5f7] hover:text-[#0052cc] cursor-pointer"
+                            aria-label={`Print receipt for ${row.patientName}`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">print</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-[#51617e] font-headline-sm text-[14px]">
+                          No transactions today
+                        </td>
+                      </tr>
+                    )}
                 </tbody>
               </table>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#dfe1e6] bg-[#f4f5fb] px-4 py-4">
               <div className="font-headline-sm text-[14px] font-semibold text-[#51617e]">
-                Showing 4 of 28 transactions
+                Showing {liveTransactions.length} of {liveTransactions.length} transactions
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -576,13 +555,11 @@ export function DailySummaryPage() {
                 <button type="button" className="h-10 rounded-[6px] border border-[#0052cc] bg-[#0052cc] px-4 font-headline-sm text-[14px] font-semibold text-white">
                   1
                 </button>
-                <button type="button" className="h-10 rounded-[6px] border border-[#dfe1e6] bg-white px-4 font-headline-sm text-[14px] font-semibold text-[#51617e]">
-                  2
-                </button>
-                <button type="button" className="h-10 rounded-[6px] border border-[#dfe1e6] bg-white px-4 font-headline-sm text-[14px] font-semibold text-[#51617e]">
-                  3
-                </button>
-                <button type="button" className="h-10 rounded-[6px] border border-[#dfe1e6] bg-white px-4 font-headline-sm text-[14px] font-semibold text-[#51617e]">
+                <button
+                  type="button"
+                  disabled
+                  className="h-10 rounded-[6px] border border-[#dfe1e6] bg-[#f4f5fb] px-4 font-headline-sm text-[14px] font-semibold text-[#b0b6c7] cursor-not-allowed"
+                >
                   Next
                 </button>
               </div>

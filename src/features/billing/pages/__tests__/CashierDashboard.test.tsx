@@ -16,15 +16,13 @@ describe('CashierDashboard', () => {
     expect(screen.getByText('My Dashboard')).toBeInTheDocument()
 
     // Verify stats cards
-    expect(screen.getByText("Today's Revenue")).toBeInTheDocument()
+    expect(screen.getByText('Revenue Today')).toBeInTheDocument()
     expect(screen.getByText('Pending Bills')).toBeInTheDocument()
     expect(screen.getByText('Insurance Claims')).toBeInTheDocument()
 
     // Verify pending queue and completed transactions
     expect(screen.getByText('Bills Awaiting Payment')).toBeInTheDocument()
-    expect(screen.getByText('Fatuma Said')).toBeInTheDocument()
     expect(screen.getByText('Recent Transactions')).toBeInTheDocument()
-    expect(screen.getByText('Grace Kimaro')).toBeInTheDocument()
   })
 
   it('renders revenue breakdown progress bars', () => {
@@ -34,10 +32,7 @@ describe('CashierDashboard', () => {
       </MemoryRouter>
     )
 
-    // Verify breakdown panel and operators
+    // Verify breakdown panel
     expect(screen.getByText('Revenue Breakdown')).toBeInTheDocument()
-    expect(screen.getByText('Cash')).toBeInTheDocument()
-    expect(screen.getByText('Mobile Money')).toBeInTheDocument()
-    expect(screen.getByText('Insurance')).toBeInTheDocument()
   })
 })

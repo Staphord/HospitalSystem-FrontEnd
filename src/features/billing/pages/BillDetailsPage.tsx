@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { formatTzs } from '../data/mockPayments'
+import { billingService } from '@/api/services/billing'
 
 interface BillItem {
   id: string
@@ -23,11 +24,24 @@ interface BillData {
   status: 'Paid' | 'Partial' | 'Unpaid' | 'Insurance Pending'
 }
 
+function getCategoryFromLabel(label: string): BillItem['category'] {
+  const lower = label.toLowerCase()
+  if (lower.includes('consultation')) return 'Consultation'
+  if (lower.includes('laboratory') || lower.includes('lab') || lower.includes('blood') || lower.includes('malaria')) return 'Laboratory'
+  if (lower.includes('radiology') || lower.includes('x-ray') || lower.includes('ultrasound')) return 'Radiology'
+  if (lower.includes('pharmacy') || lower.includes('medication') || lower.includes('tab') || lower.includes('capsule') || lower.includes('artemether') || lower.includes('paracetamol')) return 'Pharmacy'
+  if (lower.includes('procedure') || lower.includes('surgery')) return 'Procedures'
+  return 'Registration'
+}
+
 export function BillDetailsPage() {
   const { billId } = useParams<{ billId: string }>()
 
-  // Mock patient bill data
-  const [bill] = useState<BillData>({
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newDescription, setNewDescription] = useState('')
+  const [newPrice, setNewPrice] = useState('')
+
+  const [bill, setBill] = useState<BillData>({
     id: billId || 'pay4',
     patientName: 'Hassan Mwita',
     patientNo: 'PT-4889',
@@ -48,6 +62,77 @@ export function BillDetailsPage() {
       { id: 'i8', category: 'Registration', label: 'Outpatient Registration Fee', qty: 1, unitPrice: 10000 },
     ],
   })
+
+  useEffect(() => {
+    if (billId && !billId.startsWith('pay')) {
+      billingService.getBill(billId)
+        .then((realBill) => {
+          if (realBill) {
+            setBill({
+              id: realBill.bill_id,
+              patientName: realBill.patient_name || `Patient (${realBill.patient_id.slice(0, 8)})`,
+              patientNo: realBill.patient_number || `PT-${realBill.patient_id.slice(0, 6).toUpperCase()}`,
+              visitDate: new Date(realBill.created_at).toISOString().split('T')[0],
+              paymentMethod: 'Cash',
+              insurer: null,
+              policyNo: null,
+              paid: realBill.status === 'paid' ? Number(realBill.total_amount) : 0,
+              status: realBill.status === 'paid' ? 'Paid' : 'Unpaid',
+              items: realBill.items ? realBill.items.map((it, idx) => ({
+                id: it.item_id || `i${idx}`,
+                category: getCategoryFromLabel(it.description),
+                label: it.description,
+                qty: Number(it.quantity) || 1,
+                unitPrice: Number(it.unit_price) || Number(it.line_total),
+              })) : [],
+            })
+          }
+        })
+        .catch((err) => console.error('Failed to load bill details in BillDetailsPage:', err))
+    }
+  }, [billId])
+
+  const handleAddCharge = async () => {
+    if (!newDescription.trim() || !newPrice || Number.parseFloat(newPrice) <= 0) {
+      return
+    }
+    const priceNum = Number.parseFloat(newPrice)
+    if (bill.id && !bill.id.startsWith('pay')) {
+      try {
+        const updatedBill = await billingService.addBillItem(bill.id, {
+          description: newDescription.trim(),
+          unit_price: priceNum,
+          quantity: 1,
+          item_code: 'FEE',
+          item_type: 'service',
+        })
+        setBill({
+          ...bill,
+          items: updatedBill.items.map((it, idx) => ({
+            id: it.item_id || `i${idx}`,
+            category: getCategoryFromLabel(it.description),
+            label: it.description,
+            qty: Number(it.quantity) || 1,
+            unitPrice: Number(it.unit_price) || Number(it.line_total),
+          })),
+        })
+      } catch (err) {
+        console.error('Failed to add manual charge:', err)
+      }
+    } else {
+      const newItem: BillItem = {
+        id: `i-${Date.now()}`,
+        category: getCategoryFromLabel(newDescription),
+        label: newDescription.trim(),
+        qty: 1,
+        unitPrice: priceNum,
+      }
+      setBill({ ...bill, items: [...bill.items, newItem] })
+    }
+    setNewDescription('')
+    setNewPrice('')
+    setShowAddModal(false)
+  }
 
   // Group bill items by category
   const categories = Array.from(new Set(bill.items.map((item) => item.category)))
@@ -190,12 +275,21 @@ export function BillDetailsPage() {
             <p className="text-xs text-slate-300 leading-relaxed mb-3">
               This invoice has an outstanding balance of {formatTzs(outstanding)}. Ensure collection before patient discharge.
             </p>
-            <Link
-              to={`/billing/payment/${bill.id}`}
-              className="inline-block w-full text-center py-2 text-xs font-bold text-white hover:text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition no-underline hover:no-underline"
-            >
-              Collect Payment
-            </Link>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(true)}
+                className="flex-1 py-2 text-xs font-bold text-slate-200 bg-slate-700 hover:bg-slate-600 rounded-lg transition border-0 cursor-pointer"
+              >
+                + Add Fee
+              </button>
+              <Link
+                to={`/billing/payment/${bill.id}`}
+                className="flex-1 text-center py-2 text-xs font-bold text-white hover:text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition no-underline hover:no-underline"
+              >
+                Collect Payment
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl max-w-sm flex items-center gap-3 text-emerald-800">
@@ -209,6 +303,52 @@ export function BillDetailsPage() {
           </div>
         )}
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4">
+            <h3 className="m-0 text-base font-bold text-slate-900">Add Service Charge / Fee (FR-34)</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Charge Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Consultation Fee, Procedure Charge"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-600"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Unit Price (TZS)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 15000"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-600"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 border-0 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddCharge}
+                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 border-0 cursor-pointer"
+              >
+                Add Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

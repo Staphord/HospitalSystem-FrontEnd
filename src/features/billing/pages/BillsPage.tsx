@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ROLES } from '@/lib/roles'
+import { billingService } from '@/api/services/billing'
 import {
   canRecordPayment,
   derivePaymentStatus,
@@ -450,12 +451,7 @@ function VerificationActionsMenu({
 }
 
 function InsuranceVerificationsTab({ canManage }: { canManage: boolean }) {
-  const [rows, setRows] = useState<VerificationRow[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_insurance_verifications') || JSON.stringify(INITIAL_ROWS))
-  )
-  useEffect(() => {
-    localStorage.setItem('hf_mock_insurance_verifications', JSON.stringify(rows))
-  }, [rows])
+  const [rows, setRows] = useState<VerificationRow[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [verifyTarget, setVerifyTarget] = useState<VerificationRow | null>(null)
   const [viewTarget, setViewTarget] = useState<VerificationRow | null>(null)
@@ -882,12 +878,41 @@ type PaymentFilter = 'All' | 'Unpaid' | 'Partial' | 'Paid' | 'Insurance Pending'
 
 function PaymentStatusTab() {
   const navigate = useNavigate()
-  const [rows, setRows] = useState<PaymentRow[]>(() =>
-    JSON.parse(localStorage.getItem('hf_mock_payment_rows') || JSON.stringify(INITIAL_PAYMENT_ROWS))
-  )
+  const [rows, setRows] = useState<PaymentRow[]>([])
+  const [loading, setLoading] = useState(true)
+
   useEffect(() => {
-    localStorage.setItem('hf_mock_payment_rows', JSON.stringify(rows))
-  }, [rows])
+    setLoading(true)
+    billingService.listAllBills()
+      .then((backendBills) => {
+        if (backendBills) {
+          const mappedRows: PaymentRow[] = backendBills.map((b) => {
+            const paid = b.status === 'paid' ? Number(b.total_amount) : 0
+            const statusStr = b.status === 'paid' ? 'Paid' : 'Unpaid'
+            return {
+              id: b.bill_id,
+              patientName: b.patient_name || `Patient (${b.patient_id.slice(0, 8)})`,
+              patientNumber: b.patient_number || `PT-${b.patient_id.slice(0, 6).toUpperCase()}`,
+              visitDate: new Date(b.created_at).toISOString().split('T')[0],
+              department: 'General',
+              totalBill: Number(b.total_amount),
+              paid: paid,
+              paymentMethod: 'Cash',
+              status: statusStr as any,
+              insurer: null,
+              lineItems: b.items ? b.items.map((it) => ({ label: it.description, amount: Number(it.line_total) })) : [],
+              lastPaymentAt: b.updated_at,
+            }
+          })
+          setRows(mappedRows)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load bills from backend:', err)
+        toast.error('Unable to fetch patient bills.')
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('All')
