@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminService } from '@/api/services/admin';
+import { useAuthStore } from '@/store/authStore';
 
 export interface Alert {
   id: string;
@@ -42,6 +43,13 @@ export const useDashboardData = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
+    const state = useAuthStore.getState();
+    const isHospitalAdmin = (state.roles || []).includes('hospital_admin') || state.user?.role === 'hospital_admin';
+    if (!isHospitalAdmin) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const [statsRes, departmentsRes, alertsRes] = await Promise.all([

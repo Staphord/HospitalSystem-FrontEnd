@@ -767,7 +767,7 @@ export function DashboardPage() {
 
           {/* Right Column (35%) */}
           <div className="lg:col-span-4 flex flex-col gap-lg h-full">
-            {/* System Alerts Card */}
+            {/* System Alerts Card (Temporarily Hidden)
             <div className="bg-[#FFFDF5] rounded-lg border border-[#FFE380] flex flex-col shrink-0 shadow-sm">
               <div className="p-md border-b border-[#FFE380] flex items-center gap-2">
                 <span className="material-symbols-outlined text-warning">warning</span>
@@ -775,7 +775,6 @@ export function DashboardPage() {
                 <span className="ml-auto bg-warning text-white font-label-md text-[10px] px-2 py-0.5 rounded-full font-bold">2</span>
               </div>
               <div className="p-md space-y-3">
-                {/* Urgent Queue Time Alert */}
                 <div className="flex items-start justify-between bg-white p-3 rounded border-l-4 border-l-error border-y border-r border-border-subtle">
                   <div className="overflow-hidden">
                     <p className="font-body-sm text-xs font-semibold text-on-surface truncate">High Wait Time Warning</p>
@@ -789,7 +788,6 @@ export function DashboardPage() {
                   </button>
                 </div>
 
-                {/* Important Verification Alert */}
                 <div className="flex items-start justify-between bg-white p-3 rounded border-l-4 border-l-warning border-y border-r border-border-subtle">
                   <div className="overflow-hidden">
                     <p className="font-body-sm text-xs font-semibold text-on-surface truncate">Insurance Review Required</p>
@@ -804,6 +802,7 @@ export function DashboardPage() {
                 </div>
               </div>
             </div>
+            */}
             {/* Recent Registrations Card */}
             <div className="bg-surface-white rounded-lg border border-border-subtle flex flex-col flex-1 min-h-[280px] shadow-sm">
               <div className="p-md border-b border-border-subtle flex justify-between items-center shrink-0">

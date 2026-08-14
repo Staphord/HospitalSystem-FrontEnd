@@ -268,6 +268,7 @@ function ResultDetailModal({ result, onClose, onAcknowledge, onOpenEncounter }: 
 
 interface ActionMenuProps {
   result: InvestigationResult
+  anchorRect: DOMRect
   onViewResult: () => void
   onAcknowledge: () => void
   onOpenEncounter: () => void
@@ -275,7 +276,7 @@ interface ActionMenuProps {
   onClose: () => void
 }
 
-function ActionMenu({ result, onViewResult, onAcknowledge, onOpenEncounter, onViewHistory, onClose }: ActionMenuProps) {
+function ActionMenu({ result, anchorRect, onViewResult, onAcknowledge, onOpenEncounter, onViewHistory, onClose }: ActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -291,10 +292,21 @@ function ActionMenu({ result, onViewResult, onAcknowledge, onOpenEncounter, onVi
   const isPending  = result.status === 'pending'
   const isAcked    = result.status === 'acknowledged'
 
+  const spaceBelow = window.innerHeight - anchorRect.bottom
+  const positionAbove = spaceBelow < 220
+
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    top: positionAbove ? 'auto' : `${anchorRect.bottom + 4}px`,
+    bottom: positionAbove ? `${window.innerHeight - anchorRect.top + 4}px` : 'auto',
+    right: `${Math.max(12, window.innerWidth - anchorRect.right)}px`,
+  }
+
   return (
     <div
       ref={menuRef}
-      className="absolute right-0 top-full mt-xs z-40 w-52 bg-surface-white border border-border-subtle rounded-xl shadow-lg py-xs overflow-hidden"
+      style={style}
+      className="z-50 w-52 bg-surface-white border border-border-subtle rounded-xl shadow-xl py-xs overflow-hidden"
       role="menu"
     >
       {/* View Result / Order Details */}
@@ -373,7 +385,7 @@ export function InvestigationResultsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | ResultStatus>('all')
   const [pageSize, setPageSize]         = useState(10)
   const [currentPage, setCurrentPage]   = useState(1)
-  const [openMenuId, setOpenMenuId]     = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor]     = useState<{ id: string; rect: DOMRect } | null>(null)
   const [viewingResult, setViewingResult] = useState<InvestigationResult | null>(null)
 
   const handlePageSizeChange = (newSize: number) => {
@@ -548,7 +560,11 @@ export function InvestigationResultsPage() {
                   const avatar = AVATAR_BG[r.status] || AVATAR_BG.pending
 
                   return (
-                    <tr key={r.id} className={`transition-colors hover:bg-hover-tint ${sCfg.rowBg}`}>
+                    <tr
+                      key={r.id}
+                      onClick={() => setViewingResult(r)}
+                      className={`transition-colors hover:bg-hover-tint cursor-pointer ${sCfg.rowBg}`}
+                    >
                       {/* Patient Name */}
                       <td className="px-lg py-md">
                         <div className="flex items-center gap-sm">
@@ -592,32 +608,40 @@ export function InvestigationResultsPage() {
                         </span>
                       </td>
 
-                      {/* Actions — relative container for dropdown */}
-                      <td className="px-lg py-md text-right">
+                      {/* Actions — stop propagation so row click doesn't trigger */}
+                      <td className="px-lg py-md text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="relative inline-block">
                           <button
                             type="button"
-                            onClick={() => setOpenMenuId(openMenuId === r.id ? null : r.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (menuAnchor?.id === r.id) {
+                                setMenuAnchor(null)
+                              } else {
+                                setMenuAnchor({ id: r.id, rect: e.currentTarget.getBoundingClientRect() })
+                              }
+                            }}
                             className={`p-2 transition-colors rounded-full border-0 cursor-pointer ${
-                              openMenuId === r.id
+                              menuAnchor?.id === r.id
                                 ? 'bg-surface-container text-on-surface'
                                 : 'text-on-surface-variant hover:bg-surface-container bg-transparent'
                             }`}
                             title="More actions"
                             aria-haspopup="true"
-                            aria-expanded={openMenuId === r.id}
+                            aria-expanded={menuAnchor?.id === r.id}
                           >
                             <span className="material-symbols-outlined leading-none">more_vert</span>
                           </button>
 
-                          {openMenuId === r.id && (
+                          {menuAnchor?.id === r.id && (
                             <ActionMenu
                               result={r}
-                              onViewResult={() => { setViewingResult(r); setOpenMenuId(null) }}
-                              onAcknowledge={() => { acknowledgeResult(r.id); setOpenMenuId(null) }}
-                              onOpenEncounter={() => { navigate(`/consultation/encounter/${r.visitId ?? ''}`); setOpenMenuId(null) }}
-                              onViewHistory={() => { navigate(`/consultation/history/${r.patientId}`); setOpenMenuId(null) }}
-                              onClose={() => setOpenMenuId(null)}
+                              anchorRect={menuAnchor.rect}
+                              onViewResult={() => { setViewingResult(r); setMenuAnchor(null) }}
+                              onAcknowledge={() => { acknowledgeResult(r.id); setMenuAnchor(null) }}
+                              onOpenEncounter={() => { navigate(`/consultation/encounter/${r.visitId ?? ''}`); setMenuAnchor(null) }}
+                              onViewHistory={() => { navigate(`/consultation/history/${r.patientId}`); setMenuAnchor(null) }}
+                              onClose={() => setMenuAnchor(null)}
                             />
                           )}
                         </div>

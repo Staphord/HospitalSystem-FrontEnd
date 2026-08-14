@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminService } from '@/api/services/admin';
+import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 
 export const ROLE_DEPARTMENT_MAP: Record<string, string> = {
@@ -56,6 +57,12 @@ export const useStaffOperations = () => {
   const [error, setError] = useState<string | null>(null);
 
   const syncBackendUsers = async () => {
+    const state = useAuthStore.getState();
+    const isHospitalAdmin = (state.roles || []).includes('hospital_admin') || state.user?.role === 'hospital_admin';
+    if (!isHospitalAdmin) {
+      return;
+    }
+
     try {
       const data = await adminService.listUsers();
       if (data) {
@@ -159,7 +166,7 @@ export const useStaffOperations = () => {
 
     try {
       await adminService.createUser(payload);
-      toast.success(`User "${data.name}" created.`);
+      toast.success(`User "${data.name}" created. A welcome email was sent to ${data.email}.`);
       syncBackendUsers();
       setError(null);
       return true;

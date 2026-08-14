@@ -46,6 +46,8 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (accessToken, refreshToken) => {
         const isImpersonating = isImpersonationToken(accessToken)
         const roles = isImpersonating ? ['hospital_admin'] : getRolesFromToken(accessToken)
+        localStorage.setItem('hf_last_activity', Date.now().toString())
+        localStorage.setItem('session_warning_acknowledged', 'true')
         set({
           accessToken,
           refreshToken,
@@ -59,11 +61,13 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
 
       clearAuth: () => {
+        localStorage.removeItem('hf_last_activity')
         localStorage.removeItem('session_warning_acknowledged')
         localStorage.removeItem('impersonated_tenant_id')
         localStorage.removeItem('original_access_token')
         localStorage.removeItem('original_refresh_token')
         localStorage.removeItem('hospital_profile')
+        localStorage.removeItem('simulate_simultaneous_session')
         set({
           accessToken: null,
           refreshToken: null,

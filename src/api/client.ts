@@ -2124,13 +2124,7 @@ apiClient.defaults.adapter = async (config) => {
 }
 
 // Global response error interceptor for auth refresh
-let isRefreshing = false
-let refreshQueue: Array<(token: string | null) => void> = []
-
-function processQueue(token: string | null) {
-  refreshQueue.forEach((cb) => cb(token))
-  refreshQueue = []
-}
+let activeRefreshPromise: Promise<string | null> | null = null
 
 /**
  * Single-flight token refresh, shared by the reactive 401 interceptor below
@@ -2141,30 +2135,30 @@ function processQueue(token: string | null) {
  * and the loser gets "refresh token not found or revoked".
  */
 export async function refreshAuthToken(): Promise<string | null> {
-  if (isRefreshing) {
-    return new Promise((resolve) => {
-      refreshQueue.push((token) => resolve(token))
-    })
+  if (activeRefreshPromise) {
+    return activeRefreshPromise
   }
 
   const refreshToken = getStoredRefreshToken()
-  if (!refreshToken) return null
+  if (!refreshToken || !refreshToken.trim()) return null
 
-  isRefreshing = true
-  try {
-    const { data } = await axios.post<TokenResponse>(
-      `${API_BASE_URL}/auth/refresh`,
-      { refresh_token: refreshToken },
-    )
-    useAuthStore.getState().setTokens(data.access_token, data.refresh_token)
-    processQueue(data.access_token)
-    return data.access_token
-  } catch {
-    processQueue(null)
-    return null
-  } finally {
-    isRefreshing = false
-  }
+  activeRefreshPromise = (async () => {
+    try {
+      const { data } = await axios.post<TokenResponse>(
+        `${API_BASE_URL}/auth/refresh`,
+        { refresh_token: refreshToken.trim() },
+      )
+      useAuthStore.getState().setTokens(data.access_token, data.refresh_token)
+      return data.access_token
+    } catch (err: any) {
+      console.warn('[AUTH REFRESH] Failed to refresh access token:', err)
+      return null
+    } finally {
+      activeRefreshPromise = null
+    }
+  })()
+
+  return activeRefreshPromise
 }
 
 apiClient.interceptors.response.use(

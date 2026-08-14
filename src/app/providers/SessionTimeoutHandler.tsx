@@ -72,7 +72,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
       localStorage.setItem('hf_last_activity', now.toString())
     }
 
-    const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || '0', 10)
+    const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || now.toString(), 10)
     const { warningMs, totalMs } = getDurations()
     const timeElapsed = now - lastActivity
 
@@ -102,7 +102,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     showModalRef.current = false
     const remainingMs = warningMs - timeElapsed
     timerRef.current = setTimeout(() => {
-      const freshLastActivity = parseInt(localStorage.getItem('hf_last_activity') || '0', 10)
+      const freshLastActivity = parseInt(localStorage.getItem('hf_last_activity') || Date.now().toString(), 10)
       const freshTimeElapsed = Date.now() - freshLastActivity
       const freshCountdown = Math.max(1, Math.ceil((totalMs - freshTimeElapsed) / 1000))
       setShowModal(true)
@@ -119,7 +119,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
 
     countdownRef.current = setInterval(() => {
-      const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || '0', 10)
+      const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || Date.now().toString(), 10)
       const { totalMs } = getDurations()
       const timeElapsed = Date.now() - lastActivity
       const currentCountdown = Math.max(0, Math.ceil((totalMs - timeElapsed) / 1000))
@@ -230,16 +230,18 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     if (!isAuthenticated || isImpersonating) return
 
     const interval = setInterval(async () => {
-      const token = useAuthStore.getState().refreshToken
-      if (!token) return
+      const state = useAuthStore.getState()
+      const accessToken = state.accessToken
+      if (!accessToken) return
 
-      const expiryMs = getTokenExpiryMs(token)
-      if (expiryMs === null) return // opaque token — nothing we can proactively check
+      const expiryMs = getTokenExpiryMs(accessToken)
+      if (expiryMs === null) return
 
       const msUntilExpiry = expiryMs - Date.now()
-      if (msUntilExpiry <= 0 || msUntilExpiry > PROACTIVE_REFRESH_BUFFER_MS) return
+      // Proactively refresh 60 seconds before access token expires (5 min lifetime)
+      if (msUntilExpiry <= 0 || msUntilExpiry > 60000) return
 
-      const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || '0', 10)
+      const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || Date.now().toString(), 10)
       const { totalMs } = getDurations()
       if (Date.now() - lastActivity > totalMs + IDLE_GRACE_MS) return
 

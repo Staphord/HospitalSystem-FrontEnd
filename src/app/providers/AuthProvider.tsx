@@ -34,7 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setUser(mergedUser)
 
+        const isHospitalAdmin = roles.includes('hospital_admin') || u.role === 'hospital_admin'
         if (isUserSuperAdmin && !isImpersonating) {
+          return
+        }
+
+        if (!isHospitalAdmin) {
           return
         }
 

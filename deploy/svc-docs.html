@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hospital Flow API docs</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #d0d7de;
+      background: #f6f8fa;
+    }
+    h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    select { font-size: 14px; padding: 4px 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Hospital Flow services</h1>
+    <label>
+      Service
+      <select id="service"></select>
+    </label>
+  </header>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    const services = [
+      ["gateway", "API Gateway"],
+      ["auth", "Auth"],
+      ["master", "Master"],
+      ["admin", "Admin"],
+      ["reception", "Reception"],
+      ["patient", "Patient"],
+      ["visit", "Visit"],
+      ["triage", "Triage"],
+      ["consultation", "Consultation"],
+      ["laboratory", "Laboratory"],
+      ["radiology", "Radiology"],
+      ["pharmacy", "Pharmacy"],
+      ["billing", "Billing"],
+      ["ward", "Ward"],
+      ["notification", "Notification"],
+      ["report", "Report"],
+    ];
+
+    const select = document.getElementById("service");
+    const params = new URLSearchParams(location.search);
+    const initial = params.get("s") || "admin";
+
+    for (const [id, label] of services) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = label;
+      if (id === initial) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    let ui;
+    function load(id) {
+      const url = "/svc/" + id + "/openapi.json";
+      history.replaceState(null, "", "/svc/?s=" + encodeURIComponent(id));
+      if (!ui) {
+        ui = SwaggerUIBundle({
+          url: url,
+          dom_id: "#swagger-ui",
+          persistAuthorization: true,
+        });
+      } else {
+        ui.specActions.updateUrl(url);
+        ui.specActions.download(url);
+      }
+    }
+
+    select.addEventListener("change", () => load(select.value));
+    load(select.value);
+  </script>
+</body>
+</html>

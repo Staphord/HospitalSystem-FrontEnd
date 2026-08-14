@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminService } from '@/api/services/admin';
+import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 
 export interface ActiveSession {
@@ -20,6 +21,12 @@ export const useSessionsData = () => {
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
 
   const syncSessions = async () => {
+    const state = useAuthStore.getState();
+    const isHospitalAdmin = (state.roles || []).includes('hospital_admin') || state.user?.role === 'hospital_admin';
+    if (!isHospitalAdmin) {
+      return;
+    }
+
     try {
       const data = await adminService.listActiveSessions();
       if (data) {
