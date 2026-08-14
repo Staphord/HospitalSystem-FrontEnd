@@ -292,7 +292,7 @@ export function NotificationsPage() {
                       <button
                         type="button"
                         onClick={() => handleMarkItemRead(item.notification_id)}
-                        className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors border-0 cursor-pointer flex items-center gap-xs"
+                        className="px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors border-0 cursor-pointer flex items-center gap-xs"
                       >
                         <span className="material-symbols-outlined text-[16px]">done</span>
                         Mark Read
@@ -310,7 +310,7 @@ export function NotificationsPage() {
                             : item.action_url!
                           navigate(targetUrl)
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:brightness-95 transition-all border-0 cursor-pointer flex items-center gap-xs"
+                        className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-semibold hover:brightness-95 transition-all border-0 cursor-pointer flex items-center gap-xs"
                       >
                         View Details
                         <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
