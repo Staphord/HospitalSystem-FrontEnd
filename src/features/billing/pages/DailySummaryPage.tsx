@@ -30,44 +30,7 @@ type DepartmentRow = {
 }
 
 const STORAGE_KEY = 'hf_daily_summary_state'
-const DISPLAY_DATE = '09 June 2026'
-const DISPLAY_DATE_LABEL = `Today — ${DISPLAY_DATE}`
-const REPORT_TIME = '17:32'
-
-const OPEN_METRICS: MetricCard[] = [
-  {
-    title: 'Total Revenue',
-    value: 'TZS 0',
-    note: '',
-    tone: 'blue',
-    noteTone: 'muted',
-  },
-  {
-    title: 'Total Transactions',
-    value: '0',
-    note: '',
-    tone: 'blue',
-    noteTone: 'muted',
-  },
-  {
-    title: 'Cash',
-    value: 'TZS 0',
-    note: '',
-    tone: 'blue',
-  },
-  {
-    title: 'Mobile Money',
-    value: 'TZS 0',
-    note: '',
-    tone: 'green',
-  },
-  {
-    title: 'Insurance Pending',
-    value: 'TZS 0',
-    note: '',
-    tone: 'amber',
-  },
-]
+const DISPLAY_DATE_LABEL = `Today — ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' })}`
 
 const SUBMITTED_METRICS: MetricCard[] = [
   {
@@ -100,13 +63,9 @@ const SUBMITTED_METRICS: MetricCard[] = [
   },
 ]
 
-const OPEN_TRANSACTIONS: TransactionRow[] = []
-
 const LEDGER_ROWS: Array<{ initials: string; patient: string; id: string; method: string; status: string; amount: number }> = []
 
 const DEPARTMENT_ROWS: DepartmentRow[] = []
-
-const OPEN_DONUT_SEGMENTS: Array<{ label: string; amount: number; color: string }> = []
 
 function toneClasses(tone: MetricCard['tone']) {
   switch (tone) {
@@ -202,11 +161,26 @@ function MethodPill({ method }: { method: TransactionRow['method'] }) {
   )
 }
 
+const SUBMITTED_AT_KEY = 'hf_daily_summary_submitted_at'
+
+function isToday(dateStr: string) {
+  const d = new Date(dateStr)
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
 export function DailySummaryPage() {
   const [summaryState, setSummaryState] = useState<SummaryState>(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored === 'submitted' ? 'submitted' : 'open'
   })
+  const [submittedAt, setSubmittedAt] = useState<string | null>(() =>
+    localStorage.getItem(SUBMITTED_AT_KEY),
+  )
 
   const [bills, setBills] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -228,9 +202,10 @@ export function DailySummaryPage() {
     fetchBackendData()
   }, [])
 
-  // Derived live metrics
-  const totalRevenue = bills.reduce((acc, b) => acc + (b.status === 'paid' ? Number(b.total_amount) : 0), 0)
-  const totalTransactions = bills.filter((b) => b.status === 'paid').length
+  // Derived live metrics — scoped to today's bills, since this is a daily summary
+  const todaysBills = bills.filter((b) => isToday(b.created_at))
+  const totalRevenue = todaysBills.reduce((acc, b) => acc + (b.status === 'paid' ? Number(b.total_amount) : 0), 0)
+  const totalTransactions = todaysBills.filter((b) => b.status === 'paid').length
   const cashReceived = totalRevenue // Cash payments
   const openingFloat = 0
   const expectedCash = openingFloat + cashReceived
@@ -243,7 +218,7 @@ export function DailySummaryPage() {
     { title: 'Insurance Pending', value: 'TZS 0', note: '', tone: 'amber' },
   ]
 
-  const liveTransactions: TransactionRow[] = bills.map((b) => ({
+  const liveTransactions: TransactionRow[] = todaysBills.map((b) => ({
     time: new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     patientName: b.patient_name || `Patient (${b.patient_id.slice(0, 8)})`,
     patientNo: b.patient_number || `PT-${b.patient_id.slice(0, 6).toUpperCase()}`,
@@ -254,9 +229,12 @@ export function DailySummaryPage() {
   }))
 
   const handleSubmit = () => {
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     setSummaryState('submitted')
+    setSubmittedAt(now)
     localStorage.setItem(STORAGE_KEY, 'submitted')
-    toast.success(`Report submitted at ${REPORT_TIME}.`)
+    localStorage.setItem(SUBMITTED_AT_KEY, now)
+    toast.success(`Report submitted at ${now}.`)
   }
 
   const handleRefresh = () => {
@@ -270,7 +248,9 @@ export function DailySummaryPage() {
 
   const handleUnlock = () => {
     setSummaryState('open')
+    setSubmittedAt(null)
     localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(SUBMITTED_AT_KEY)
     toast.info('Report unlocked for editing.')
   }
 
@@ -582,7 +562,7 @@ export function DailySummaryPage() {
                     <span className="material-symbols-outlined text-[22px]">check</span>
                   </div>
                   <h2 className="m-0 font-headline-md text-[16px] font-semibold text-[#36b37e]">
-                    Report submitted — {REPORT_TIME}
+                    Report submitted — {submittedAt}
                   </h2>
                 </div>
                 <span className="rounded-[6px] border border-[#a8e3cb] bg-white px-4 py-1 font-headline-sm text-[12px] font-semibold uppercase tracking-[0.06em] text-[#36b37e]">

@@ -237,6 +237,13 @@ export function ProcessingPaymentPage() {
       }
     }
 
+    // The lines below record this same real payment into localStorage too.
+    // billing-service has no endpoint to list recorded payments, so this is
+    // how BillsPage's local "paid" state and the receipt view below get
+    // populated after a reload — not fake data, just a client-side cache of
+    // an action that already happened on the server. Remove once a
+    // payments-listing endpoint exists.
+
     const allPayments = JSON.parse(localStorage.getItem('hf_mock_payment_rows') || '[]')
     const updatedPayments = allPayments.map((p: any) => {
       if (p.id !== bill.id) return p

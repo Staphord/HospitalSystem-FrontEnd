@@ -152,9 +152,12 @@ export interface LabelGenerateResponse {
 
 export const pharmacyService = {
   getQueue: async (status: string = 'waiting', date?: string): Promise<PharmacyQueueResponse> => {
-    // When no specific date is requested, collect all waiting items across history.
-    // Requests are sent sequentially (one at a time) to avoid rate limiting.
-    // Stops after 10 consecutive days with no results.
+    // GET /pharmacy/queue only accepts a single required date, not a range or
+    // "all" — this crawls backward one day at a time to approximate "all
+    // waiting items" until the real fix (a backend endpoint that doesn't
+    // require a date, or accepts a date range) exists. Sequential rather
+    // than parallel to keep this predictable while that's unverified; stops
+    // after 10 consecutive empty days rather than always running MAX_DAYS.
     if (!date && status === 'waiting') {
       const today = new Date()
       const seen = new Set<string>()

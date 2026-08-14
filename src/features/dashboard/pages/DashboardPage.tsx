@@ -868,17 +868,10 @@ export function DashboardPage() {
     )
   }
 
-  // Retrieve dynamic hospital name and logo based on active tenant
-  const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
-  const currentTenant = tenants.find((t: any) => t.tenant_id === tenantId)
-  const hospitalName =
-    user?.hospital_name ||
-    (currentTenant ? currentTenant.hospital_name : null) ||
-    'Hospital System'
-  const hospitalLogo =
-    user?.logo_url ||
-    (currentTenant ? currentTenant.logo_url : null) ||
-    null
+  // hospital_name/logo_url come from the real hospital profile fetched in
+  // AuthProvider (adminService.getHospitalProfile()), merged onto `user`.
+  const hospitalName = user?.hospital_name || 'Hospital System'
+  const hospitalLogo = user?.logo_url || null
 
   if (isHospitalAdmin) {
     return <AdminDashboardContent hospitalName={hospitalName} hospitalLogo={hospitalLogo} />

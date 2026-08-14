@@ -96,11 +96,13 @@ function AppointmentDetailModal({
   weekDays,
   onClose,
   onCheckIn,
+  onEdit,
 }: {
   appointment: ImagingScheduleAppointment | null
   weekDays: ScheduleWeekDay[]
   onClose: () => void
   onCheckIn: (appointment: ImagingScheduleAppointment) => void
+  onEdit: (appointment: ImagingScheduleAppointment) => void
 }) {
   if (!appointment) return null
   const modalityColors = SCHEDULE_MODALITY_COLORS[appointment.modality]
@@ -177,7 +179,7 @@ function AppointmentDetailModal({
             </button>
             <button
               type="button"
-              onClick={() => toast.info('Edit appointment coming soon.')}
+              onClick={() => onEdit(appointment)}
               className="w-10 h-10 border border-border-subtle rounded-lg flex items-center justify-center hover:bg-surface-container-high transition-colors bg-white cursor-pointer"
               aria-label="Edit"
             >
@@ -197,6 +199,9 @@ interface AddModalProps {
   prefillModality?: string
   prefillNotes?: string
   prefillRequestId?: string
+  prefillDate?: string
+  prefillTime?: string
+  isEditing?: boolean
   weekDays: ScheduleWeekDay[]
   onClose: () => void
   onSave: (appt: ImagingScheduleAppointment) => void | Promise<void>
@@ -209,6 +214,9 @@ function AddAppointmentModal({
   prefillModality = 'x-ray',
   prefillNotes = '',
   prefillRequestId,
+  prefillDate = '',
+  prefillTime = '',
+  isEditing = false,
   weekDays,
   onClose,
   onSave,
@@ -216,8 +224,8 @@ function AddAppointmentModal({
   const [patientName, setPatientName] = useState(prefillPatientName)
   const [modality, setModality] = useState(prefillModality)
   const [priority, setPriority] = useState<'routine' | 'urgent' | 'stat'>('routine')
-  const [date, setDate] = useState('')
-  const [time, setTime] = useState('')
+  const [date, setDate] = useState(prefillDate)
+  const [time, setTime] = useState(prefillTime)
   const [notes, setNotes] = useState(prefillNotes)
 
   useEffect(() => {
@@ -225,8 +233,10 @@ function AddAppointmentModal({
       setPatientName(prefillPatientName)
       setModality(prefillModality)
       setNotes(prefillNotes)
+      setDate(prefillDate)
+      setTime(prefillTime)
     }
-  }, [open, prefillPatientName, prefillModality, prefillNotes])
+  }, [open, prefillPatientName, prefillModality, prefillNotes, prefillDate, prefillTime])
 
   if (!open) return null
 
@@ -284,7 +294,7 @@ function AddAppointmentModal({
       >
         <div className="p-lg border-b border-border-subtle flex justify-between items-center bg-surface-container-low">
           <h3 className="font-headline-md text-headline-md font-bold text-primary m-0">
-            New Imaging Appointment
+            {isEditing ? 'Edit Imaging Appointment' : 'New Imaging Appointment'}
           </h3>
           <button
             type="button"
@@ -633,6 +643,9 @@ export function ImagingScheduleContent() {
     null,
   )
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const [editingAppointment, setEditingAppointment] = useState<ImagingScheduleAppointment | null>(
+    null,
+  )
 
   const weekDays = useMemo(() => computeWeekDays(weekOffset), [weekOffset])
   const weekLabel = useMemo(() => computeWeekLabel(weekDays), [weekDays])
@@ -705,7 +718,23 @@ export function ImagingScheduleContent() {
 
   const handleCloseAddModal = () => {
     setAddModalOpen(false)
+    setEditingAppointment(null)
     if (prefillRequestId) setSearchParams({}, { replace: true })
+  }
+
+  const handleEditAppointment = (appt: ImagingScheduleAppointment) => {
+    setSelectedAppointment(null)
+    setEditingAppointment(appt)
+    setAddModalOpen(true)
+  }
+
+  function appointmentDateTimeStrings(appt: ImagingScheduleAppointment) {
+    const day = weekDays[appt.dayIndex]
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return {
+      date: day ? `${day.year}-${pad(day.month)}-${pad(day.date)}` : '',
+      time: `${pad(appt.startHour)}:${pad(appt.startMinute)}`,
+    }
   }
 
   const handleSaveAppointment = async (appt: ImagingScheduleAppointment) => {
@@ -824,14 +853,18 @@ export function ImagingScheduleContent() {
         onCheckIn={(appt) => {
           void handleCheckIn(appt)
         }}
+        onEdit={handleEditAppointment}
       />
       <AddAppointmentModal
         open={addModalOpen}
-        prefillPatientName={prefillRequest?.patientName}
+        prefillPatientName={editingAppointment?.patientName ?? prefillRequest?.patientName}
         prefillPatientNumber={prefillRequest?.patientNumber}
-        prefillModality={prefillRequest?.modality}
-        prefillNotes={prefillRequest?.clinicalIndication}
-        prefillRequestId={prefillRequestId}
+        prefillModality={editingAppointment?.modality ?? prefillRequest?.modality}
+        prefillNotes={editingAppointment?.clinicalIndication ?? prefillRequest?.clinicalIndication}
+        prefillRequestId={editingAppointment?.requestId ?? prefillRequestId}
+        prefillDate={editingAppointment ? appointmentDateTimeStrings(editingAppointment).date : ''}
+        prefillTime={editingAppointment ? appointmentDateTimeStrings(editingAppointment).time : ''}
+        isEditing={!!editingAppointment}
         weekDays={weekDays}
         onClose={handleCloseAddModal}
         onSave={handleSaveAppointment}

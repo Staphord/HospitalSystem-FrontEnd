@@ -1,4 +1,6 @@
-// Planned — backend router is a stub.
+// Bill CRUD and payment recording are real endpoints. There is no
+// payments-listing or revenue-summary endpoint yet — CashierDashboard and
+// DailySummaryPage account for that gap explicitly rather than fake it.
 
 import { apiClient } from '../client'
 

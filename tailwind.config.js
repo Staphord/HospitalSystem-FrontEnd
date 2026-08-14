@@ -9,6 +9,17 @@ export default {
   },
   theme: {
     extend: {
+      // These are hardcoded hex duplicates of src/styles/globals.css's
+      // :root CSS variables, not references to them — the two are kept in
+      // sync by hand, and have already drifted apart for three names that
+      // exist in both systems with different values:
+      //   secondary: globals.css #42526e vs this file's #4f5f7b
+      //   tertiary:  globals.css #00b8d9 vs this file's #004b59
+      //   surface:   globals.css #ffffff vs this file's #f8f9fb
+      // Not corrected here — changing a shared color token touches every
+      // component using the matching Tailwind utility class (bg-surface,
+      // bg-secondary, etc.), which needs a visual QA pass across the app
+      // to do safely, not a blind value change.
       colors: {
         "inverse-surface": "#2e3132",
         "surface": "#f8f9fb",

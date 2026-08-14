@@ -77,7 +77,10 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
         const data = await triageService.getAssessment(visit.visitId)
         setRealAssessment(data)
       } catch (err) {
-        console.log('No real assessment found for visit in database, using local/mock history data')
+        // No per-assessment record for this visit (e.g. older visits missing
+        // backend coverage) — fall back to the summary already loaded from
+        // getPatientAssessments() above, not fabricated data.
+        console.log('No detailed assessment found for this visit; showing summary data from the visit history list.')
       } finally {
         setLoading(false)
       }

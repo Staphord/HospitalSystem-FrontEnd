@@ -19,13 +19,14 @@ interface RecentTransaction {
   timestamp: string
 }
 
-export function CashierDashboard() {
-  const [todayRevenue] = useState(0)
-  const [transactionCount] = useState(0)
-  const [pendingBillsCount] = useState(0)
-  const [insurancePendingCount] = useState(0)
-  const [insurancePendingValue] = useState(0)
+// Today's revenue, transaction history, and insurance-claim totals need a
+// payments-listing endpoint and payment-type tracking on Bill that the
+// backend doesn't have yet (billing-service only exposes bill CRUD and
+// record-payment, not a list of recorded payments). Rendered as "—" below
+// rather than a fake zero, which would misleadingly read as real data.
+const NOT_YET_AVAILABLE = '—'
 
+export function CashierDashboard() {
   const [pendingBills, setPendingBills] = useState<PendingBill[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -51,10 +52,6 @@ export function CashierDashboard() {
 
   const [revenueBreakdown] = useState<Array<{ method: string; amount: number; percentage: number; bg: string }>>([])
 
-  const formatRevenueK = (val: number) => {
-    return `TZS ${Math.round(val / 1000).toLocaleString()}k`
-  }
-
   return (
     <div className="max-w-container-max mx-auto grid grid-cols-1 lg:grid-cols-12 gap-lg">
       {/* Hidden container for accessibility metadata */}
@@ -72,7 +69,7 @@ export function CashierDashboard() {
               Revenue Today
             </span>
             <span className="font-headline-md text-headline-md font-bold text-[#1a1b21]">
-              {formatRevenueK(todayRevenue)}
+              {NOT_YET_AVAILABLE}
             </span>
           </div>
 
@@ -81,7 +78,7 @@ export function CashierDashboard() {
               Transactions
             </span>
             <span className="font-headline-md text-headline-md font-bold text-[#1a1b21]">
-              {transactionCount}
+              {NOT_YET_AVAILABLE}
             </span>
           </div>
 
@@ -98,7 +95,7 @@ export function CashierDashboard() {
               Pending Bills
             </span>
             <span className="font-headline-md text-headline-md font-bold text-[#ffab00] relative z-10">
-              {pendingBillsCount}
+              {pendingBills.length}
             </span>
           </div>
 
@@ -107,7 +104,7 @@ export function CashierDashboard() {
               Insurance Claims
             </span>
             <span className="font-headline-md text-headline-md font-bold text-[#1a1b21]">
-              {insurancePendingCount}
+              {NOT_YET_AVAILABLE}
             </span>
           </div>
         </div>
@@ -235,7 +232,7 @@ export function CashierDashboard() {
           </div>
           <div className="flex items-baseline gap-xs">
             <span className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-[#36b37e]">
-              {formatTzs(todayRevenue)}
+              {NOT_YET_AVAILABLE}
             </span>
           </div>
           <div className="flex flex-col gap-sm mt-sm">
@@ -270,14 +267,14 @@ export function CashierDashboard() {
           <div className="flex items-center justify-between mt-sm">
             <div className="flex items-center gap-md">
               <span className="text-4xl font-semibold text-[#0052cc] leading-none">
-                {insurancePendingCount}
+                {NOT_YET_AVAILABLE}
               </span>
               <div className="flex flex-col">
                 <span className="font-label-sm text-[10px] text-[#42526e] uppercase tracking-wider">
                   Estimated Value
                 </span>
                 <span className="font-body-md text-body-md font-semibold text-[#1a1b21]">
-                  {formatTzs(insurancePendingValue)}
+                  {NOT_YET_AVAILABLE}
                 </span>
               </div>
             </div>
