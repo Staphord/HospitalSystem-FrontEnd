@@ -292,8 +292,9 @@ export function NotificationsPage() {
                       <button
                         type="button"
                         onClick={() => handleMarkItemRead(item.notification_id)}
-                        className="px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-semibold text-secondary hover:bg-surface-variant transition-colors bg-surface-white cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors border-0 cursor-pointer flex items-center gap-xs"
                       >
+                        <span className="material-symbols-outlined text-[16px]">done</span>
                         Mark Read
                       </button>
                     )}
