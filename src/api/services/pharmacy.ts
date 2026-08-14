@@ -285,4 +285,22 @@ export const pharmacyService = {
     const res = await apiClient.post<InventoryItem>('/pharmacy/inventory', data)
     return res.data
   },
+
+  updateInventoryItem: async (
+    inventory_id: string,
+    data: {
+      drug_name?: string
+      brand_name?: string
+      drug_code?: string
+      category?: string
+      unit?: string
+      reorder_level?: number
+      unit_cost?: number
+      unit_price?: number
+      location?: string
+    }
+  ): Promise<InventoryItem> => {
+    const res = await apiClient.patch<InventoryItem>(`/pharmacy/inventory/${inventory_id}`, data)
+    return res.data
+  },
 }

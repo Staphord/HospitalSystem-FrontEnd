@@ -432,7 +432,7 @@ const DashboardMockup: React.FC<{ activeSlide: number }> = ({ activeSlide }) => 
       <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-2 shrink-0">
         <div className="flex items-center gap-1.5 font-bold text-primary">
           <span className="material-symbols-outlined text-[12px]">local_hospital</span>
-          <span>Muhimbili Portal</span>
+          <span>Hospital System</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-20 h-3 bg-slate-200 rounded-full shrink-0" />

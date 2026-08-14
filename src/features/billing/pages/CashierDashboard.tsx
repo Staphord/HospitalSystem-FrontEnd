@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatTzs } from '../data/mockPayments'
+import { billingService } from '@/api/services/billing'
 
 interface PendingBill {
   id: string
@@ -19,72 +20,36 @@ interface RecentTransaction {
 }
 
 export function CashierDashboard() {
-  const [statsData] = useState(() => {
-    return JSON.parse(localStorage.getItem('hf_mock_cashier_stats') || '{}')
-  })
+  const [todayRevenue] = useState(0)
+  const [transactionCount] = useState(0)
+  const [pendingBillsCount] = useState(0)
+  const [insurancePendingCount] = useState(0)
+  const [insurancePendingValue] = useState(0)
 
-  const todayRevenue = statsData.todayRevenue || 1240000
-  const transactionCount = statsData.transactionCount || 28
-  const pendingBillsCount = statsData.pendingBillsCount || 5
-  const insurancePendingCount = statsData.insurancePendingCount || 3
-  const insurancePendingValue = statsData.insurancePendingValue || 185000
+  const [pendingBills, setPendingBills] = useState<PendingBill[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [pendingBills] = useState<PendingBill[]>(() => {
-    const allPayments = JSON.parse(localStorage.getItem('hf_mock_payment_rows') || '[]')
-    const pending = allPayments.filter((p: any) => p.status !== 'Paid')
-    
-    const defaultPending: PendingBill[] = [
-      { id: 'INV-2023-0891', patientName: 'Juma Kassim', patientNo: 'PT-4889', amount: 45000, status: 'Pending' },
-      { id: 'INV-2023-0892', patientName: 'Aisha Omary', patientNo: 'PT-4890', amount: 120000, status: 'Pending' },
-      { id: 'INV-2023-0893', patientName: 'Musa John', patientNo: 'PT-4891', amount: 1500, status: 'Pending' },
-      { id: 'INV-2023-0894', patientName: 'Fatuma Said', patientNo: 'PT-4892', amount: 85000, status: 'Pending' }
-    ]
+  useEffect(() => {
+    billingService.listPendingBills()
+      .then((bills) => {
+        if (bills) {
+          const mapped = bills.map((b) => ({
+            id: b.bill_id,
+            patientName: b.patient_name || `Patient (${b.patient_id.slice(0, 8)})`,
+            patientNo: b.patient_number || `PT-${b.patient_id.slice(0, 6).toUpperCase()}`,
+            amount: Number(b.total_amount),
+            status: b.status === 'open' ? 'Pending' : b.status,
+          }))
+          setPendingBills(mapped)
+        }
+      })
+      .catch((err) => console.error('Failed to load pending bills in CashierDashboard:', err))
+      .finally(() => setLoading(false))
+  }, [])
 
-    return pending.length > 0 
-      ? pending.slice(0, 4).map((p: any) => ({
-          id: p.id,
-          patientName: p.patientName,
-          patientNo: p.patientNumber || p.patientNo || 'PT-4889',
-          amount: p.totalBill - p.paid,
-          status: p.status
-        }))
-      : defaultPending
-  })
+  const [transactions] = useState<RecentTransaction[]>([])
 
-  const [transactions] = useState<RecentTransaction[]>(() => {
-    const list = JSON.parse(localStorage.getItem('hf_mock_daily_transactions') || '[]')
-    
-    const defaultTx: RecentTransaction[] = [
-      { id: 'tx1', patientName: 'Mariam Ali', amount: 25000, method: 'Cash', timestamp: '10:42 AM' },
-      { id: 'tx2', patientName: 'NHIF Claim #892', amount: 150000, method: 'Insurance', timestamp: '10:15 AM' },
-      { id: 'tx3', patientName: 'Peter Simon', amount: 60000, method: 'Mobile Money', timestamp: '09:58 AM' },
-      { id: 'tx4', patientName: 'Grace Kimaro', amount: 8500, method: 'Cash', timestamp: '09:12 AM' }
-    ]
-
-    return list.length > 0
-      ? list.slice(0, 4).map((t: any) => ({
-          id: t.id,
-          patientName: t.patientName,
-          amount: t.amount,
-          method: t.method,
-          timestamp: t.time || t.timestamp
-        }))
-      : defaultTx
-  })
-
-  const [revenueBreakdown] = useState(() => {
-    const breakdown = statsData.revenueBreakdown || [
-      { method: 'Cash', amount: 340000, percentage: 27 },
-      { method: 'Insurance', amount: 550000, percentage: 44 },
-      { method: 'Mobile Money', amount: 350000, percentage: 29 }
-    ]
-    return breakdown.map((item: any) => {
-      let bg = 'bg-[#0052cc]'
-      if (item.method === 'Mobile Money') bg = 'bg-[#00b8d9]'
-      if (item.method === 'Insurance') bg = 'bg-[#004b59]'
-      return { ...item, bg }
-    })
-  })
+  const [revenueBreakdown] = useState<Array<{ method: string; amount: number; percentage: number; bg: string }>>([])
 
   const formatRevenueK = (val: number) => {
     return `TZS ${Math.round(val / 1000).toLocaleString()}k`
@@ -176,7 +141,7 @@ export function CashierDashboard() {
                       {b.patientName}
                     </span>
                     <span className="font-label-sm text-label-sm text-[#42526e]">
-                      {b.id}
+                      {b.patientNo}
                     </span>
                   </div>
                   <div className="flex items-center gap-md">
