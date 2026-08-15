@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatRoleLabel } from '@/lib/roles';
 
 const PAGE_SIZE = 10;
 
@@ -273,7 +274,7 @@ export const UserManagementPage: React.FC = () => {
 
                     {/* Role & Dept column */}
                     <td className="p-4">
-                      <p className="font-body-sm text-body-sm text-on-surface capitalize">{staff.role}</p>
+                      <p className="font-body-sm text-body-sm text-on-surface">{formatRoleLabel(staff.role)}</p>
                       <p className="font-body-sm text-body-sm text-secondary">{staff.landingDepartment}</p>
                     </td>
 

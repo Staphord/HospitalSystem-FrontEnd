@@ -11,7 +11,7 @@ import { LabDashboardContent } from '@/features/laboratory/components/LabDashboa
 import { PharmacyDashboardContent } from '@/features/pharmacy/components/PharmacyDashboardContent'
 import { RadiologyDashboardContent } from '@/features/radiology/components/RadiologyDashboardContent'
 import { DepartmentGuard } from '@/components/auth/DepartmentGuard'
-import { ROLES, hasEffectiveRole } from '@/lib/roles'
+import { ROLES, hasEffectiveRole, formatRoleLabel } from '@/lib/roles'
 import { formatShortDateTime } from '@/lib/localization'
 import { useNavigate } from 'react-router-dom'
 import { receptionService } from '@/api/services/reception'
@@ -362,7 +362,7 @@ function AdminDashboardContent({ hospitalName, hospitalLogo }: { hospitalName: s
                   </p>
                 </div>
                 <span className="px-2 py-[2px] bg-row-hover text-primary font-label-sm rounded-full text-[10px] uppercase font-bold shrink-0">
-                  {session.staffRole}
+                  {formatRoleLabel(session.staffRole)}
                 </span>
               </div>
             ))}

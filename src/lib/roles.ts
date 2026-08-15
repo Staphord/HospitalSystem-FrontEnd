@@ -20,6 +20,16 @@ export function normalizeRole(role: string): string {
   return role.toLowerCase().trim().replace(/[\s-]+/g, '_')
 }
 
+/** Format a role slug for display (e.g. "hospital_admin" → "Hospital Admin"). */
+export function formatRoleLabel(role: string): string {
+  return role
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export function collectUserRoles(roles: string[], userRole?: string | null): string[] {
   const merged = new Set<string>()
   for (const role of roles) {

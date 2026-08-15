@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatRoleLabel } from '@/lib/roles';
 
 // Renders the active session monitor with bento metrics, table, chart, and security panel
 export const ActiveSessionsPage: React.FC = () => {
@@ -216,7 +217,7 @@ export const ActiveSessionsPage: React.FC = () => {
                           ? 'bg-success/10 text-success'
                           : 'bg-warning/10 text-warning'
                       }`}>
-                        {session.staffRole}
+                        {formatRoleLabel(session.staffRole)}
                       </span>
                     </td>
 

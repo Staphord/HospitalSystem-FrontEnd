@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { AuditLogRow, HospitalUser } from '@/api/types/admin';
+import { formatRoleLabel } from '@/lib/roles';
 
 const PAGE_SIZE = 25;
 
@@ -277,7 +278,7 @@ export const AuditLogsPage: React.FC = () => {
                           <div className="flex items-center gap-sm">
                             <span className="font-semibold text-on-surface">{log.staffName}</span>
                             <span className="px-1.5 py-0.5 bg-surface-container text-secondary text-[10px] font-bold rounded">
-                              {log.staffRole}
+                              {formatRoleLabel(log.staffRole)}
                             </span>
                           </div>
                         </td>

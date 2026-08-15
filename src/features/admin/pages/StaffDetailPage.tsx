@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { StaffActivityLog, StaffLoginLog } from '@/api/types/admin';
 import { useApp } from '../context/AppContext';
+import { formatRoleLabel } from '@/lib/roles';
 
 const generateTempPassword = (): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
@@ -150,8 +151,8 @@ export function StaffDetailPage() {
           <div>
             <h2 className="font-headline-md text-headline-md text-on-surface mb-xs font-bold">{staff.name}</h2>
             <div className="flex items-center gap-sm">
-              <span className="bg-primary-container text-on-primary-container font-label-md text-label-md px-sm py-xs rounded-full capitalize">
-                {staff.role}
+              <span className="bg-primary-container text-on-primary-container font-label-md text-label-md px-sm py-xs rounded-full">
+                {formatRoleLabel(staff.role)}
               </span>
               <span className={`font-label-md text-label-md px-sm py-xs rounded-full ${
                 staff.status === 'active' ? 'bg-success/20 text-success' : 'bg-surface-dim text-secondary'
@@ -271,7 +272,7 @@ export function StaffDetailPage() {
             </div>
             <div>
               <label className="block font-label-md text-label-md text-outline uppercase mb-xs">Role</label>
-              <div className="font-body-md text-body-md text-on-surface capitalize">{staff.role}</div>
+              <div className="font-body-md text-body-md text-on-surface">{formatRoleLabel(staff.role)}</div>
             </div>
             <div>
               <label className="block font-label-md text-label-md text-outline uppercase mb-xs">Primary Department</label>

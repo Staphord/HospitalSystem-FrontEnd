@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatRoleLabel } from '@/lib/roles';
 
 interface StaffActivityRow {
   initials: string;
@@ -310,7 +311,7 @@ export const OperationalReportsPage: React.FC = () => {
                       </div>
                       <span className="text-body-sm font-semibold text-primary">{row.name}</span>
                     </td>
-                    <td className="px-6 py-4 text-body-sm text-secondary">{row.role}</td>
+                    <td className="px-6 py-4 text-body-sm text-secondary">{formatRoleLabel(row.role)}</td>
                     <td className="px-6 py-4 text-body-sm text-center text-on-surface">{row.actionsPerformed}</td>
                     <td className="px-6 py-4 text-body-sm text-center text-on-surface">{row.patientsHandled}</td>
                     <td className="px-6 py-4 text-body-sm text-right font-medium text-on-surface">
