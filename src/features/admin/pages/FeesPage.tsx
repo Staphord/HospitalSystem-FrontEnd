@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { toast } from 'sonner';
 import { adminService } from '@/api/services/admin';
 import type { FeeItem } from '@/api/types/admin';
-import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
-import { AdminModal, AdminModalButton, AdminModalFooter } from '@/components/ui/AdminModal';
-
-const FEE_CATEGORIES = ['Consultation', 'Lab', 'Radiology', 'Pharmacy', 'Procedure', 'Ward', 'Other'];
 
 const CATEGORIES = ['Consultation', 'Lab', 'Radiology', 'Pharmacy', 'Procedure', 'Ward'];
 const CURRENCIES = ['TZS', 'USD', 'EUR'];

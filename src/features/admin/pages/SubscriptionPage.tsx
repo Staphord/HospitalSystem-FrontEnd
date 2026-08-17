@@ -75,7 +75,7 @@ export const SubscriptionPage: React.FC = () => {
       toast.error('Failed to load subscription details.');
       setLoading(false);
     }
-  }, [tenantId]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
