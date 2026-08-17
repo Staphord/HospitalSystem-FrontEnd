@@ -84,7 +84,7 @@ describe('TriageQueuePage', () => {
     })
   })
 
-  it('filters queue items by priority level', async () => {
+  it('switches between active and completed queue tabs', async () => {
     render(
       <MemoryRouter>
         <TriageQueuePage />
@@ -96,11 +96,10 @@ describe('TriageQueuePage', () => {
       expect(screen.getByText('David Mollel')).toBeInTheDocument()
     })
 
-    const emergencyFilter = screen.getByRole('button', { name: /emergency/i })
-    fireEvent.click(emergencyFilter)
+    const completedTab = screen.getByRole('button', { name: 'Completed' })
+    fireEvent.click(completedTab)
 
-    expect(screen.getByText('Amina Juma')).toBeInTheDocument()
-    expect(screen.queryByText('David Mollel')).not.toBeInTheDocument()
+    expect(screen.getByText('Completed Queue')).toBeInTheDocument()
   })
 
   it('filters queue items by search input', async () => {

@@ -367,7 +367,7 @@ export function IncidentsPage() {
                                   </td>
                                 </tr>
                               )}
-                            </>
+                              </React.Fragment>
                           )
                         })}
                       </tbody>

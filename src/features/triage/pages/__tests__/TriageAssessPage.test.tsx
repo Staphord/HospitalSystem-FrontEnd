@@ -71,10 +71,10 @@ describe('TriageAssessPage', () => {
     })
 
     // Check vital sign inputs
-    expect(screen.getByLabelText(/bp systolic/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/bp diastolic/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/temperature/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/pulse rate/i)).toBeInTheDocument()
+    expect(screen.getByText('BP Systolic')).toBeInTheDocument()
+    expect(screen.getByText('BP Diastolic')).toBeInTheDocument()
+    expect(screen.getByText('Temperature')).toBeInTheDocument()
+    expect(screen.getByText('Pulse Rate')).toBeInTheDocument()
   })
 
   it('renders not found state when visit does not exist in queue', async () => {

@@ -10,15 +10,31 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }))
 
+// Mock useDepartmentStatus
+vi.mock('@/hooks/useDepartmentStatus', () => ({
+  useDepartmentStatus: () => ({
+    getDepartmentStatus: () => ({ isInactive: false, isUnavailable: false, isPending: false, deptName: '' }),
+  }),
+}))
+
 // Mock useApp
 vi.mock('@/features/admin/context/AppContext', () => ({
   useApp: () => ({
     stats: {
+      totalStaff: 50,
+      onlineNow: 12,
+      departmentsActive: 8,
+      bedsOccupied: 30,
+      totalBeds: 100,
       todayPatients: 42,
       activeEncounters: 12,
       pendingLabResults: 5,
       lowStockAlerts: 2,
     },
+    alerts: [],
+    departments: [],
+    sessions: [],
+    setActiveView: vi.fn(),
   }),
 }))
 
@@ -26,7 +42,10 @@ vi.mock('@/features/admin/context/AppContext', () => ({
 vi.mock('@/api/services/reception', () => ({
   receptionService: {
     getQueue: vi.fn().mockResolvedValue({ queue: [], total: 0 }),
-    getPatient: vi.fn(),
+    getTriageQueueToday: vi.fn().mockResolvedValue([]),
+    getTriageQueue: vi.fn().mockResolvedValue([]),
+    searchPatients: vi.fn().mockResolvedValue({ patients: [], total: 0 }),
+    getPatient: vi.fn().mockResolvedValue(null),
   },
 }))
 
@@ -48,7 +67,7 @@ describe('DashboardPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/dashboard/i)).toBeInTheDocument()
+      expect(screen.getByText(/All Systems Operational/i)).toBeInTheDocument()
     })
   })
 
@@ -65,7 +84,7 @@ describe('DashboardPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/today's registrations/i)).toBeInTheDocument()
+      expect(screen.getByText(/Patients Today/i)).toBeInTheDocument()
     })
   })
 })

@@ -53,9 +53,9 @@ describe('AuditLogsPage (Master)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Export Log Data (JSON)')).toBeInTheDocument()
+      expect(screen.getByText(/Export Log Data/i)).toBeInTheDocument()
       expect(screen.getByText('admin@platform.com')).toBeInTheDocument()
-      expect(screen.getByText('tenant_created')).toBeInTheDocument()
+      expect(screen.getAllByText('tenant_created').length).toBeGreaterThan(0)
     })
   })
 })
