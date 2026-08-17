@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { masterService } from '@/api/services/master'
 import type { Tenant } from '@/api/types/master'
-import { TerminateTenantModal } from '../TerminateTenantModal'
+import { TerminateTenantModal } from '../../components/TerminateTenantModal'
 
 // Mock toast notifications
 vi.mock('sonner', () => ({

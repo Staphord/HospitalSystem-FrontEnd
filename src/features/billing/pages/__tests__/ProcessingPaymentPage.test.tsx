@@ -11,9 +11,25 @@ vi.mock('sonner', () => ({
   },
 }))
 
+const mockPaymentRow = [
+  {
+    id: 'b1',
+    patientName: 'Hassan Mwita',
+    patientNumber: 'PT-4889',
+    visitDate: '2026-08-15',
+    paymentMethod: 'Insurance',
+    insurer: 'Jubilee Insurance',
+    paid: 0,
+    lineItems: [
+      { label: 'General Consultation', amount: 50000 },
+    ],
+  },
+]
+
 describe('ProcessingPaymentPage', () => {
   beforeEach(() => {
     localStorage.clear()
+    localStorage.setItem('hf_mock_payment_rows', JSON.stringify(mockPaymentRow))
     vi.clearAllMocks()
   })
 

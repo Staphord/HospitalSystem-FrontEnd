@@ -16,12 +16,14 @@ export const ROLES = {
 export type Role = (typeof ROLES)[keyof typeof ROLES]
 
 /** Normalize role strings from JWT or /me (e.g. "Lab Technician" → "lab_technician"). */
-export function normalizeRole(role: string): string {
+export function normalizeRole(role?: string | null): string {
+  if (!role || typeof role !== 'string') return ''
   return role.toLowerCase().trim().replace(/[\s-]+/g, '_')
 }
 
 /** Format a role slug for display (e.g. "hospital_admin" → "Hospital Admin"). */
-export function formatRoleLabel(role: string): string {
+export function formatRoleLabel(role?: string | null): string {
+  if (!role || typeof role !== 'string') return ''
   return role
     .trim()
     .split(/[\s_-]+/)

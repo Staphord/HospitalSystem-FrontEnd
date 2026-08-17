@@ -3,6 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { DailySummaryPage } from '../DailySummaryPage'
 
+import { billingService } from '@/api/services/billing'
+
+vi.mock('@/api/services/billing', () => ({
+  billingService: {
+    listAllBills: vi.fn().mockResolvedValue([]),
+  },
+}))
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -16,9 +24,10 @@ describe('DailySummaryPage', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
+    vi.mocked(billingService.listAllBills).mockResolvedValue([])
   })
 
-  it('renders the open daily summary shell', () => {
+  it('renders the daily summary overview cards and export actions', () => {
     render(
       <MemoryRouter>
         <DailySummaryPage />
@@ -26,26 +35,10 @@ describe('DailySummaryPage', () => {
     )
 
     expect(screen.getByText('Daily Summary')).toBeInTheDocument()
-    expect(screen.getByText('Today — 09 June 2026')).toBeInTheDocument()
-    expect(screen.getByText('Total Revenue')).toBeInTheDocument()
-    expect(screen.getByText('Cash Reconciliation')).toBeInTheDocument()
-    expect(screen.getByText('All Transactions Today')).toBeInTheDocument()
-    expect(screen.getByText('Amani Khatibu')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /submit end-of-day report/i })).toBeInTheDocument()
-  })
-
-  it('switches to the submitted report state after submission', () => {
-    render(
-      <MemoryRouter>
-        <DailySummaryPage />
-      </MemoryRouter>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /submit end-of-day report/i }))
-
-    expect(screen.getByText(/Report submitted — 17:32/i)).toBeInTheDocument()
-    expect(screen.getByText('Finalized')).toBeInTheDocument()
-    expect(screen.getByText('Reconciliation Locked')).toBeInTheDocument()
-    expect(screen.getByText('End-of-Day Ledger')).toBeInTheDocument()
+    expect(screen.getByText('Total Collected')).toBeInTheDocument()
+    expect(screen.getByText('Pending Claims')).toBeInTheDocument()
+    expect(screen.getByText('Patient Visits')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /print report/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /export pdf/i })).toBeInTheDocument()
   })
 })
