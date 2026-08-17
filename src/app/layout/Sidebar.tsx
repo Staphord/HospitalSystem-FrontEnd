@@ -911,14 +911,14 @@ export function Sidebar() {
         {/* Footer Profile */}
         <div className="mt-auto border-t border-[#dfe1e6] pt-md px-sm">
           <div className="flex items-center gap-sm px-sm mb-md">
-            <img
-              alt={displayName}
-              className="w-10 h-10 rounded-full border border-[#dfe1e6] object-cover shrink-0"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAq75rl7MHbg2uq-uWkoM3CmaFMmSp6LOgstvvApSyNb4RcORaQjngjcEl_HAA0W24-aV_P0oYcK8INNRqOe7d4CE3ZX3lCw6wHyg6TtMzB9Q3a2N4-EIMhEj8oSDQF-mH2xOjgZfHXfME6nRRRESXJhA5fT7ipkSdSkzEgz6AUGvTKmfVzjuQd3K_IcRrW0Sjdn-p0FubsBjns6gD87jjFC_Xp-v1c9mWWrnwVcfQhYgDNmToQrRs"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
+            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary font-bold text-xs shrink-0 border border-border-subtle">
+              {displayName
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()}
+            </div>
             <div className="overflow-hidden">
               <p className="font-body-md text-[14px] font-semibold truncate text-[#1a1b21] m-0">
                 {displayName}

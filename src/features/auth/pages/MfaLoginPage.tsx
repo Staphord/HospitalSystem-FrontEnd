@@ -133,7 +133,7 @@ export function MfaLoginPage() {
 
       sessionStorage.removeItem(CHALLENGE_STORAGE_KEY)
 
-      setTokens(tokens.access_token, tokens.refresh_token)
+      setTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in, tokens.refresh_expires_in)
 
       const user = await usersService.getMe()
       setUser(user)

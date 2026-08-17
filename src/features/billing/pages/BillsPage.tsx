@@ -917,17 +917,19 @@ function PaymentStatusTab() {
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('All')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('All')
+  const [dateFilter, setDateFilter] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Filter rows based on search, status, and payment method
+  // Filter rows based on search, status, payment method, and date
   const filteredRows = rows.filter((row) => {
     const matchesStatus = statusFilter === 'All' ? true : row.status === statusFilter
     const matchesMethod = paymentMethodFilter === 'All' ? true : row.paymentMethod === paymentMethodFilter
+    const matchesDate = !dateFilter ? true : row.visitDate === dateFilter
     const matchesSearch = searchQuery === '' ? true :
       row.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       row.patientNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       row.id.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesStatus && matchesMethod && matchesSearch
+    return matchesStatus && matchesMethod && matchesDate && matchesSearch
   })
 
   // Calculate dynamic KPI metrics
@@ -1065,10 +1067,14 @@ function PaymentStatusTab() {
               calendar_today
             </span>
             <input
-              className="w-full h-full pl-10 pr-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none"
-              type="text"
-              readOnly
-              value="08 Jun - 09 Jun 2026"
+              className="w-full h-full pl-10 pr-4 bg-white border border-[#dfe1e6] rounded-lg text-sm text-[#42526e] focus:ring-1 focus:ring-[#0052cc] focus:border-[#0052cc] outline-none cursor-pointer"
+              type="date"
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              title="Filter by date (leave blank for all dates)"
             />
           </div>
         </div>

@@ -82,7 +82,7 @@ export function HospitalLoginPage() {
       localStorage.removeItem('login_failed_attempts')
       setFailedAttempts(0)
 
-      setTokens(tokens.access_token, tokens.refresh_token)
+      setTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in, tokens.refresh_expires_in)
 
       let user
       try {

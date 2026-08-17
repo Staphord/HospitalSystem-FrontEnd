@@ -8,10 +8,7 @@ import { authService } from '@/api/services/auth'
 import { refreshAuthToken } from '@/api/client'
 
 // Refresh the token pair once the refresh token is within this long of expiring.
-const PROACTIVE_REFRESH_BUFFER_MS = 2 * 60 * 1000
-// Grace window added on top of the idle-timeout window: only proactively refresh
-// while the user is genuinely active, never for a session that's already idle —
-// that would silently defeat the idle-timeout policy below.
+const PROACTIVE_REFRESH_BUFFER_MS = 60 * 1000
 const IDLE_GRACE_MS = 60 * 1000
 
 export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
@@ -21,29 +18,25 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
   const [showModal, setShowModal] = useState(false)
   const [countdown, setCountdown] = useState(60)
 
-  // Ref mirrors showModal so interval/event-handler closures always see the
-  // latest value without pulling showModal into useEffect dependency arrays.
   const showModalRef = useRef(false)
   const timerRef = useRef<any>(null)
   const countdownRef = useRef<any>(null)
 
-  // Sync ref on every state change
   useEffect(() => {
     showModalRef.current = showModal
   }, [showModal])
 
-  // Configurations (Default: 14 mins warning, 15 mins total. Test mode: 10s warning, 15s total)
   const getDurations = () => {
     const isTest = localStorage.getItem('test_session_timeout') === 'true'
     if (isTest) {
       return {
-        warningMs: 10000, // 10 seconds
-        totalMs: 15000    // 15 seconds
+        warningMs: 10000,
+        totalMs: 15000
       }
     }
     return {
-      warningMs: 14 * 60 * 1000, // 14 minutes
-      totalMs: 15 * 60 * 1000    // 15 minutes
+      warningMs: 14 * 60 * 1000,
+      totalMs: 15 * 60 * 1000
     }
   }
 
@@ -57,7 +50,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn('Inactivity logout API failed:', err)
     } finally {
-      clearAuth()
+      clearAuth('idle_timeout')
       localStorage.removeItem('hf_last_activity')
       toast.error('Session expired due to inactivity.')
       navigate('/login')
@@ -76,9 +69,6 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     const { warningMs, totalMs } = getDurations()
     const timeElapsed = now - lastActivity
 
-    // Session has exceeded its maximum idle lifetime.
-    // Show the warning modal so the user always gets at least one visible
-    // frame before logout — never call handleTimeout() silently.
     if (timeElapsed >= totalMs) {
       if (!showModalRef.current) {
         setShowModal(true)
@@ -111,7 +101,6 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }, remainingMs)
   }, [handleTimeout])
 
-  // Handle countdown when modal is visible
   useEffect(() => {
     if (!showModal) {
       if (countdownRef.current) clearInterval(countdownRef.current)
@@ -141,11 +130,19 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     setShowModal(false)
     showModalRef.current = false
     resetTimer(true)
-    // Actually rotate the token pair, not just the local idle marker — otherwise
-    // the refresh token's own absolute expiry keeps ticking down regardless of
-    // how many times the user clicks "keep me signed in".
-    await refreshAuthToken()
-    toast.success('Session extended.')
+    
+    const result = await refreshAuthToken()
+    if (result.status === 'success') {
+      toast.success('Session extended.')
+    } else if (result.status === 'network_failure') {
+      toast.warning('Network connection issue. Session will retry automatically when connection restores.')
+    } else if (result.status === 'server_failure') {
+      toast.warning('Authentication server temporary issue. Session will retry automatically.')
+    } else {
+      clearAuth('refresh_token_expired')
+      toast.error('Session could not be extended. Please sign in again.')
+      navigate('/login')
+    }
   }
 
   const handleLogout = async () => {
@@ -158,16 +155,12 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn('Logout API failed:', err)
     } finally {
-      clearAuth()
+      clearAuth('manual_logout')
       localStorage.removeItem('hf_last_activity')
       navigate('/login')
     }
   }
 
-  // Set up activity listeners and inactivity polling.
-  // showModal is intentionally excluded from deps — use showModalRef.current
-  // in callbacks so the effect is not torn down and rebuilt every time the
-  // modal opens or closes (which was causing resetTimer to fire on stale data).
   useEffect(() => {
     if (!isAuthenticated || isImpersonating) {
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -180,7 +173,6 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
 
     const handleActivity = () => {
-      // Use ref so we never read a stale showModal value
       if (showModalRef.current) return
       resetTimer(true)
     }
@@ -188,10 +180,8 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     const events = ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart']
     events.forEach((event) => window.addEventListener(event, handleActivity))
 
-    // Initial check without updating last-activity timestamp
     resetTimer(false)
 
-    // Periodic background check (handles tabs that have been inactive)
     const syncInterval = setInterval(() => {
       if (!showModalRef.current) {
         resetTimer(false)
@@ -205,7 +195,6 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, isImpersonating, resetTimer])
 
-  // Cross-tab activity synchronisation via storage events
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'hf_last_activity' && isAuthenticated) {
@@ -216,16 +205,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [isAuthenticated, resetTimer])
 
-  // Proactive token refresh: while the user is actively using the portal, keep
-  // the access/refresh token pair alive by rotating it shortly before the
-  // refresh token's own absolute expiry — instead of waiting for it to lapse
-  // and force an unannounced logout mid-session (the previous behaviour here
-  // called handleTimeout() directly the instant the refresh token expired,
-  // with no warning and no relation to actual user activity).
-  //
-  // Idle sessions are deliberately excluded so this can't bypass the
-  // idle-timeout policy above: a session that's already past the idle window
-  // is left to that flow (warning modal -> timeout), not silently kept alive.
+  // Proactive token refresh based on access token expiry
   useEffect(() => {
     if (!isAuthenticated || isImpersonating) return
 
@@ -234,12 +214,12 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
       const accessToken = state.accessToken
       if (!accessToken) return
 
-      const expiryMs = getTokenExpiryMs(accessToken)
-      if (expiryMs === null) return
+      const accessExpiry = state.accessTokenExpiresAt || getTokenExpiryMs(accessToken)
+      if (!accessExpiry) return
 
-      const msUntilExpiry = expiryMs - Date.now()
-      // Proactively refresh 60 seconds before access token expires (5 min lifetime)
-      if (msUntilExpiry <= 0 || msUntilExpiry > 60000) return
+      const msUntilExpiry = accessExpiry - Date.now()
+      // Refresh proactive window: 30-60 seconds before access token expires
+      if (msUntilExpiry <= 0 || msUntilExpiry > PROACTIVE_REFRESH_BUFFER_MS) return
 
       const lastActivity = parseInt(localStorage.getItem('hf_last_activity') || Date.now().toString(), 10)
       const { totalMs } = getDurations()

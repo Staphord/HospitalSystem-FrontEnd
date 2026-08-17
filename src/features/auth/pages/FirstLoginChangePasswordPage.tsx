@@ -92,7 +92,7 @@ export function FirstLoginChangePasswordPage() {
         new_password: password,
       })
 
-      setTokens(tokens.access_token, tokens.refresh_token)
+      setTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in, tokens.refresh_expires_in)
 
       let user
       try {

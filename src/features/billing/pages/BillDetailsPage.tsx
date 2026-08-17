@@ -44,29 +44,20 @@ export function BillDetailsPage() {
   const [addingItem, setAddingItem] = useState(false)
 
   const [bill, setBill] = useState<BillData>({
-    id: billId || 'pay4',
-    patientName: 'Hassan Mwita',
-    patientNo: 'PT-4889',
-    visitDate: '2026-06-11',
-    paymentMethod: 'Insurance',
-    insurer: 'Jubilee Insurance',
-    policyNo: 'JUB-441205',
-    paid: 20000,
-    status: 'Partial',
-    items: [
-      { id: 'i1', category: 'Consultation', label: 'Specialist consultation - Physician', qty: 1, unitPrice: 20000 },
-      { id: 'i2', category: 'Radiology', label: 'Chest X-Ray AP/LAT', qty: 1, unitPrice: 25000 },
-      { id: 'i3', category: 'Radiology', label: 'Abdominal Ultrasound', qty: 1, unitPrice: 15000 },
-      { id: 'i4', category: 'Laboratory', label: 'Full Blood Picture (FBP)', qty: 1, unitPrice: 12000 },
-      { id: 'i5', category: 'Laboratory', label: 'Malaria Rapid Test (mRDT)', qty: 1, unitPrice: 8000 },
-      { id: 'i6', category: 'Pharmacy', label: 'Artemether-Lumefantrine tabs', qty: 1, unitPrice: 10000 },
-      { id: 'i7', category: 'Pharmacy', label: 'Paracetamol 500mg tabs x20', qty: 1, unitPrice: 2000 },
-      { id: 'i8', category: 'Registration', label: 'Outpatient Registration Fee', qty: 1, unitPrice: 10000 },
-    ],
+    id: billId || '',
+    patientName: '',
+    patientNo: '',
+    visitDate: '',
+    paymentMethod: 'Cash',
+    insurer: null,
+    policyNo: null,
+    paid: 0,
+    status: 'Unpaid',
+    items: [],
   })
 
   useEffect(() => {
-    if (billId && !billId.startsWith('pay')) {
+    if (billId) {
       billingService.getBill(billId)
         .then((realBill) => {
           if (realBill) {

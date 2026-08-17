@@ -152,56 +152,12 @@ export interface LabelGenerateResponse {
 
 export const pharmacyService = {
   getQueue: async (status: string = 'waiting', date?: string): Promise<PharmacyQueueResponse> => {
-    // GET /pharmacy/queue only accepts a single required date, not a range or
-    // "all" — this crawls backward one day at a time to approximate "all
-    // waiting items" until the real fix (a backend endpoint that doesn't
-    // require a date, or accepts a date range) exists. Sequential rather
-    // than parallel to keep this predictable while that's unverified; stops
-    // after 10 consecutive empty days rather than always running MAX_DAYS.
-    if (!date && status === 'waiting') {
-      const today = new Date()
-      const seen = new Set<string>()
-      const merged: PharmacyQueueItem[] = []
-      let consecutiveEmpty = 0
-      const MAX_CONSECUTIVE_EMPTY = 10
-      const MAX_DAYS = 90
-
-      for (let i = 0; i < MAX_DAYS; i++) {
-        const d = new Date(today)
-        d.setDate(today.getDate() - i)
-        const dateStr = d.toISOString().split('T')[0]
-
-        try {
-          const res = await apiClient.get<PharmacyQueueResponse>('/pharmacy/queue', {
-            params: { status, date: dateStr },
-          })
-          const items = res.data.queue || []
-          if (items.length > 0) {
-            consecutiveEmpty = 0
-            for (const item of items) {
-              if (!seen.has(item.queue_id)) {
-                seen.add(item.queue_id)
-                merged.push(item)
-              }
-            }
-          } else {
-            consecutiveEmpty++
-            if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break
-          }
-        } catch {
-          consecutiveEmpty++
-          if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break
-        }
-      }
-
-      return { date: today.toISOString().split('T')[0], queue: merged }
-    }
-
     const res = await apiClient.get<PharmacyQueueResponse>('/pharmacy/queue', {
       params: { status, date },
     })
     return res.data
   },
+
 
   getPrescriptionDetails: async (visitId: string): Promise<VisitPrescriptionsResponse> => {
     const res = await apiClient.get<VisitPrescriptionsResponse>(`/pharmacy/prescriptions/${visitId}`)

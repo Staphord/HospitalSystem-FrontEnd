@@ -146,6 +146,43 @@ export interface BedOccupancyReportResponse {
   by_ward: Array<{ ward_name: string; total: number; available: number; occupied: number }>
 }
 
+export interface RevenueBreakdownItem {
+  department: string
+  cash_revenue: number
+  insurance_revenue: number
+  total: number
+  percentage: string
+  color_class: string
+}
+
+export interface RevenueReportResponse {
+  from: string
+  to: string
+  total_revenue: number
+  total_cash: number
+  total_insurance: number
+  breakdown: RevenueBreakdownItem[]
+}
+
+export interface StaffActivityRow {
+  user_id: string
+  initials: string
+  name: string
+  role: string
+  actions_performed: number
+  patients_handled: number
+  avg_response_time: string
+}
+
+export interface OperationalReportResponse {
+  from: string
+  to: string
+  avg_length_of_stay_days?: number
+  staff_activities: StaffActivityRow[]
+}
+
+
+
 
 interface BackendAuditLog {
   log_id: string
@@ -890,7 +927,7 @@ export const adminService = {
     }
   },
 
-  // Operational Reports (FR-57)
+  // Operational & Revenue Reports (FR-57)
   getPatientCensusReport: (from_date?: string, to_date?: string) =>
     apiClient
       .get<PatientCensusReportResponse>('/admin/reports/patient-census', {
@@ -916,6 +953,21 @@ export const adminService = {
     apiClient
       .get<BedOccupancyReportResponse>('/admin/reports/bed-occupancy')
       .then((r) => r.data),
+
+  getRevenueReport: (from_date?: string, to_date?: string) =>
+    apiClient
+      .get<RevenueReportResponse>('/admin/reports/revenue-summary', {
+        params: { from_date, to_date },
+      })
+      .then((r) => r.data),
+
+  getOperationalActivityReport: (from_date?: string, to_date?: string, department?: string) =>
+    apiClient
+      .get<OperationalReportResponse>('/admin/reports/operational-activity', {
+        params: { from_date, to_date, department },
+      })
+      .then((r) => r.data),
+
 
   // Sessions (FR-53) — proxied via api-gateway → admin-service (/admin/sessions)
   listActiveSessions: async (): Promise<ActiveSession[]> => {

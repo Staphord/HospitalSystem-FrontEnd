@@ -67,24 +67,15 @@ const VIEW_OPTIONS: Record<
   },
 }
 
-const BILL_FALLBACK: BillData = {
-  id: 'pay4',
-  patientName: 'Hassan Mwita',
-  patientNo: 'PT-4889',
-  visitDate: '2026-06-11',
-  paymentMethod: 'Insurance',
-  insurer: 'Jubilee Insurance',
-  paid: 20000,
-  items: [
-    { id: 'i1', category: 'Consultation', label: 'Specialist consultation - Physician', qty: 1, unitPrice: 20000 },
-    { id: 'i2', category: 'Radiology', label: 'Chest X-Ray AP/LAT', qty: 1, unitPrice: 25000 },
-    { id: 'i3', category: 'Radiology', label: 'Abdominal Ultrasound', qty: 1, unitPrice: 15000 },
-    { id: 'i4', category: 'Lab', label: 'Full Blood Picture (FBP)', qty: 1, unitPrice: 12000 },
-    { id: 'i5', category: 'Lab', label: 'Malaria Rapid Test (mRDT)', qty: 1, unitPrice: 8000 },
-    { id: 'i6', category: 'Medications', label: 'Artemether-Lumefantrine tabs', qty: 1, unitPrice: 10000 },
-    { id: 'i7', category: 'Medications', label: 'Paracetamol 500mg tabs x20', qty: 1, unitPrice: 2000 },
-    { id: 'i8', category: 'Registration', label: 'Outpatient Registration Fee', qty: 1, unitPrice: 10000 },
-  ],
+const EMPTY_BILL_DATA: BillData = {
+  id: '',
+  patientName: '',
+  patientNo: '',
+  visitDate: '',
+  paymentMethod: 'Cash',
+  insurer: null,
+  paid: 0,
+  items: [],
 }
 
 function getCategoryFromLabel(label: string): BillItem['category'] {
@@ -102,14 +93,14 @@ function mapBillFromStorage(billId?: string): BillData {
   const match = allPayments.find((p: any) => p.id === billId)
 
   if (!match) {
-    return BILL_FALLBACK
+    return { ...EMPTY_BILL_DATA, id: billId || '' }
   }
 
   return {
     id: match.id,
     patientName: match.patientName,
-    patientNo: match.patientNumber || match.patientNo || BILL_FALLBACK.patientNo,
-    visitDate: match.visitDate || BILL_FALLBACK.visitDate,
+    patientNo: match.patientNumber || match.patientNo || '',
+    visitDate: match.visitDate || '',
     paymentMethod: match.paymentMethod as BillData['paymentMethod'],
     insurer: match.insurer || null,
     paid: match.paid || 0,
@@ -120,7 +111,7 @@ function mapBillFromStorage(billId?: string): BillData {
         label: item.label,
         qty: 1,
         unitPrice: item.amount,
-      })) || BILL_FALLBACK.items,
+      })) || [],
   }
 }
 
@@ -146,7 +137,7 @@ export function ProcessingPaymentPage() {
   const [bill, setBill] = useState<BillData>(() => mapBillFromStorage(billId))
 
   useEffect(() => {
-    if (billId && !billId.startsWith('pay')) {
+    if (billId) {
       billingService.getBill(billId)
         .then((realBill) => {
           if (realBill) {

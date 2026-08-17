@@ -75,15 +75,14 @@ export function NotificationsPage() {
 
   const handleMarkItemRead = async (id: string) => {
     await markAsRead(id)
-    setItems((prev) =>
-      prev.map((item) => (item.notification_id === id ? { ...item, status: 'read' as const } : item))
-    )
+    await fetchItems()
   }
 
   const handleMarkAllRead = async () => {
     await markAllAsRead()
-    setItems((prev) => prev.map((item) => ({ ...item, status: 'read' as const })))
+    await fetchItems()
   }
+
 
   const handleSavePreferences = async (updated: Partial<NotificationPreference>) => {
     try {
@@ -159,9 +158,11 @@ export function NotificationsPage() {
         <div className="flex items-center gap-sm flex-wrap">
           {/* Search Bar */}
           <div className="relative flex-1 min-w-[220px]">
-            <span className="material-symbols-outlined absolute inset-y-0 left-0 flex items-center justify-center w-9 text-secondary text-[18px] pointer-events-none select-none z-10 leading-none">
-              search
-            </span>
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+              <span className="material-symbols-outlined text-secondary text-[18px] leading-none">
+                search
+              </span>
+            </div>
             <input
               type="text"
               value={searchQuery}
@@ -170,6 +171,8 @@ export function NotificationsPage() {
               className="w-full h-9 pl-9 pr-3 border border-border-subtle rounded-lg text-body-sm bg-surface-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline"
             />
           </div>
+
+
 
           {/* Status Filter Toggle */}
           <select
@@ -287,57 +290,83 @@ export function NotificationsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-xs self-end sm:self-center flex-shrink-0">
+                  <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0 mt-2 sm:mt-0">
                     {isUnread && (
                       <button
                         type="button"
                         onClick={() => handleMarkItemRead(item.notification_id)}
-                        className="px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors border-0 cursor-pointer flex items-center gap-xs"
+                        className="px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors border-0 cursor-pointer flex items-center gap-1.5 whitespace-nowrap min-w-[105px] justify-center shadow-xs"
                       >
                         <span className="material-symbols-outlined text-[16px]">done</span>
-                        Mark Read
+                        <span>Mark Read</span>
                       </button>
                     )}
 
-                    {item.action_url && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isUnread) handleMarkItemRead(item.notification_id)
-                          const isDoctor = (roles || []).some((r) => String(r).toLowerCase().includes('doctor')) || user?.role === 'doctor'
-                          const targetUrl = (isDoctor && (item.action_url!.startsWith('/laboratory') || item.action_url!.startsWith('/radiology')))
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isUnread) handleMarkItemRead(item.notification_id)
+                        const isDoctor = (roles || []).some((r) => String(r).toLowerCase().includes('doctor')) || user?.role === 'doctor'
+                        const targetUrl = item.action_url
+                          ? (isDoctor && (item.action_url.startsWith('/laboratory') || item.action_url.startsWith('/radiology')))
                             ? '/consultation/results'
-                            : item.action_url!
-                          navigate(targetUrl)
-                        }}
-                        className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-semibold hover:brightness-95 transition-all border-0 cursor-pointer flex items-center gap-xs"
-                      >
-                        View Details
-                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                      </button>
-                    )}
+                            : item.action_url
+                          : '/admin/audit-logs'
+                        navigate(targetUrl)
+                      }}
+                      className="px-4 py-2 rounded-lg bg-surface-container-high text-primary hover:bg-primary hover:text-white text-xs font-semibold border border-border-subtle transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap min-w-[115px] justify-center shadow-xs group"
+                    >
+                      <span className="text-primary group-hover:text-white font-semibold">View Details</span>
+                      <span className="material-symbols-outlined text-[16px] text-primary group-hover:text-white">arrow_forward</span>
+                    </button>
                   </div>
                 </div>
+
+
               )
             })}
           </div>
         )}
 
         {/* Footer Pagination */}
-        <div className="p-md bg-surface-bright flex flex-col sm:flex-row items-center justify-between border-t border-outline-variant gap-md">
-          <span className="font-body-sm text-body-sm text-secondary">
-            Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of{' '}
-            <strong>{total}</strong> entries
-          </span>
+        <div className="p-4 border-t border-border-subtle bg-surface-white flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <p className="font-body-sm text-body-sm text-secondary m-0">
+              Showing {total > 0 ? startIndex : 0} to {endIndex} of {total} entries
+            </p>
+            <div className="flex items-center gap-2">
+              <label htmlFor="pageSizeSelect" className="font-body-sm text-xs text-secondary whitespace-nowrap">
+                Per page:
+              </label>
+              <select
+                id="pageSizeSelect"
+                className="border border-border-subtle rounded text-xs px-2 py-1 bg-surface-white font-medium text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setPage(1)
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
 
-          <div className="flex items-center gap-xs">
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              className="px-sm py-xs border border-outline-variant rounded bg-surface-container-lowest text-outline font-body-sm flex items-center justify-center min-w-[32px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={`w-8 h-8 rounded flex items-center justify-center border transition-colors ${
+                page <= 1
+                  ? 'border-border-subtle text-outline cursor-not-allowed bg-surface-bright'
+                  : 'border-border-subtle text-secondary hover:bg-surface-container-low cursor-pointer'
+              }`}
+              aria-label="Previous Page"
             >
-              <span className="material-symbols-outlined text-[20px] leading-none">chevron_left</span>
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
 
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -345,15 +374,22 @@ export function NotificationsPage() {
               if (totalPages > 5 && page > 3) {
                 pageNum = Math.min(page - 2 + i, totalPages - 4 + i)
               }
+              const isCurrent = pageNum === page
               return (
                 <button
                   key={pageNum}
                   type="button"
-                  className={`px-sm py-xs border rounded font-body-sm font-medium cursor-pointer ${page === pageNum
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-outline-variant bg-surface-container-lowest text-secondary hover:bg-surface-container-low'
-                    }`}
                   onClick={() => setPage(pageNum)}
+                  style={
+                    isCurrent
+                      ? { backgroundColor: '#0052cc', color: '#ffffff', borderColor: '#0052cc' }
+                      : undefined
+                  }
+                  className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold transition-colors cursor-pointer border ${
+                    isCurrent
+                      ? 'shadow-xs'
+                      : 'border-border-subtle text-secondary hover:bg-surface-container-low bg-surface-white'
+                  }`}
                 >
                   {pageNum}
                 </button>
@@ -362,15 +398,21 @@ export function NotificationsPage() {
 
             <button
               type="button"
-              className="px-sm py-xs border border-outline-variant rounded bg-surface-container-lowest text-outline font-body-sm flex items-center justify-center min-w-[32px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
+              className={`w-8 h-8 rounded flex items-center justify-center border transition-colors ${
+                page >= totalPages
+                  ? 'border-border-subtle text-outline cursor-not-allowed bg-surface-bright'
+                  : 'border-border-subtle text-secondary hover:bg-surface-container-low cursor-pointer'
+              }`}
+              aria-label="Next Page"
             >
-              <span className="material-symbols-outlined text-[20px] leading-none">chevron_right</span>
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </button>
           </div>
         </div>
       </div>
+
 
       {/* Notification Preferences Modal */}
       {showPreferences && preferences && (

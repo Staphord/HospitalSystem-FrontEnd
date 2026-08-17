@@ -2124,35 +2124,101 @@ apiClient.defaults.adapter = async (config) => {
 }
 
 // Global response error interceptor for auth refresh
-let activeRefreshPromise: Promise<string | null> | null = null
+export type RefreshResultStatus =
+  | 'success'
+  | 'invalid_refresh_token'
+  | 'network_failure'
+  | 'server_failure'
+
+export interface RefreshResult {
+  status: RefreshResultStatus
+  accessToken?: string
+  message?: string
+}
+
+let activeRefreshPromise: Promise<RefreshResult> | null = null
+
+// Setup multi-tab broadcast channel for token refresh and logout events
+const authChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('hf_auth_sync_channel')
+  : null
+
+if (authChannel) {
+  authChannel.onmessage = (event) => {
+    const data = event.data
+    if (data?.type === 'REFRESH_SUCCESS' && data.accessToken && data.refreshToken) {
+      useAuthStore.getState().setTokens(
+        data.accessToken,
+        data.refreshToken,
+        data.expiresInSec,
+        data.refreshExpiresInSec,
+      )
+    } else if (data?.type === 'LOGOUT') {
+      useAuthStore.getState().clearAuth(data.reason || 'manual_logout')
+    }
+  }
+}
+
+export function broadcastAuthSync(type: 'REFRESH_SUCCESS' | 'LOGOUT', payload?: Record<string, any>) {
+  if (authChannel) {
+    try {
+      authChannel.postMessage({ type, ...payload })
+    } catch {
+      // Ignore broadcast errors
+    }
+  }
+}
 
 /**
- * Single-flight token refresh, shared by the reactive 401 interceptor below
- * and any proactive refresh (e.g. SessionTimeoutHandler's activity-based
- * refresh). Concurrent callers within the same tab all await the same
- * in-flight request instead of each hitting /auth/refresh independently —
- * two overlapping refreshes for the same refresh token race the backend,
- * and the loser gets "refresh token not found or revoked".
+ * Single-flight token refresh, shared by the reactive 401 interceptor
+ * and proactive background refresh. Concurrent callers across tabs/requests
+ * lock to a single-flight execution.
  */
-export async function refreshAuthToken(): Promise<string | null> {
+export async function refreshAuthToken(): Promise<RefreshResult> {
   if (activeRefreshPromise) {
     return activeRefreshPromise
   }
 
   const refreshToken = getStoredRefreshToken()
-  if (!refreshToken || !refreshToken.trim()) return null
+  if (!refreshToken || !refreshToken.trim()) {
+    return { status: 'invalid_refresh_token', message: 'No refresh token available' }
+  }
 
-  activeRefreshPromise = (async () => {
+  activeRefreshPromise = (async (): Promise<RefreshResult> => {
     try {
       const { data } = await axios.post<TokenResponse>(
         `${API_BASE_URL}/auth/refresh`,
         { refresh_token: refreshToken.trim() },
+        { headers: { 'Content-Type': 'application/json' } },
       )
-      useAuthStore.getState().setTokens(data.access_token, data.refresh_token)
-      return data.access_token
+
+      useAuthStore.getState().setTokens(
+        data.access_token,
+        data.refresh_token,
+        data.expires_in,
+        data.refresh_expires_in,
+      )
+
+      broadcastAuthSync('REFRESH_SUCCESS', {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresInSec: data.expires_in,
+        refreshExpiresInSec: data.refresh_expires_in,
+      })
+
+      return { status: 'success', accessToken: data.access_token }
     } catch (err: any) {
-      console.warn('[AUTH REFRESH] Failed to refresh access token:', err)
-      return null
+      const statusCode = err?.response?.status
+      if (statusCode === 401 || statusCode === 400) {
+        console.warn('[AUTH REFRESH] Invalid or expired refresh token:', err?.response?.data || err?.message)
+        return { status: 'invalid_refresh_token', message: err?.response?.data?.detail || 'Session expired' }
+      }
+      if (err?.code === 'ERR_NETWORK' || err?.message === 'Network Error' || !err?.response) {
+        console.warn('[AUTH REFRESH] Temporary network failure during token refresh:', err)
+        return { status: 'network_failure', message: 'Network connection unavailable' }
+      }
+      console.warn('[AUTH REFRESH] Server error during token refresh:', err)
+      return { status: 'server_failure', message: 'Authentication server temporarily unavailable' }
     } finally {
       activeRefreshPromise = null
     }
@@ -2171,12 +2237,16 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
+    // Prevent recursive refresh loops on the refresh endpoint itself
+    if (original?.url?.includes('/auth/refresh')) {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status !== 401 || original._retry) {
       return Promise.reject(error)
     }
 
-    // Impersonation tokens cannot be refreshed. Restore the original super-admin
-    // session from localStorage and redirect back to the master portal.
+    // Impersonation tokens cannot be refreshed. Restore original super-admin session.
     const { isImpersonating } = useAuthStore.getState()
     if (isImpersonating) {
       const originalAccess = localStorage.getItem('original_access_token')
@@ -2186,7 +2256,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('original_access_token')
         localStorage.removeItem('original_refresh_token')
       } else {
-        useAuthStore.getState().clearAuth()
+        useAuthStore.getState().clearAuth('session_revoked')
       }
       localStorage.removeItem('impersonated_tenant_id')
       window.dispatchEvent(new Event('impersonation-change'))
@@ -2195,17 +2265,26 @@ apiClient.interceptors.response.use(
     }
 
     if (!getStoredRefreshToken()) {
-      useAuthStore.getState().clearAuth()
+      useAuthStore.getState().clearAuth('refresh_token_invalid')
       return Promise.reject(error)
     }
 
     original._retry = true
-    const newToken = await refreshAuthToken()
-    if (!newToken) {
-      useAuthStore.getState().clearAuth()
+    const result = await refreshAuthToken()
+
+    if (result.status === 'success' && result.accessToken) {
+      original.headers.Authorization = `Bearer ${result.accessToken}`
+      return apiClient(original)
+    }
+
+    if (result.status === 'invalid_refresh_token') {
+      useAuthStore.getState().clearAuth('refresh_token_expired')
+      broadcastAuthSync('LOGOUT', { reason: 'refresh_token_expired' })
       return Promise.reject(error)
     }
-    original.headers.Authorization = `Bearer ${newToken}`
-    return apiClient(original)
+
+    // For temporary network_failure or server_failure: DO NOT clear auth!
+    // Simply reject original request so application UI stays intact with retry capability.
+    return Promise.reject(error)
   },
 )

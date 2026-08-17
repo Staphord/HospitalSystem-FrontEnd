@@ -38,7 +38,7 @@ describe('DepartmentGuard', () => {
     vi.mocked(useDepartmentStatus).mockReturnValue({
       isLoading: true,
       isError: false,
-      getDepartmentStatus: () => ({ isInactive: null, deptName: '' }),
+      getDepartmentStatus: () => ({ isInactive: false, isUnavailable: false, isPending: true, deptName: '' }),
     })
 
     render(
@@ -55,7 +55,7 @@ describe('DepartmentGuard', () => {
     vi.mocked(useDepartmentStatus).mockReturnValue({
       isLoading: false,
       isError: false,
-      getDepartmentStatus: () => ({ isInactive: true, deptName: 'Pharmacy' }),
+      getDepartmentStatus: () => ({ isInactive: true, isUnavailable: false, isPending: false, deptName: 'Pharmacy' }),
     })
 
     render(
@@ -77,7 +77,7 @@ describe('DepartmentGuard', () => {
     vi.mocked(useDepartmentStatus).mockReturnValue({
       isLoading: false,
       isError: false,
-      getDepartmentStatus: () => ({ isInactive: false, deptName: 'Pharmacy' }),
+      getDepartmentStatus: () => ({ isInactive: false, isUnavailable: false, isPending: false, deptName: 'Pharmacy' }),
     })
 
     render(
