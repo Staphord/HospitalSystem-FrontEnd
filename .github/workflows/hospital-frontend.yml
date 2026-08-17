@@ -5,7 +5,6 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -41,34 +40,34 @@ jobs:
           name: dist-build
           path: dist/
 
-  deploy:
-    name: Deploy to VPS
-    needs: build-and-test
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
-    runs-on: ubuntu-latest
+  # deploy:
+  #   name: Deploy to VPS
+  #   needs: build-and-test
+  #   if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist-build
-          path: dist
+  #   steps:
+  #     - name: Download build artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist-build
+  #         path: dist
 
-      - name: Sync files to VPS over SSH
-        uses: easingthemes/ssh-deploy@v5.0.3
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
-          ARGS: "-avzr --delete"
-          SOURCE: "dist/"
-          REMOTE_HOST: ${{ secrets.VPS_HOST }}
-          REMOTE_USER: ${{ secrets.VPS_USERNAME }}
-          TARGET: ${{ secrets.VPS_TARGET_DIR }}
+  #     - name: Sync files to VPS over SSH
+  #       uses: easingthemes/ssh-deploy@v5.0.3
+  #       with:
+  #         SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+  #         ARGS: "-avzr --delete"
+  #         SOURCE: "dist/"
+  #         REMOTE_HOST: ${{ secrets.VPS_HOST }}
+  #         REMOTE_USER: ${{ secrets.VPS_USERNAME }}
+  #         TARGET: ${{ secrets.VPS_TARGET_DIR }}
 
-      - name: Reload Nginx on VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            sudo systemctl reload nginx
+  #     - name: Reload Nginx on VPS
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ secrets.VPS_HOST }}
+  #         username: ${{ secrets.VPS_USERNAME }}
+  #         key: ${{ secrets.VPS_SSH_KEY }}
+  #         script: |
+  #           sudo systemctl reload nginx
