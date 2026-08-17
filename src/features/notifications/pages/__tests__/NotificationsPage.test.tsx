@@ -70,6 +70,7 @@ describe('NotificationsPage', () => {
     vi.clearAllMocks()
     vi.mocked(notificationsApi.getNotifications).mockResolvedValue({
       items: mockNotifications as any,
+      unread_count: 1,
       total: 2,
       page: 1,
       page_size: 10,

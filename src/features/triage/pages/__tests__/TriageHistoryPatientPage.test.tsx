@@ -22,7 +22,6 @@ vi.mock('@/api/services/reception', () => ({
 
 vi.mock('@/api/services/triage', () => ({
   triageService: {
-    getPatientHistory: vi.fn(),
     getPatientAssessments: vi.fn(),
   },
 }))
@@ -61,7 +60,6 @@ describe('TriageHistoryPatientPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(receptionService.getPatient).mockResolvedValue(mockPatient as any)
-    vi.mocked(triageService.getPatientHistory).mockResolvedValue(mockHistoryVisits as any)
     vi.mocked(triageService.getPatientAssessments).mockResolvedValue(mockHistoryVisits as any)
   })
 
