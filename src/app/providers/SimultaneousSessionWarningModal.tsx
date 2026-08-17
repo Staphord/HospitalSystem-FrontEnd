@@ -79,6 +79,7 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
     const checkInterval = setInterval(runCheck, 5000)
 
     return () => clearInterval(checkInterval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isImpersonating])
 
   const handleKeepThisSession = async () => {
@@ -87,7 +88,7 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
       await apiClient.post('/auth/session-keep-only')
       localStorage.setItem('session_warning_acknowledged', 'true')
       toast.success('Other active sessions have been terminated. This session remains active.')
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to terminate other sessions.')
     } finally {
       setShowModal(false)

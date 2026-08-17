@@ -1624,7 +1624,7 @@ apiClient.defaults.adapter = async (config) => {
               }
             }
           }
-        } catch (e) {
+        } catch (_e) {
           // ignore
         }
         const impTenantId = localStorage.getItem('impersonated_tenant_id')

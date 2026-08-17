@@ -1,7 +1,6 @@
 import { render, act } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useAuthStore } from '@/store/authStore'
-import { refreshAuthToken } from '@/api/client'
 import { useDepartmentStatus } from '@/hooks/useDepartmentStatus'
 
 vi.mock('@/api/client', async () => {
@@ -60,7 +59,7 @@ describe('Auth & Session Resilience Frontend Audit', () => {
 })
 
 function renderHook<T>(hook: () => T) {
-  let result = { current: null as T }
+  const result = { current: null as T }
   function TestComponent() {
     result.current = hook()
     return null

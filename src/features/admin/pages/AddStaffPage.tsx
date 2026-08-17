@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { adminService } from '@/api/services/admin';
-import type { Department } from '@/api/types/admin';
 
 // Wizard view handling creation and modification of staff personnel records
 export function AddStaffPage() {
@@ -155,6 +154,7 @@ export function AddStaffPage() {
       .finally(() => {
         setLoadingRoles(false);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Triggers navigation back to the directory grid

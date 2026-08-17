@@ -46,7 +46,7 @@ export const ActiveSessionsPage: React.FC = () => {
   // Session distribution counts
   const doctorSessions = sessions.filter((s) => s.staffRole === 'doctor' || s.staffRole === 'Doctor').length;
   const nurseSessions = sessions.filter((s) => s.staffRole.toLowerCase().includes('nurse')).length;
-  const idleCount = Math.max(0, sessions.length - doctorSessions - nurseSessions);
+  const _idleCount = Math.max(0, sessions.length - doctorSessions - nurseSessions);
 
   // Filter sessions based on search query
   const filteredSessions = sessions.filter(
