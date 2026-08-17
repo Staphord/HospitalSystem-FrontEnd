@@ -5,9 +5,10 @@ on:
     branches: [ main, master ]
 
 
+
 jobs:
   build-and-test:
-    name: Test and Build
+    name: Test and Build Frontend
     runs-on: ubuntu-latest
 
     steps:
