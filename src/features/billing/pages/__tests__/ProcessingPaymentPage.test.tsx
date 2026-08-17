@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ProcessingPaymentPage } from '../ProcessingPaymentPage'
 
 vi.mock('sonner', () => ({
@@ -11,16 +11,41 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('@/api/services/billing', () => ({
+  billingService: {
+    getBill: vi.fn().mockResolvedValue(null),
+    recordPayment: vi.fn().mockResolvedValue({}),
+  },
+}))
+
+const mockPaymentRow = [
+  {
+    id: 'b1',
+    patientName: 'Hassan Mwita',
+    patientNumber: 'PT-4889',
+    visitDate: '2026-08-15',
+    paymentMethod: 'Insurance',
+    insurer: 'Jubilee Insurance',
+    paid: 0,
+    lineItems: [
+      { label: 'General Consultation', amount: 50000 },
+    ],
+  },
+]
+
 describe('ProcessingPaymentPage', () => {
   beforeEach(() => {
     localStorage.clear()
+    localStorage.setItem('hf_mock_payment_rows', JSON.stringify(mockPaymentRow))
     vi.clearAllMocks()
   })
 
   it('renders the insurance payment layout by default', () => {
     render(
-      <MemoryRouter>
-        <ProcessingPaymentPage />
+      <MemoryRouter initialEntries={['/billing/process/b1']}>
+        <Routes>
+          <Route path="/billing/process/:billId" element={<ProcessingPaymentPage />} />
+        </Routes>
       </MemoryRouter>
     )
 
@@ -33,8 +58,10 @@ describe('ProcessingPaymentPage', () => {
 
   it('switches to cash and mobile money variants', () => {
     render(
-      <MemoryRouter>
-        <ProcessingPaymentPage />
+      <MemoryRouter initialEntries={['/billing/process/b1']}>
+        <Routes>
+          <Route path="/billing/process/:billId" element={<ProcessingPaymentPage />} />
+        </Routes>
       </MemoryRouter>
     )
 
@@ -49,10 +76,12 @@ describe('ProcessingPaymentPage', () => {
     expect(screen.getByText('Transaction ID (Required)')).toBeInTheDocument()
   })
 
-  it('issues a receipt after a successful cash payment', () => {
+  it('issues a receipt after a successful cash payment', async () => {
     render(
-      <MemoryRouter>
-        <ProcessingPaymentPage />
+      <MemoryRouter initialEntries={['/billing/process/b1']}>
+        <Routes>
+          <Route path="/billing/process/:billId" element={<ProcessingPaymentPage />} />
+        </Routes>
       </MemoryRouter>
     )
 
@@ -62,7 +91,9 @@ describe('ProcessingPaymentPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Enter cash received'), { target: { value: '150000' } })
     fireEvent.click(screen.getByRole('button', { name: /issue receipt/i }))
 
-    expect(screen.getByText('OFFICIAL PAYMENT RECEIPT')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('OFFICIAL PAYMENT RECEIPT')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    })
   })
 })

@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { toast } from 'sonner'
@@ -190,8 +190,8 @@ export function IncidentsPage() {
                     {activeIncidents.map((inc) => {
                       const isExpanded = expandedRowId === inc.id
                       return (
-                        <>
-                          <tr key={inc.id} style={{ cursor: 'pointer' }} onClick={() => toggleRow(inc.id)}>
+                        <React.Fragment key={inc.id}>
+                          <tr style={{ cursor: 'pointer' }} onClick={() => toggleRow(inc.id)}>
                             <td>
                               <span className="material-symbols-outlined text-outline" style={{ fontSize: '16px', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }}>
                                 chevron_right
@@ -260,7 +260,7 @@ export function IncidentsPage() {
                               </td>
                             </tr>
                           )}
-                        </>
+                        </React.Fragment>
                       )
                     })}
                   </tbody>
@@ -324,7 +324,7 @@ export function IncidentsPage() {
                         {resolvedIncidents.map((inc) => {
                           const isExpanded = expandedRowId === inc.id
                           return (
-                            <>
+                            <React.Fragment key={inc.id}>
                               <tr key={inc.id} style={{ cursor: 'pointer' }} onClick={() => toggleRow(inc.id)}>
                                 <td>
                                   <span className="material-symbols-outlined text-outline" style={{ fontSize: '16px', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }}>
@@ -367,7 +367,7 @@ export function IncidentsPage() {
                                   </td>
                                 </tr>
                               )}
-                            </>
+                              </React.Fragment>
                           )
                         })}
                       </tbody>

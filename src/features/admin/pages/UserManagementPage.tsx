@@ -121,7 +121,9 @@ export const UserManagementPage: React.FC = () => {
 
       {/* Page header actions row */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div />
+        <div>
+          <h2 className="font-headline-md text-headline-md text-on-surface">User & Staff Directory</h2>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={handleExport}
