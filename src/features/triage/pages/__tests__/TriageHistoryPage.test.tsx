@@ -85,7 +85,7 @@ describe('TriageHistoryPage', () => {
       expect(screen.getByText('Amina Juma')).toBeInTheDocument()
     })
 
-    const searchInput = screen.getByPlaceholderText(/search patient by name or id/i)
+    const searchInput = screen.getByPlaceholderText(/search patient by name or patient number/i)
     fireEvent.change(searchInput, { target: { value: 'Amina' } })
 
     await waitFor(() => {

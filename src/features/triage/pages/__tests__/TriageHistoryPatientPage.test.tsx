@@ -23,6 +23,7 @@ vi.mock('@/api/services/reception', () => ({
 vi.mock('@/api/services/triage', () => ({
   triageService: {
     getPatientHistory: vi.fn(),
+    getPatientAssessments: vi.fn(),
   },
 }))
 
@@ -38,6 +39,7 @@ const mockPatient = {
 const mockHistoryVisits = [
   {
     visit_id: 'vis-101',
+    assessed_at: '2026-08-10T09:00:00Z',
     created_at: '2026-08-10T09:00:00Z',
     triage_category: 'Urgent',
     chief_complaint: 'Severe abdominal pain',
@@ -60,6 +62,7 @@ describe('TriageHistoryPatientPage', () => {
     vi.clearAllMocks()
     vi.mocked(receptionService.getPatient).mockResolvedValue(mockPatient as any)
     vi.mocked(triageService.getPatientHistory).mockResolvedValue(mockHistoryVisits as any)
+    vi.mocked(triageService.getPatientAssessments).mockResolvedValue(mockHistoryVisits as any)
   })
 
   it('renders patient demographics and triage history timeline', async () => {
@@ -72,7 +75,7 @@ describe('TriageHistoryPatientPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Grace Mwangi')).toBeInTheDocument()
+      expect(screen.getAllByText('Grace Mwangi').length).toBeGreaterThan(0)
       expect(screen.getByText('PT-2001')).toBeInTheDocument()
       expect(screen.getByText('Severe abdominal pain')).toBeInTheDocument()
     })

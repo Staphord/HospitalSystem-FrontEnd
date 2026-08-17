@@ -14,16 +14,18 @@ vi.mock('sonner', () => ({
 
 // Mock useAuth
 const mockSetUser = vi.fn()
+const mockUser = {
+  id: 'u-001',
+  username: 'drjohn',
+  email: 'drjohn@hospital.org',
+  full_name: 'Dr. John Doe',
+  role: 'doctor',
+  mfa_enabled: false,
+}
+
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
-    user: {
-      id: 'u-001',
-      username: 'drjohn',
-      email: 'drjohn@hospital.org',
-      full_name: 'Dr. John Doe',
-      role: 'doctor',
-      mfa_enabled: false,
-    },
+    user: mockUser,
     setUser: mockSetUser,
   }),
 }))
