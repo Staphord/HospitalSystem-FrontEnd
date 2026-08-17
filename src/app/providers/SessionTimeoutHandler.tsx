@@ -99,7 +99,7 @@ export function SessionTimeoutHandler({ children }: { children: ReactNode }) {
       showModalRef.current = true
       setCountdown(freshCountdown)
     }, remainingMs)
-  }, [handleTimeout])
+  }, [])
 
   useEffect(() => {
     if (!showModal) {

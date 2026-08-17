@@ -3,8 +3,6 @@ import { toast } from 'sonner';
 import { clearDepartmentCache } from '@/hooks/useDepartmentStatus';
 import { adminService } from '@/api/services/admin';
 import type { Department, WardItem } from '@/api/types/admin';
-import { DeleteConfirmationModal } from '@/components/ui/DeleteConfirmationModal';
-import { AdminModal, AdminModalButton, AdminModalFooter } from '@/components/ui/AdminModal';
 
 const DEPARTMENT_TYPES = [
   'Reception', 'Triage', 'Consultation', 'Laboratory', 'Radiology',
