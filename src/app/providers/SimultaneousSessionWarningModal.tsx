@@ -88,7 +88,7 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
       await apiClient.post('/auth/session-keep-only')
       localStorage.setItem('session_warning_acknowledged', 'true')
       toast.success('Other active sessions have been terminated. This session remains active.')
-    } catch (_err) {
+    } catch {
       toast.error('Failed to terminate other sessions.')
     } finally {
       setShowModal(false)

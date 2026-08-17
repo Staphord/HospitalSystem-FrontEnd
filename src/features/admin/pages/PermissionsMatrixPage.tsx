@@ -123,6 +123,7 @@ export function PermissionsMatrixPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPermissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
