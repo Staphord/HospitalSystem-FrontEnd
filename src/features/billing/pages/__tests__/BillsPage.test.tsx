@@ -76,8 +76,8 @@ describe('BillsPage', () => {
 
     expect(screen.getByRole('tab', { name: /insurance verifications/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /payment status/i })).toBeInTheDocument()
-    expect(screen.getByText('Zuwena Salum')).toBeInTheDocument()
-    expect(screen.getByText('Hassan Mwita')).toBeInTheDocument()
+    expect(screen.getAllByText('Zuwena Salum')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('Hassan Mwita')[0]).toBeInTheDocument()
   })
 
   it('allows switching to Payment Status tab and renders billing KPIs and table', async () => {

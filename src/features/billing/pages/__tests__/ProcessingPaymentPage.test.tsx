@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ProcessingPaymentPage } from '../ProcessingPaymentPage'
@@ -8,6 +8,13 @@ vi.mock('sonner', () => ({
     success: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
+  },
+}))
+
+vi.mock('@/api/services/billing', () => ({
+  billingService: {
+    getBill: vi.fn().mockResolvedValue(null),
+    recordPayment: vi.fn().mockResolvedValue({}),
   },
 }))
 
@@ -69,7 +76,7 @@ describe('ProcessingPaymentPage', () => {
     expect(screen.getByText('Transaction ID (Required)')).toBeInTheDocument()
   })
 
-  it('issues a receipt after a successful cash payment', () => {
+  it('issues a receipt after a successful cash payment', async () => {
     render(
       <MemoryRouter initialEntries={['/billing/process/b1']}>
         <Routes>
@@ -84,7 +91,9 @@ describe('ProcessingPaymentPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Enter cash received'), { target: { value: '150000' } })
     fireEvent.click(screen.getByRole('button', { name: /issue receipt/i }))
 
-    expect(screen.getByText('OFFICIAL PAYMENT RECEIPT')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('OFFICIAL PAYMENT RECEIPT')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    })
   })
 })

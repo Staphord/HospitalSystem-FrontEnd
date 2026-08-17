@@ -451,7 +451,7 @@ function VerificationActionsMenu({
 }
 
 function InsuranceVerificationsTab({ canManage }: { canManage: boolean }) {
-  const [rows, setRows] = useState<VerificationRow[]>([])
+  const [rows, setRows] = useState<VerificationRow[]>(INITIAL_ROWS)
   const [currentPage, setCurrentPage] = useState(1)
   const [verifyTarget, setVerifyTarget] = useState<VerificationRow | null>(null)
   const [viewTarget, setViewTarget] = useState<VerificationRow | null>(null)

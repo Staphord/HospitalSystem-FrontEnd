@@ -114,7 +114,7 @@ describe('TriageQueuePage', () => {
       expect(screen.getByText('Amina Juma')).toBeInTheDocument()
     })
 
-    const searchInput = screen.getByPlaceholderText(/search by name, patient #/i)
+    const searchInput = screen.getByPlaceholderText('Search patient, ticket or ID...')
     fireEvent.change(searchInput, { target: { value: 'David' } })
 
     expect(screen.getByText('David Mollel')).toBeInTheDocument()

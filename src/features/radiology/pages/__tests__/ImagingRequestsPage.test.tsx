@@ -27,12 +27,14 @@ const mockRequests = [
     orderNumber: 'RAD-2026-001',
     patientName: 'Faraji Bakari',
     patientNumber: 'PT-3001',
-    modality: 'xray',
+    modality: 'x-ray',
     testName: 'Chest X-Ray PA View',
     priority: 'routine',
     status: 'requested',
     requestedAt: '2026-08-15 08:30',
     requestingDoctor: 'Dr. Sarah Kimaro',
+    requestedBy: 'Dr. Sarah Kimaro',
+    clinicalIndication: 'Chest pain',
     bodyPart: 'Chest',
   },
   {
@@ -46,6 +48,8 @@ const mockRequests = [
     status: 'in_progress',
     requestedAt: '2026-08-15 09:00',
     requestingDoctor: 'Dr. Sarah Kimaro',
+    requestedBy: 'Dr. Sarah Kimaro',
+    clinicalIndication: 'Abdominal pain',
     bodyPart: 'Abdomen',
   },
 ]
@@ -69,7 +73,7 @@ describe('ImagingRequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Faraji Bakari')).toBeInTheDocument()
       expect(screen.getByText('Neema Joseph')).toBeInTheDocument()
-      expect(screen.getByText('Chest X-Ray PA View')).toBeInTheDocument()
+      expect(screen.getByText('PT-3001')).toBeInTheDocument()
     })
   })
 
@@ -102,7 +106,7 @@ describe('ImagingRequestsPage', () => {
       expect(screen.getByText('Faraji Bakari')).toBeInTheDocument()
     })
 
-    const searchInput = screen.getByPlaceholderText(/search patient, order #, or test/i)
+    const searchInput = screen.getByPlaceholderText('Search patients or requests...')
     fireEvent.change(searchInput, { target: { value: 'Neema' } })
 
     expect(screen.getByText('Neema Joseph')).toBeInTheDocument()

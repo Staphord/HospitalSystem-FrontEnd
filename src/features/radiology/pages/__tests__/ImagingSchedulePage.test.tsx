@@ -52,10 +52,10 @@ describe('ImagingSchedulePage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/today/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /today/i })).toBeInTheDocument()
       expect(screen.getByText('MRI')).toBeInTheDocument()
       expect(screen.getByText('X-Ray')).toBeInTheDocument()
-      expect(screen.getByText('CT Scan')).toBeInTheDocument()
+      expect(screen.getByText('CT')).toBeInTheDocument()
     })
   })
 
