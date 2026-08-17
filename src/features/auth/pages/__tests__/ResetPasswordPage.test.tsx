@@ -15,7 +15,7 @@ vi.mock('sonner', () => ({
 // Mock authService
 vi.mock('@/api/services/auth', () => ({
   authService: {
-    resetPassword: vi.fn().mockResolvedValue({}),
+    confirmPasswordReset: vi.fn().mockResolvedValue({}),
   },
 }))
 
@@ -31,9 +31,9 @@ describe('ResetPasswordPage', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText('Reset Your Password')).toBeInTheDocument()
+    expect(screen.getByText('Set a new password')).toBeInTheDocument()
     expect(screen.getByLabelText(/^new password/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/confirm new password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^confirm password/i)).toBeInTheDocument()
   })
 
   it('submits new password when token is present and passwords match', async () => {
@@ -46,15 +46,18 @@ describe('ResetPasswordPage', () => {
     fireEvent.change(screen.getByLabelText(/^new password/i), {
       target: { value: 'StrongPass123!' },
     })
-    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+    fireEvent.change(screen.getByLabelText(/^confirm password/i), {
       target: { value: 'StrongPass123!' },
     })
 
-    const submitBtn = screen.getByRole('button', { name: /reset password/i })
+    const submitBtn = screen.getByRole('button', { name: /confirm reset password/i })
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(authService.resetPassword).toHaveBeenCalledWith('fake-token', 'StrongPass123!')
+      expect(authService.confirmPasswordReset).toHaveBeenCalledWith({
+        token: 'fake-token',
+        new_password: 'StrongPass123!',
+      })
     })
   })
 })

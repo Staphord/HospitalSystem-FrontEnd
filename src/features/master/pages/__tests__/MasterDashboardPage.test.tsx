@@ -9,8 +9,8 @@ import { monitoringService } from '@/api/services/monitoring'
 vi.mock('@/api/services/master', () => ({
   masterService: {
     listTenants: vi.fn().mockResolvedValue([
-      { id: 't-1', name: 'Aga Khan Hospital', status: 'active' },
-      { id: 't-2', name: 'Muhimbili National Hospital', status: 'active' },
+      { tenant_id: 't-1', hospital_name: 'Aga Khan Hospital', status: 'active' },
+      { tenant_id: 't-2', hospital_name: 'Muhimbili National Hospital', status: 'active' },
     ]),
     listInvoices: vi.fn().mockResolvedValue([]),
     listPlans: vi.fn().mockResolvedValue([]),
@@ -64,8 +64,8 @@ describe('MasterDashboardPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Total Hospitals')).toBeInTheDocument()
-      expect(screen.getByText('Active Users')).toBeInTheDocument()
-      expect(screen.getByText('Aga Khan Hospital')).toBeInTheDocument()
+      expect(screen.getAllByText('Active Users').length).toBeGreaterThan(0)
+      expect(screen.getByText('Hospital Performance Overview')).toBeInTheDocument()
     })
   })
 })

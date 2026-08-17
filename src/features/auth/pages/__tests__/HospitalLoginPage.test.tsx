@@ -40,8 +40,8 @@ describe('HospitalLoginPage', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByPlaceholderText(/username or email/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/••••••••/i)).toBeInTheDocument()
   })
 
   it('handles hospital staff login action', async () => {
@@ -57,10 +57,10 @@ describe('HospitalLoginPage', () => {
       </MemoryRouter>
     )
 
-    fireEvent.change(screen.getByPlaceholderText(/username or email/i), {
+    fireEvent.change(screen.getByLabelText(/username/i), {
       target: { value: 'doctor@hospital.org' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/password/i), {
       target: { value: 'DoctorPass123!' },
     })
 
@@ -68,7 +68,10 @@ describe('HospitalLoginPage', () => {
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(authService.login).toHaveBeenCalledWith('doctor@hospital.org', 'DoctorPass123!')
+      expect(authService.login).toHaveBeenCalledWith({
+        username: 'doctor@hospital.org',
+        password: 'DoctorPass123!',
+      })
     })
   })
 })

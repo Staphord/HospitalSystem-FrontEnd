@@ -45,8 +45,8 @@ describe('LoginPage', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByPlaceholderText(/username or email/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/••••••••/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 
@@ -63,10 +63,10 @@ describe('LoginPage', () => {
       </MemoryRouter>
     )
 
-    fireEvent.change(screen.getByPlaceholderText(/username or email/i), {
+    fireEvent.change(screen.getByLabelText(/username/i), {
       target: { value: 'admin@hospital.org' },
     })
-    fireEvent.change(screen.getByPlaceholderText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/password/i), {
       target: { value: 'Password123!' },
     })
 
@@ -74,7 +74,10 @@ describe('LoginPage', () => {
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(authService.login).toHaveBeenCalledWith('admin@hospital.org', 'Password123!')
+      expect(authService.login).toHaveBeenCalledWith({
+        username: 'admin@hospital.org',
+        password: 'Password123!',
+      })
     })
   })
 })

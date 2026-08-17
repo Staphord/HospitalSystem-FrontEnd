@@ -42,20 +42,24 @@ vi.mock('@/api/services/notifications', () => ({
 
 const mockNotifications = [
   {
+    notification_id: 'notif-1',
     id: 'notif-1',
     title: 'Urgent Lab Result',
     message: 'Critical blood glucose level reported for patient PT-1001',
     priority: 'urgent',
     category: 'clinical',
+    status: 'unread',
     is_read: false,
     created_at: new Date().toISOString(),
   },
   {
+    notification_id: 'notif-2',
     id: 'notif-2',
     title: 'Medication Dispensed',
     message: 'Prescription for PT-1002 has been dispensed by the pharmacy',
     priority: 'normal',
     category: 'pharmacy',
+    status: 'read',
     is_read: true,
     created_at: new Date().toISOString(),
   },
@@ -97,8 +101,8 @@ describe('NotificationsPage', () => {
       expect(screen.getByText('Urgent Lab Result')).toBeInTheDocument()
     })
 
-    const unreadTab = screen.getByRole('button', { name: /unread/i })
-    fireEvent.click(unreadTab)
+    const statusSelect = screen.getByDisplayValue('Status: All')
+    fireEvent.change(statusSelect, { target: { value: 'unread' } })
 
     await waitFor(() => {
       expect(notificationsApi.getNotifications).toHaveBeenCalledWith(

@@ -65,19 +65,20 @@ describe('ImagingReportPage', () => {
     })
   })
 
-  it('renders not found when radiology request does not exist', async () => {
+  it('redirects to requests list when radiology request does not exist', async () => {
     vi.mocked(radiologyService.getRequest).mockRejectedValue(new Error('Not found'))
 
     render(
       <MemoryRouter initialEntries={['/radiology/requests/rad-none/report']}>
         <Routes>
           <Route path="/radiology/requests/:requestId/report" element={<ImagingReportPage />} />
+          <Route path="/radiology/requests" element={<div>Requests List</div>} />
         </Routes>
       </MemoryRouter>
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/request not found/i)).toBeInTheDocument()
+      expect(screen.getByText('Requests List')).toBeInTheDocument()
     })
   })
 })

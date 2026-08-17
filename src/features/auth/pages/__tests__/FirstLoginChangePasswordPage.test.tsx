@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { FirstLoginChangePasswordPage } from '../FirstLoginChangePasswordPage'
+import { authService } from '@/api/services/auth'
 import { usersService } from '@/api/services/users'
 
 // Mock sonner toast
@@ -12,9 +13,29 @@ vi.mock('sonner', () => ({
   },
 }))
 
+// Mock useAuth
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({
+    setTokens: vi.fn(),
+    setUser: vi.fn(),
+  }),
+}))
+
+// Mock authService
+vi.mock('@/api/services/auth', () => ({
+  authService: {
+    firstLoginChangePassword: vi.fn().mockResolvedValue({
+      access_token: 'fake-access-token',
+      refresh_token: 'fake-refresh-token',
+      expires_in: 3600,
+    }),
+  },
+}))
+
 // Mock usersService
 vi.mock('@/api/services/users', () => ({
   usersService: {
+    getMe: vi.fn().mockResolvedValue({ id: 'usr-1', username: 'admin' }),
     changePassword: vi.fn().mockResolvedValue({}),
   },
 }))
@@ -31,8 +52,8 @@ describe('FirstLoginChangePasswordPage', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText('Change Password Required')).toBeInTheDocument()
-    expect(screen.getByLabelText(/current temporary password/i)).toBeInTheDocument()
+    expect(screen.getByText('Update Password')).toBeInTheDocument()
+    expect(screen.getByLabelText(/temporary password/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^new password/i)).toBeInTheDocument()
   })
 
@@ -43,7 +64,10 @@ describe('FirstLoginChangePasswordPage', () => {
       </MemoryRouter>
     )
 
-    fireEvent.change(screen.getByLabelText(/current temporary password/i), {
+    fireEvent.change(screen.getByLabelText(/username/i), {
+      target: { value: 'admin' },
+    })
+    fireEvent.change(screen.getByLabelText(/temporary password/i), {
       target: { value: 'Temp123456!' },
     })
     fireEvent.change(screen.getByLabelText(/^new password/i), {
@@ -53,12 +77,13 @@ describe('FirstLoginChangePasswordPage', () => {
       target: { value: 'NewSecurePass123!' },
     })
 
-    const submitBtn = screen.getByRole('button', { name: /update password/i })
+    const submitBtn = screen.getByRole('button', { name: /establish secure password/i })
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(usersService.changePassword).toHaveBeenCalledWith({
-        current_password: 'Temp123456!',
+      expect(authService.firstLoginChangePassword).toHaveBeenCalledWith({
+        username: 'admin',
+        temp_password: 'Temp123456!',
         new_password: 'NewSecurePass123!',
       })
     })

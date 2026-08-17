@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ProcessingPaymentPage } from '../ProcessingPaymentPage'
 
 vi.mock('sonner', () => ({
@@ -35,8 +35,10 @@ describe('ProcessingPaymentPage', () => {
 
   it('renders the insurance payment layout by default', () => {
     render(
-      <MemoryRouter>
-        <ProcessingPaymentPage />
+      <MemoryRouter initialEntries={['/billing/process/b1']}>
+        <Routes>
+          <Route path="/billing/process/:billId" element={<ProcessingPaymentPage />} />
+        </Routes>
       </MemoryRouter>
     )
 
@@ -49,8 +51,10 @@ describe('ProcessingPaymentPage', () => {
 
   it('switches to cash and mobile money variants', () => {
     render(
-      <MemoryRouter>
-        <ProcessingPaymentPage />
+      <MemoryRouter initialEntries={['/billing/process/b1']}>
+        <Routes>
+          <Route path="/billing/process/:billId" element={<ProcessingPaymentPage />} />
+        </Routes>
       </MemoryRouter>
     )
 
@@ -67,8 +71,10 @@ describe('ProcessingPaymentPage', () => {
 
   it('issues a receipt after a successful cash payment', () => {
     render(
-      <MemoryRouter>
-        <ProcessingPaymentPage />
+      <MemoryRouter initialEntries={['/billing/process/b1']}>
+        <Routes>
+          <Route path="/billing/process/:billId" element={<ProcessingPaymentPage />} />
+        </Routes>
       </MemoryRouter>
     )
 
