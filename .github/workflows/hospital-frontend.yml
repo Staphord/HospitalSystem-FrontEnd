@@ -2,7 +2,7 @@ name: hospital-frontend
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staging ]
   # repository_dispatch:
   #   types: [ backend_deploy_success, backend_trigger ]
   workflow_dispatch:
@@ -35,18 +35,41 @@ jobs:
         run: npm run build
 
       - name: Upload build artifacts
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
         uses: actions/upload-artifact@v4
         with:
           name: dist-build
           path: dist/
 
-  # deploy:
-  #   name: Deploy to VPS
+  # Deploy to Staging on push to staging branch
+  deploy-staging:
+    name: Deploy to Staging VPS
+    needs: build-and-test
+    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-build
+          path: dist
+
+      - name: Sync files to Staging VPS
+        uses: easingthemes/ssh-deploy@v5.0.3
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          ARGS: "-avzr --delete"
+          SOURCE: "dist/"
+          REMOTE_HOST: ${{ secrets.VPS_HOST }}
+          REMOTE_USER: ${{ secrets.VPS_USERNAME }}
+          TARGET: "/var/www/hospital-frontend-staging/dist/"
+
+  # # Deploy to Production on push to main/master (commented out for now)
+  # deploy-production:
+  #   name: Deploy to Production VPS
   #   needs: build-and-test
-  #   if: |
-  #     (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-  #     (github.event_name == 'push' || github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch')
+  #   if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
   #   runs-on: ubuntu-latest
   # 
   #   steps:
@@ -56,7 +79,7 @@ jobs:
   #         name: dist-build
   #         path: dist
   # 
-  #     - name: Sync files to VPS over SSH
+  #     - name: Sync files to Production VPS
   #       uses: easingthemes/ssh-deploy@v5.0.3
   #       with:
   #         SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
