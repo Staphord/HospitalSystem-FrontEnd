@@ -54,17 +54,24 @@ jobs:
         with:
           name: dist-build
           path: dist
-
+      # Raw SSH + rsync deploy
       - name: Sync files to Staging VPS
-        uses: easingthemes/ssh-deploy@v5.0.3
-        with:
+        env:
           SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
           ARGS: "-avzr --delete"
           SOURCE: "dist/"
           REMOTE_HOST: ${{ secrets.VPS_HOST }}
           REMOTE_USER: ${{ secrets.VPS_USERNAME }}
           TARGET: "/var/www/hospital-frontend-staging/dist/"
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
 
+          rsync $ARGS \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            "$SOURCE" "$REMOTE_USER@$REMOTE_HOST:$TARGET"
   # # Deploy to Production on push to main/master (commented out for now)
   # deploy-production:
   #   name: Deploy to Production VPS
