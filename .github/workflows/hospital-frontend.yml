@@ -114,7 +114,7 @@ jobs:
   # release, tell the backend so it can clean up the staged release instead
   # of leaving it dangling.
   notify-backend-failure:
-    name: Notify Backend of Frontend Deployment Failure
+    name: Notify Backend of Frontend Staging Deployment Failure
     needs: [ build-and-test, deploy-staging ]
     if: |
       always() &&
