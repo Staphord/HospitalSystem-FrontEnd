@@ -2,8 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { AnnouncementsPage } from '../AnnouncementsPage'
-import { monitoringService } from '@/api/services/monitoring'
-import { masterService } from '@/api/services/master'
 
 // Mock sonner toast
 vi.mock('sonner', () => ({

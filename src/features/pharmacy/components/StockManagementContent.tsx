@@ -93,7 +93,7 @@ function StockStatusBadge({ status }: { status: StockStatus }) {
 
 function StockRowActionsMenu({
   item,
-  isOpen,
+  isOpen: _isOpen,
   onToggle,
   onStockIn: _onStockIn,
   onStockOut: _onStockOut,
@@ -126,8 +126,6 @@ function getRowClass(status: StockStatus): string {
   if (status === 'out_of_stock') return 'hover:bg-primary/5 bg-error/5 transition-colors'
   return 'hover:bg-primary/5 transition-colors'
 }
-
-type StockTab = 'inventory' | 'transactions'
 
 export function StockManagementContent() {
   const [dbItems, setDbItems] = useState<InventoryItem[]>([])

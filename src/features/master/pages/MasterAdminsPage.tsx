@@ -29,7 +29,7 @@ export function MasterAdminsPage() {
       setLoading(true)
       const data = await masterService.listMasterAdmins()
       setAdmins(data)
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to load platform admins.')
     } finally {
       setLoading(false)
@@ -41,7 +41,7 @@ export function MasterAdminsPage() {
       setSessionsLoading(true)
       const data = await masterService.listActiveSessions()
       setSessions(data)
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to load active sessions.')
     } finally {
       setSessionsLoading(false)
@@ -74,7 +74,7 @@ export function MasterAdminsPage() {
       await masterService.updateMasterAdmin(admin.super_admin_id, { is_active: newStatus })
       toast.success(`Platform administrator "${admin.username}" is now ${newStatus ? 'active' : 'inactive'}.`)
       fetchAdmins()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to change administrator status.')
     }
   }
@@ -85,7 +85,7 @@ export function MasterAdminsPage() {
       await masterService.deleteMasterAdmin(adminToDelete)
       toast.success(`Deleted administrator "${adminToDelete}".`)
       fetchAdmins()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to delete administrator.')
     } finally {
       setAdminToDelete(null)
@@ -98,7 +98,7 @@ export function MasterAdminsPage() {
       await masterService.revokeSession(sessionToRevoke.id)
       toast.success(`Session for "${sessionToRevoke.name}" has been revoked.`)
       fetchSessions()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to revoke session.')
     } finally {
       setSessionToRevoke(null)
@@ -111,7 +111,7 @@ export function MasterAdminsPage() {
       await masterService.revokeAllSessions()
       toast.success('All active Super Admin sessions have been revoked.')
       fetchSessions()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to revoke all sessions.')
     } finally {
       setRevokingAll(false)

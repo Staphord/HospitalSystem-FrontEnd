@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   notificationsApi,
   type NotificationItem,
-  type NotificationCategory,
   type NotificationPreference,
 } from '@/api/services/notifications'
 import { useNotifications } from '@/context/NotificationContext'

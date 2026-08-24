@@ -24,7 +24,7 @@ function getApiErrorMessage(err: any): string {
         const parsed = JSON.parse(jsonStr)
         if (parsed.error_description) return parsed.error_description
         if (parsed.error) return parsed.error
-      } catch (e) {
+      } catch (_e) {
         // Fallback to the full detail string
       }
     }

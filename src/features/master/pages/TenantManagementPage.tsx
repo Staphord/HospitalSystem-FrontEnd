@@ -37,7 +37,7 @@ export function TenantManagementPage() {
       await new Promise((r) => setTimeout(r, 600))
       const data = await masterService.listTenants()
       setTenants(data)
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to load tenants.')
     } finally {
       setLoading(false)
@@ -53,7 +53,7 @@ export function TenantManagementPage() {
       await masterService.updateTenant(tenantId, { status: newStatus })
       toast.success(`Tenant status updated to ${newStatus}.`)
       fetchTenants()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to update tenant status.')
     }
   }

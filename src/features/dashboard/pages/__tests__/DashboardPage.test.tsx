@@ -2,7 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { DashboardPage } from '../DashboardPage'
-import { receptionService } from '@/api/services/reception'
 
 // Mock useAuth
 const mockUseAuth = vi.fn()

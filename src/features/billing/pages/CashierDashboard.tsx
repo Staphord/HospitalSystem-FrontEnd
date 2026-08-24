@@ -28,7 +28,7 @@ const NOT_YET_AVAILABLE = '—'
 
 export function CashierDashboard() {
   const [pendingBills, setPendingBills] = useState<PendingBill[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
 
   useEffect(() => {
     billingService.listPendingBills()

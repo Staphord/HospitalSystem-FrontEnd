@@ -38,7 +38,6 @@ export const useSessionsData = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     syncSessions();
   }, []);
 

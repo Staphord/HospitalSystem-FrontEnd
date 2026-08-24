@@ -41,7 +41,7 @@ export function ProfilePage() {
     try {
       const data = await usersService.getMe()
       setUser(data)
-    } catch (err) {
+    } catch (_err) {
       // Failed to load silently
     }
   }

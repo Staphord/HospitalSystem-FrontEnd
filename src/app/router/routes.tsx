@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { Navigate } from 'react-router-dom'
 import { AuthLayout } from '@/app/layout/AuthLayout'
 import { HospitalLayout } from '@/app/layout/HospitalLayout'

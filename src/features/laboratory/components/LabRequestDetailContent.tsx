@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatDoctorName } from '@/lib/localization'
 import { laboratoryService, type BackendLabRequestDetail } from '@/api/services/laboratory'
@@ -7,7 +7,6 @@ import { CollectSpecimenModal } from '@/features/laboratory/components/CollectSp
 
 export function LabRequestDetailContent() {
   const { requestId } = useParams<{ requestId: string }>()
-  const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<BackendLabRequestDetail | null>(null)
@@ -34,7 +33,7 @@ export function LabRequestDetailContent() {
         setReferenceRange(data.result.reference_range || '')
         setIsCritical(data.result.is_critical || false)
       }
-    } catch (err: any) {
+    } catch (_err: any) {
       toast.error('Failed to load lab request detail')
     } finally {
       setLoading(false)

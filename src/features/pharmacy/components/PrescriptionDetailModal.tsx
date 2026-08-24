@@ -57,12 +57,6 @@ function InteractionBanner({
   )
 }
 
-interface PrescriptionDetailModalProps {
-  visitId: string
-  onClose: () => void
-  onDispense: () => void
-}
-
 function formatDoctorName(prescribedBy?: string | null): string {
   if (!prescribedBy || !prescribedBy.trim()) {
     return 'Dr. Staff Doctor'

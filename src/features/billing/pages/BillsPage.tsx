@@ -6,11 +6,8 @@ import { ROLES } from '@/lib/roles'
 import { billingService } from '@/api/services/billing'
 import {
   canRecordPayment,
-  derivePaymentStatus,
   formatTzs,
   getOutstanding,
-  INITIAL_PAYMENT_ROWS,
-  paymentStatusStyles,
   type PaymentRow,
 } from '@/features/billing/data/mockPayments'
 
@@ -123,8 +120,6 @@ const INITIAL_ROWS: VerificationRow[] = [
 
 const VERIFICATION_PAGE_SIZE = 5
 const PAYMENT_PAGE_SIZE = 5
-const TOOLBAR_BTN =
-  'flex items-center gap-xs px-sm py-xs text-body-sm font-medium text-secondary hover:bg-surface-container transition-colors rounded border-0 bg-transparent cursor-pointer'
 
 function statusStyles(status: VerificationStatus) {
   switch (status) {
@@ -652,234 +647,12 @@ function InsuranceVerificationsTab({ canManage }: { canManage: boolean }) {
   )
 }
 
-function RecordPaymentModal({
-  row,
-  onClose,
-  onConfirm,
-}: {
-  row: PaymentRow
-  onClose: () => void
-  onConfirm: (amount: number, method: string, reference: string, notes: string) => void
-}) {
-  const outstanding = getOutstanding(row)
-  const [amount, setAmount] = useState(String(outstanding))
-  const [method, setMethod] = useState('Cash')
-  const [reference, setReference] = useState('')
-  const [notes, setNotes] = useState('')
-
-  const handleSubmit = () => {
-    const parsed = Number(amount.replace(/,/g, ''))
-    if (!parsed || parsed <= 0) {
-      toast.error('Enter a valid payment amount.')
-      return
-    }
-    if (parsed > outstanding) {
-      toast.error(`Amount cannot exceed outstanding ${formatTzs(outstanding)}.`)
-      return
-    }
-    onConfirm(parsed, method, reference, notes)
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-md"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[480px] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="record-payment-title"
-      >
-        <div className="p-lg border-b border-border-subtle">
-          <h2 id="record-payment-title" className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Record Payment
-          </h2>
-        </div>
-
-        <div className="p-lg bg-[#F4F5F7] border-b border-border-subtle">
-          <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{row.patientName}</p>
-          <p className="font-body-sm text-body-sm text-secondary m-0 mt-xs">
-            {row.patientNumber} · Visit {row.visitDate}
-          </p>
-          <p className="font-body-sm text-body-sm text-on-surface m-0 mt-xs">
-            Total {formatTzs(row.totalBill)} · Outstanding {formatTzs(outstanding)}
-          </p>
-        </div>
-
-        <div className="p-lg flex flex-col gap-md">
-          <div>
-            <label className="block font-label-md text-label-md text-secondary mb-xs" htmlFor="payment-amount">
-              Amount to pay
-            </label>
-            <input
-              id="payment-amount"
-              type="text"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full h-10 px-md border border-border-subtle rounded text-body-md font-body-md bg-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div>
-            <label className="block font-label-md text-label-md text-secondary mb-xs" htmlFor="payment-method">
-              Payment method
-            </label>
-            <select
-              id="payment-method"
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              className="w-full h-10 px-md border border-border-subtle rounded text-body-md font-body-md bg-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            >
-              <option value="Cash">Cash</option>
-              <option value="M-Pesa">M-Pesa</option>
-              <option value="Card">Card</option>
-            </select>
-          </div>
-          <div>
-            <label className="block font-label-md text-label-md text-secondary mb-xs" htmlFor="payment-reference">
-              Reference # (optional)
-            </label>
-            <input
-              id="payment-reference"
-              type="text"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="e.g. M-Pesa transaction ID"
-              className="w-full h-10 px-md border border-border-subtle rounded text-body-md font-body-md bg-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div>
-            <label className="block font-label-md text-label-md text-secondary mb-xs" htmlFor="payment-notes">
-              Notes
-            </label>
-            <textarea
-              id="payment-notes"
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional payment notes..."
-              className="w-full px-md py-sm border border-border-subtle rounded text-body-md font-body-md bg-white outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
-            />
-          </div>
-        </div>
-
-        <div className="p-lg border-t border-border-subtle flex justify-end gap-sm bg-surface-bright">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8 px-md border border-border-subtle rounded font-body-sm text-body-sm font-medium text-secondary bg-white hover:bg-surface-container-low transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="h-8 px-md rounded font-body-sm text-body-sm font-medium text-white bg-primary-container hover:bg-primary transition-colors border-0 cursor-pointer"
-          >
-            Confirm Payment
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ViewPaymentModal({ row, onClose }: { row: PaymentRow; onClose: () => void }) {
-  const styles = paymentStatusStyles(row.status)
-  const outstanding = getOutstanding(row)
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-md"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="bg-surface-white rounded-xl shadow-lg w-full max-w-[520px] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="view-payment-title"
-      >
-        <div className="p-lg border-b border-border-subtle flex justify-between items-center">
-          <h2 id="view-payment-title" className="font-headline-sm text-headline-sm font-semibold text-on-surface m-0">
-            Payment Details
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-secondary hover:bg-surface-container border-0 bg-transparent cursor-pointer"
-            aria-label="Close"
-          >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
-        </div>
-
-        <div className="p-lg flex flex-col gap-md">
-          <div className="grid grid-cols-2 gap-md">
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient</p>
-              <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{row.patientName}</p>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Patient #</p>
-              <p className="font-body-sm text-body-sm text-on-surface m-0">{row.patientNumber}</p>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Visit Date</p>
-              <p className="font-body-sm text-body-sm text-on-surface m-0">{row.visitDate}</p>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Payment Method</p>
-              <p className="font-body-sm text-body-sm text-on-surface m-0">{row.paymentMethod}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Line Items</p>
-            <div className="border border-border-subtle rounded divide-y divide-border-subtle">
-              {row.lineItems.map((item) => (
-                <div key={item.label} className="flex justify-between px-md py-sm font-body-sm text-body-sm">
-                  <span className="text-on-surface">{item.label}</span>
-                  <span className="text-on-surface-variant">{formatTzs(item.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-md">
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Total</p>
-              <p className="font-body-sm text-body-sm font-semibold text-on-surface m-0">{formatTzs(row.totalBill)}</p>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Paid</p>
-              <p className="font-body-sm text-body-sm font-semibold text-success m-0">{formatTzs(row.paid)}</p>
-            </div>
-            <div>
-              <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Outstanding</p>
-              <p className="font-body-sm text-body-sm font-semibold text-error m-0">{formatTzs(outstanding)}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="font-label-md text-label-md text-secondary uppercase m-0 mb-xs">Status</p>
-            <span className={`${STATUS_BADGE} ${styles.bg} ${styles.text}`}>{row.status}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 type PaymentFilter = 'All' | 'Unpaid' | 'Partial' | 'Paid' | 'Insurance Pending'
 
 function PaymentStatusTab() {
   const navigate = useNavigate()
   const [rows, setRows] = useState<PaymentRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)

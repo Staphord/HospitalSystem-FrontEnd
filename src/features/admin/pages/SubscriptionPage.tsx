@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
 import { masterService } from '@/api/services/master';
 import type { Subscription, Tenant, SubscriptionPlan, Invoice } from '@/api/types/master';
 import { useApp } from '../context/AppContext';
@@ -11,7 +10,6 @@ export const SubscriptionPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const { staffList } = useApp();
-  const tenantId = useAuthStore((s) => s.tenantId) || 'gilgal';
 
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -78,7 +76,6 @@ export const SubscriptionPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSubscriptionData();
   }, [fetchSubscriptionData]);
 

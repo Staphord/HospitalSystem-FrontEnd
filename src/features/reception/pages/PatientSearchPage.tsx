@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type InputHTMLAttributes } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { receptionService } from '@/api/services/reception'
@@ -11,8 +11,6 @@ const selectChevronStyle = {
   backgroundPosition: 'right 8px center',
   backgroundRepeat: 'no-repeat' as const,
 }
-const INPUT_CLASS =
-  'w-full h-10 py-0 pl-10 pr-4 border border-border-subtle rounded focus:border-primary focus:ring-1 focus:ring-primary text-body-md font-body-md bg-white outline-none placeholder:text-outline'
 const INPUT_ICON_WRAPPER =
   'pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center select-none'
 const INPUT_ICON = 'material-symbols-outlined text-[20px] leading-none text-outline block'
@@ -24,8 +22,6 @@ const STATUS_BADGE =
 const ICON_VARIATION = {
   fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20",
 } as const
-
-type ActiveField = 'id' | 'phone' | 'name'
 
 function genderBadgeClass(gender: string) {
   switch (gender?.toLowerCase()) {

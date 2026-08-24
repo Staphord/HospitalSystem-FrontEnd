@@ -62,7 +62,7 @@ export function AnnouncementsPage() {
       ])
       setAnnouncements(annData)
       setTenants(tenantData)
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to load announcements or tenant list.')
     } finally {
       setLoading(false)
@@ -136,7 +136,7 @@ export function AnnouncementsPage() {
       }
       setIsDrawerOpen(false)
       fetchData()
-    } catch (err) {
+    } catch (_err) {
       toast.error(editingId ? 'Failed to update announcement.' : 'Failed to create announcement.')
     } finally {
       setSubmitting(false)
@@ -151,7 +151,7 @@ export function AnnouncementsPage() {
       })
       toast.success('Announcement deactivated successfully.')
       fetchData()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to deactivate announcement.')
     }
   }
@@ -165,7 +165,7 @@ export function AnnouncementsPage() {
       })
       toast.success('Announcement activated successfully.')
       fetchData()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to activate announcement.')
     }
   }
@@ -177,7 +177,7 @@ export function AnnouncementsPage() {
       await monitoringService.deleteAnnouncement(announcementToDelete)
       toast.success('Announcement deleted successfully.')
       fetchData()
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to delete announcement.')
     } finally {
       setAnnouncementToDelete(null)

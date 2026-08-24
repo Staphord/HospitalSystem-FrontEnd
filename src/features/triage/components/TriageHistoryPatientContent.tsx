@@ -76,7 +76,7 @@ function VisitDetailModal({ visit, patientName, onClose }: VisitDetailModalProps
       try {
         const data = await triageService.getAssessment(visit.visitId)
         setRealAssessment(data)
-      } catch (err) {
+      } catch (_err) {
         // No per-assessment record for this visit (e.g. older visits missing
         // backend coverage) — fall back to the summary already loaded from
         // getPatientAssessments() above, not fabricated data.

@@ -220,7 +220,7 @@ export function LabRequestsContent() {
     try {
       const data = await laboratoryService.getRequests()
       setRequests(data)
-    } catch (err: any) {
+    } catch (_err: any) {
       toast.error('Failed to load lab requests from server')
     } finally {
       setLoading(false)

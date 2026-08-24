@@ -183,7 +183,7 @@ export function DailySummaryPage() {
   )
 
   const [bills, setBills] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
 
   const fetchBackendData = () => {
     setLoading(true)

@@ -18,7 +18,7 @@ test.describe('Doctor Encounter Flow E2E', () => {
     try {
       await expect(page.locator('text=Simultaneous Session Warning')).toBeVisible({ timeout: 3000 });
       await page.click('button:has-text("Keep This Session")');
-    } catch (e) {
+    } catch (_e) {
       // Modal didn't appear, proceed normally
     }
 

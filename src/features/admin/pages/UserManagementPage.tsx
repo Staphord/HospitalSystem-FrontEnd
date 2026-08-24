@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatRoleLabel } from '@/lib/roles';
 
-const PAGE_SIZE = 10;
-
 // Escapes a value for safe inclusion in a CSV cell
 const csvCell = (value: string): string => `"${value.replace(/"/g, '""')}"`;
 

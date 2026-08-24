@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getLandingDepartmentForRole, ROLE_DEPARTMENT_MAP } from '../../hooks/useStaffOperations'
+import { getLandingDepartmentForRole } from '../../hooks/useStaffOperations'
 
 describe('Staff Role Landing Department Mapping', () => {
   it('correctly maps radiographer and radiology roles to Radiology department', () => {

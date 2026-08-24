@@ -19,8 +19,6 @@ interface SpecimensLocationState {
   openModal?: boolean
 }
 
-const PAGE_SIZE = 25
-
 function mapBackendToTrackedSpecimen(item: BackendTrackedSpecimenItem): TrackedSpecimen {
   let trackingStatus: SpecimenTrackingStatus = 'collected'
   if (item.status === 'received') trackingStatus = 'in_lab'
@@ -143,7 +141,7 @@ export function LabSpecimensContent() {
     try {
       const items = await laboratoryService.getAllSpecimens()
       setSpecimens(items.map(mapBackendToTrackedSpecimen))
-    } catch (err: any) {
+    } catch (_err: any) {
       toast.error('Failed to load specimens from server')
     } finally {
       setLoading(false)

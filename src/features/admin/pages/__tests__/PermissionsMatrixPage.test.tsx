@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, fireEvent, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { PermissionsMatrixPage } from '../PermissionsMatrixPage'
 import { adminService } from '@/api/services/admin'

@@ -257,7 +257,7 @@ export function DispensePrescriptionContent() {
             quantity: qty,
           })
           setLabels((prev) => ({ ...prev, [item.prescription_id]: res }))
-        } catch (err) {
+        } catch (_err) {
           console.error('Failed to generate label preview for', item.drug_name)
         }
       }

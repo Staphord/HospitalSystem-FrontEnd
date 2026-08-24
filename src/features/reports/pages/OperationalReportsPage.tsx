@@ -18,7 +18,7 @@ export const OperationalReportsPage: React.FC = () => {
   const [bedData, setBedData] = useState<BedOccupancyReportResponse | null>(null);
 
   const [activeStaffCount, setActiveStaffCount] = useState<number>(0);
-  const [totalStaffCount, setTotalStaffCount] = useState<number>(0);
+  const [, setTotalStaffCount] = useState<number>(0);
   const [avgLos, setAvgLos] = useState<number>(0);
 
 
@@ -65,8 +65,6 @@ export const OperationalReportsPage: React.FC = () => {
     bedData && bedData.total > 0
       ? Math.round((bedData.occupied / bedData.total) * 100)
       : 0;
-
-  const staffPct = totalStaffCount > 0 ? Math.round((activeStaffCount / totalStaffCount) * 100) : 0;
 
   const filteredStaff = staffActivities.filter((row) =>
     row.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

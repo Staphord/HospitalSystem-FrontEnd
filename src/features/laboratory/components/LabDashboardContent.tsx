@@ -389,7 +389,7 @@ function TurnaroundTimeCard({ metrics }: { metrics: BackendTurnaroundMetric[] })
 export function LabDashboardContent() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [stats, setStats] = useState({
     pendingTests: 0,
     inProgress: 0,

@@ -17,7 +17,7 @@ export function AuditLogsPage() {
       setLoading(true)
       const data = await monitoringService.getAuditLogs()
       setLogs(data)
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to load global audit logs.')
     } finally {
       setLoading(false)
@@ -43,7 +43,7 @@ export function AuditLogsPage() {
       downloadAnchor.click()
       downloadAnchor.remove()
       toast.success('Audit logs exported successfully as JSON file.')
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to export logs.')
     }
   }

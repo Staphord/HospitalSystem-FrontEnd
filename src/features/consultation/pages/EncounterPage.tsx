@@ -14,17 +14,6 @@ interface VitalReading {
   isAbnormal?: boolean
 }
 
-interface MockPatient {
-  name: string
-  patientId: string
-  age: number | string
-  sex: string
-  priority: 'emergency' | 'urgent' | 'non-urgent' | 'general'
-  payment: string
-  visitNumber: number
-  vitals: VitalReading[]
-}
-
 interface InvestigationOrder {
   id: string
   testName: string
@@ -59,41 +48,6 @@ interface Prescription {
   instructions?: string
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_PATIENTS: Record<string, MockPatient> = {
-  'v-001': {
-    name: 'Fatuma Said', patientId: 'PT-4891', age: 42, sex: 'Female',
-    priority: 'emergency', payment: 'Cash', visitNumber: 3,
-    vitals: [
-      { label: 'BP', value: '145/95', isAbnormal: true },
-      { label: 'Temp', value: '38.2°C', isAbnormal: true },
-      { label: 'Pulse', value: '92 bpm' },
-      { label: 'SpO2', value: '96%' },
-      { label: 'Weight', value: '68kg' },
-    ],
-  },
-  'v-002': {
-    name: 'Hassan Mwita', patientId: 'PT-4889', age: 35, sex: 'Male',
-    priority: 'urgent', payment: 'Insurance', visitNumber: 1,
-    vitals: [
-      { label: 'Temp', value: '39.1°C', isAbnormal: true },
-      { label: 'BP', value: '122/78' },
-      { label: 'Pulse', value: '88 bpm' },
-      { label: 'SpO2', value: '98%' },
-    ],
-  },
-  'v-003': {
-    name: 'Grace Kimaro', patientId: 'PT-4892', age: 28, sex: 'Female',
-    priority: 'non-urgent', payment: 'Cash', visitNumber: 2,
-    vitals: [
-      { label: 'BP', value: '118/76' },
-      { label: 'Pulse', value: '72 bpm' },
-      { label: 'SpO2', value: '99%' },
-      { label: 'Weight', value: '58kg' },
-    ],
-  },
-}
 
 const PRIORITY_BADGE: Record<string, string> = {
   emergency: 'bg-[#ffebe6] text-[#bf2600]',

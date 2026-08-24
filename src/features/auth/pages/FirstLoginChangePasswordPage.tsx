@@ -97,7 +97,7 @@ export function FirstLoginChangePasswordPage() {
       let user
       try {
         user = await usersService.getMe()
-      } catch (profileErr: any) {
+      } catch (_profileErr: any) {
         toast.warning('Password changed successfully, but profile load failed. Please log in again.')
         navigate('/login')
         return

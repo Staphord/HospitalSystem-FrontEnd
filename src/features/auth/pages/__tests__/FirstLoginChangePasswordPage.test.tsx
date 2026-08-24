@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { FirstLoginChangePasswordPage } from '../FirstLoginChangePasswordPage'
 import { authService } from '@/api/services/auth'
-import { usersService } from '@/api/services/users'
 
 // Mock sonner toast
 vi.mock('sonner', () => ({
