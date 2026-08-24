@@ -140,7 +140,7 @@ jobs:
     needs: build-and-test
     if: |
       (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'repository_dispatch' && github.event.action == 'backend-staged-success')
+      (github.event_name == 'repository_dispatch' && github.event.action == 'backend-production-deployed-success')
     runs-on: ubuntu-latest
 
     steps:
@@ -186,6 +186,16 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             "$SOURCE" "$REMOTE_USER@$REMOTE_HOST:$TARGET"
 
+      
+      - name: Notify Backend of Successful Frontend Production Deployment
+        if: success() && github.event_name == 'repository_dispatch' && github.event.action == 'backend-production-deployed-success'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.CROSS_REPO_PAT }}
+          repository: Staphord/HospitalSystem
+          event-type: frontend-production-deployment-succeeded
+          client-payload: '{"release_tag": "${{ github.event.client_payload.release_tag }}", "sha": "${{ github.event.client_payload.sha }}"}'
+
   # If the build or the production deploy fails after the backend already
   # activated its release, tell the backend so it can roll itself back —
   # this is the only signal the backend's production pipeline listens for.
@@ -195,7 +205,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'repository_dispatch' &&
-      github.event.action == 'backend-staged-success' &&
+      github.event.action == 'backend-production-deployed-success' &&
       (needs.build-and-test.result == 'failure' || needs.deploy-production.result == 'failure')
     runs-on: ubuntu-latest
     steps:
@@ -204,5 +214,5 @@ jobs:
         with:
           token: ${{ secrets.CROSS_REPO_PAT }}
           repository: Staphord/HospitalSystem
-          event-type: frontend-deployment-failed
+          event-type: frontend-production-deployment-failed
           client-payload: '{"release_tag": "${{ github.event.client_payload.release_tag }}", "sha": "${{ github.event.client_payload.sha }}"}'
