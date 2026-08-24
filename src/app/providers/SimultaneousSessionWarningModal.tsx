@@ -42,7 +42,13 @@ export function SimultaneousSessionWarningModal({ children }: { children: ReactN
       // 2. Real API check
       try {
         const resp = await apiClient.get('/auth/session-check')
-        if (resp.data?.session_revoked) {
+        // Only a positively-confirmed revoke should force a logout. A
+        // "not found" / missing session row is not the same thing as a
+        // genuine revoke by another device — it's recoverable via the
+        // normal axios refresh-token interceptor (src/api/client.ts), so
+        // treat it like any other transient 401 instead of forcing a
+        // logout on a session that may still be perfectly valid.
+        if (resp.data?.session_revoked && !resp.data?.session_missing) {
           try {
             const { refreshToken } = useAuthStore.getState()
             if (refreshToken) {
