@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, staging ]
   repository_dispatch:
-    types: [ backend-staging-staged-success, backend-staged-success ]
+    types: [ backend-staging-staged-success, backend-production-deployed-success ]
   workflow_dispatch:
 
 jobs:
@@ -22,11 +22,11 @@ jobs:
           # repository_dispatch otherwise checks out the default branch — force
           # the branch that matches whichever backend release triggered us:
           # backend-staging-staged-success pairs with our staging branch,
-          # backend-staged-success (production) pairs with main.
+          # backend-production-deployed-success (production) pairs with main.
           ref: >-
             ${{
               github.event.action == 'backend-staging-staged-success' && 'staging' ||
-              github.event.action == 'backend-staged-success' && 'main' ||
+              github.event.action == 'backend-production-deployed-success' && 'main' ||
               github.ref
             }}
 
