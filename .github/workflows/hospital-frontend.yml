@@ -123,26 +123,53 @@ jobs:
           repository: Staphord/HospitalSystem
           event-type: frontend-staging-deployment-failed
           client-payload: '{"release_tag": "${{ github.event.client_payload.release_tag }}", "sha": "${{ github.event.client_payload.sha }}", "environment": "${{ github.event.client_payload.environment }}"}'
-  # # Deploy to Production on push to main/master (commented out for now)
-  # deploy-production:
-  #   name: Deploy to Production VPS
-  #   needs: build-and-test
-  #   if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
-  #   runs-on: ubuntu-latest
-  # 
-  #   steps:
-  #     - name: Download build artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: dist-build
-  #         path: dist
-  # 
-  #     - name: Sync files to Production VPS
-  #       uses: easingthemes/ssh-deploy@v5.0.3
-  #       with:
-  #         SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
-  #         ARGS: "-avzr --delete"
-  #         SOURCE: "dist/"
-  #         REMOTE_HOST: ${{ secrets.VPS_HOST }}
-  #         REMOTE_USER: ${{ secrets.VPS_USERNAME }}
-  #         TARGET: "/var/www/hospital-frontend/dist/"
+
+  # Deploy to Production on push to main. Manual sync only for now —
+  # no cross-repo signals yet, same raw SSH + rsync approach as staging.
+  deploy-production:
+    name: Deploy to Production VPS
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: dist-build
+          path: dist
+
+      # Production's /var/www/hospital-frontend holds a full git checkout
+      # (unlike staging, which only ever gets the built dist/), so pull the
+      # source there too — same approach the backend uses on its VPS.
+      - name: Sync source code on Production VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /var/www/hospital-frontend || exit 1
+            git fetch origin
+            git checkout main
+            git pull origin main
+
+      # Raw SSH + rsync deploy
+      - name: Sync files to Production VPS
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+          ARGS: "-avzr --delete"
+          SOURCE: "dist/"
+          REMOTE_HOST: ${{ secrets.VPS_HOST }}
+          REMOTE_USER: ${{ secrets.VPS_USERNAME }}
+          TARGET: "/var/www/hospital-frontend/dist/"
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
+
+          rsync $ARGS \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            "$SOURCE" "$REMOTE_USER@$REMOTE_HOST:$TARGET"
