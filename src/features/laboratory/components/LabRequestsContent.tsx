@@ -313,7 +313,7 @@ export function LabRequestsContent() {
     }
 
     navigate(location.pathname, { replace: true, state: {} })
-  }, [(location.state as LabRequestsLocationState | null)?.highlightRequestId])
+  }, [location.state, location.pathname, requests, navigate, pageSize])
 
   useEffect(() => {
     if (!activeRequestId) return

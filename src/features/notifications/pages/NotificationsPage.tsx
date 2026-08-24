@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
@@ -42,7 +42,7 @@ export function NotificationsPage() {
   const [showPreferences, setShowPreferences] = useState<boolean>(false)
   const [preferences, setPreferences] = useState<NotificationPreference | null>(null)
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     try {
       setLoading(true)
       const res = await notificationsApi.getNotifications({
@@ -57,7 +57,7 @@ export function NotificationsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [statusFilter, page, pageSize])
 
   const fetchPreferences = async () => {
     try {
@@ -70,7 +70,7 @@ export function NotificationsPage() {
 
   useEffect(() => {
     fetchItems()
-  }, [statusFilter, page, pageSize])
+  }, [fetchItems])
 
   const handleMarkItemRead = async (id: string) => {
     await markAsRead(id)

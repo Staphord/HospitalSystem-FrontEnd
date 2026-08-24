@@ -394,7 +394,7 @@ export function TriageQueueContent() {
     }
 
     navigate(location.pathname, { replace: true, state: {} })
-  }, [location.state, location.pathname, filteredPatients, navigate])
+  }, [location.state, location.pathname, filteredPatients, navigate, pageSize])
 
   useEffect(() => {
     if (!activeVisitId) return

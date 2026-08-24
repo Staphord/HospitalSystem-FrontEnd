@@ -78,8 +78,8 @@ export function PatientRegistrationPage() {
       .then((providers) => {
         const active = providers.filter(p => p.active)
         setProvidersList(active)
-        if (active.length > 0 && !insurerName) {
-          setInsurerName(active[0].name)
+        if (active.length > 0) {
+          setInsurerName((prev) => prev || active[0].name)
         }
         // toast.success(`Loaded ${active.length} active insurance providers`)
       })

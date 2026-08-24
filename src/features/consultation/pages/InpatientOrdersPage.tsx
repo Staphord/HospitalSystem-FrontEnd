@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { InpatientPatientHeader } from '@/features/consultation/components/InpatientPatientHeader'
 import { wardService } from '@/api/services/ward'
@@ -318,7 +318,7 @@ export function InpatientOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!admissionId) return
     try {
       const [patRes, ordRes] = await Promise.all([
@@ -332,11 +332,11 @@ export function InpatientOrdersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [admissionId])
 
   useEffect(() => {
     loadData()
-  }, [admissionId])
+  }, [loadData])
 
   if (loading) {
     return (

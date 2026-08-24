@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { InpatientPatientHeader } from '@/features/consultation/components/InpatientPatientHeader'
@@ -137,13 +137,13 @@ export function InpatientDischargePage() {
   const [newDrug, setNewDrug] = useState('')
   const [newDose, setNewDose] = useState('')
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!admissionId) return
     try {
       const res = await wardService.getAdmissionDetails(admissionId)
       setPatient(res.data.patient)
       setSummary(res.data.summary)
-      
+
       // Populate defaults from admission info if available
       setDischargeDiagnosis(res.data.patient.primaryDiagnosis || '')
     } catch (err) {
@@ -151,11 +151,11 @@ export function InpatientDischargePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [admissionId])
 
   useEffect(() => {
     loadData()
-  }, [admissionId])
+  }, [loadData])
 
   const isFormValid =
     dischargeDiagnosis.trim().length > 0 &&

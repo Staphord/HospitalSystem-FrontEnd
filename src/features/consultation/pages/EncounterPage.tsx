@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatShortDateTime, formatPatientAge } from '@/lib/localization'
@@ -1249,7 +1249,7 @@ export function EncounterPage() {
   // §6 Disposition
   const [disposition, setDisposition] = useState<DispositionType | null>(null)
 
-  const loadEncounter = async (showLoading = true) => {
+  const loadEncounter = useCallback(async (showLoading = true) => {
     if (!visitId) return
     console.log("[DEBUG] loadEncounter called. hasLoadedRef.current:", hasLoadedRef.current, "visitId:", visitId)
     if (hasLoadedRef.current === visitId) {
@@ -1301,9 +1301,9 @@ export function EncounterPage() {
     } finally {
       if (showLoading) setLoading(false)
     }
-  }
+  }, [visitId])
 
-  const refreshEncounter = async () => {
+  const refreshEncounter = useCallback(async () => {
     if (!visitId) return
     console.log("[DEBUG] refreshEncounter called.")
     try {
@@ -1312,7 +1312,7 @@ export function EncounterPage() {
     } catch (err) {
       console.error("Failed to refresh encounter:", err)
     }
-  }
+  }, [visitId])
 
   useEffect(() => {
     loadEncounter(true)
@@ -1320,7 +1320,7 @@ export function EncounterPage() {
       refreshEncounter()
     }, 10000)
     return () => clearInterval(interval)
-  }, [visitId])
+  }, [visitId, loadEncounter, refreshEncounter])
 
   const patient = useMemo(() => {
     if (!encounter?.patient) {

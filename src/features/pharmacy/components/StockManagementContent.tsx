@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { AddDrugModal } from '@/features/pharmacy/components/AddDrugModal'
 import { EditDrugModal } from '@/features/pharmacy/components/EditDrugModal'
@@ -143,7 +143,7 @@ export function StockManagementContent() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
 
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     try {
       setLoading(true)
       const res = await pharmacyService.getInventory({
@@ -161,11 +161,11 @@ export function StockManagementContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search, categoryFilter, statusFilter, page])
 
   useEffect(() => {
     fetchInventory()
-  }, [search, categoryFilter, statusFilter, page])
+  }, [fetchInventory])
 
   const mappedStockItems = useMemo<StockItem[]>(() => {
     return dbItems.map((item) => {

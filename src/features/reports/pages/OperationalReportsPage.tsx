@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { adminService, type StaffActivityRow, type BedOccupancyReportResponse } from '@/api/services/admin';
 import { formatRoleLabel } from '@/lib/roles';
@@ -22,7 +22,7 @@ export const OperationalReportsPage: React.FC = () => {
   const [avgLos, setAvgLos] = useState<number>(0);
 
 
-  const fetchOperationalData = () => {
+  const fetchOperationalData = useCallback(() => {
     setLoading(true);
     Promise.all([
       adminService.getOperationalActivityReport(fromDate, toDate, department).catch(() => null),
@@ -50,10 +50,13 @@ export const OperationalReportsPage: React.FC = () => {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [fromDate, toDate, department]);
 
+  // Filters are applied manually via the "Apply Filters" button (see
+  // handleApplyFilters below) rather than live — only fetch on mount here.
   useEffect(() => {
     fetchOperationalData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleApplyFilters = () => {

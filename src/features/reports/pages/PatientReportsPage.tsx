@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -44,7 +44,7 @@ export const PatientReportsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  const fetchReports = () => {
+  const fetchReports = useCallback(() => {
     setLoading(true);
     Promise.all([
       adminService.getPatientCensusReport(fromDate, toDate).catch(() => null),
@@ -61,10 +61,13 @@ export const PatientReportsPage: React.FC = () => {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [fromDate, toDate]);
 
+  // Filters are applied manually via the "Apply Filters" button
+  // (handleApplyFilters below) rather than live — only fetch on mount here.
   useEffect(() => {
     fetchReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reports: ReportItem[] = [

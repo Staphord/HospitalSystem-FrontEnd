@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { usersService, type UserUpdatePayload, type PasswordChangePayload } from '@/api/services/users'
@@ -37,18 +37,18 @@ export function ProfilePage() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Load / Refresh Profile info on mount
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     try {
       const data = await usersService.getMe()
       setUser(data)
     } catch (_err) {
       // Failed to load silently
     }
-  }
+  }, [setUser])
 
   useEffect(() => {
     refreshProfile()
-  }, [])
+  }, [refreshProfile])
 
   useEffect(() => {
     if (user) {

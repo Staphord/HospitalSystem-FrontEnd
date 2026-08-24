@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { adminService, type RevenueReportResponse } from '@/api/services/admin';
 
@@ -15,7 +15,7 @@ export const RevenueReportsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [revenueData, setRevenueData] = useState<RevenueReportResponse | null>(null);
 
-  const fetchRevenue = () => {
+  const fetchRevenue = useCallback(() => {
     setLoading(true);
     adminService
       .getRevenueReport(fromDate, toDate)
@@ -29,10 +29,13 @@ export const RevenueReportsPage: React.FC = () => {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }, [fromDate, toDate]);
 
+  // Filters are applied manually via the "Apply Filters" button
+  // (handleApplyFilters below) rather than live — only fetch on mount here.
   useEffect(() => {
     fetchRevenue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const formatTzs = (value: number): string => {

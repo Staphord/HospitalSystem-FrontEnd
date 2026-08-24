@@ -188,8 +188,8 @@ function PatientFoundCard({
       .then((providers) => {
         const active = providers.filter(p => p.active)
         setProvidersList(active)
-        if (active.length > 0 && !insurerName) {
-          setInsurerName(active[0].name)
+        if (active.length > 0) {
+          setInsurerName((prev) => prev || active[0].name)
         }
       })
       .catch((err) => {
@@ -197,7 +197,7 @@ function PatientFoundCard({
       })
   }, [])
 
-  const loadPatientStatus = async () => {
+  const loadPatientStatus = useCallback(async () => {
     setLoadingPolicies(true)
     setLoadingQueue(true)
     try {
@@ -240,7 +240,7 @@ function PatientFoundCard({
       setLoadingPolicies(false)
       setLoadingQueue(false)
     }
-  }
+  }, [patient])
 
   useEffect(() => {
     let active = true
@@ -253,7 +253,7 @@ function PatientFoundCard({
     return () => {
       active = false
     }
-  }, [patient.id])
+  }, [loadPatientStatus])
 
   const handleAddPolicy = async (e: React.FormEvent) => {
     e.preventDefault()

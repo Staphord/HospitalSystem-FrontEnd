@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { formatDoctorName } from '@/lib/localization'
@@ -21,7 +21,7 @@ export function LabRequestDetailContent() {
   const [submitting, setSubmitting] = useState(false)
   const [verifying, setVerifying] = useState(false)
 
-  const loadDetail = async () => {
+  const loadDetail = useCallback(async () => {
     if (!requestId) return
     setLoading(true)
     try {
@@ -38,11 +38,11 @@ export function LabRequestDetailContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [requestId])
 
   useEffect(() => {
     loadDetail()
-  }, [requestId])
+  }, [loadDetail])
 
   if (!requestId) {
     return <Navigate to="/laboratory/requests" replace />
