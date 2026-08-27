@@ -20,6 +20,13 @@ export type AssistantFailureKind =
   | 'invalid_output'
   | 'network'
   | 'unknown'
+  // Voice
+  | 'microphone_denied'
+  | 'microphone_unavailable'
+  | 'recording_unsupported'
+  | 'invalid_audio'
+  | 'audio_too_long'
+  | 'unsupported_audio'
 
 export interface AssistantFailure {
   kind: AssistantFailureKind
@@ -43,6 +50,13 @@ const MESSAGES: Record<AssistantFailureKind, string> = {
   invalid_output: 'The assistant could not produce a usable answer. Try rephrasing.',
   network: 'Could not reach the assistant. Check your connection and try again.',
   unknown: 'Something went wrong. Try again.',
+  microphone_denied:
+    'Microphone access was blocked. Allow it in your browser settings to use voice.',
+  microphone_unavailable: 'No microphone was found. Check that one is connected.',
+  recording_unsupported: 'This browser cannot record audio. Type your question instead.',
+  invalid_audio: 'That recording could not be read. Try recording again.',
+  audio_too_long: 'That recording is too long. Keep it under a minute.',
+  unsupported_audio: 'That audio format is not supported. Try recording again.',
 }
 
 const RETRYABLE: ReadonlySet<AssistantFailureKind> = new Set<AssistantFailureKind>([
@@ -52,6 +66,12 @@ const RETRYABLE: ReadonlySet<AssistantFailureKind> = new Set<AssistantFailureKin
   'network',
   'rate_limited',
   'unknown',
+  // A failed recording is worth another try; a blocked microphone is not,
+  // because retrying cannot change a browser permission the user must alter.
+  'invalid_audio',
+  'audio_too_long',
+  'unsupported_audio',
+  'microphone_unavailable',
 ])
 
 const KIND_BY_CODE: Partial<Record<AssistantErrorCode, AssistantFailureKind>> = {
@@ -62,6 +82,9 @@ const KIND_BY_CODE: Partial<Record<AssistantErrorCode, AssistantFailureKind>> = 
   PROVIDER_UNAVAILABLE: 'provider_unavailable',
   PROVIDER_TIMEOUT: 'timeout',
   INVALID_PROVIDER_OUTPUT: 'invalid_output',
+  INVALID_AUDIO: 'invalid_audio',
+  AUDIO_TOO_LONG: 'audio_too_long',
+  UNSUPPORTED_AUDIO_FORMAT: 'unsupported_audio',
 }
 
 const KIND_BY_STATUS: Record<number, AssistantFailureKind> = {
@@ -70,6 +93,7 @@ const KIND_BY_STATUS: Record<number, AssistantFailureKind> = {
   403: 'permission_denied',
   404: 'capability_disabled',
   413: 'too_large',
+  415: 'unsupported_audio',
   422: 'invalid_request',
   429: 'rate_limited',
   502: 'invalid_output',
@@ -126,4 +150,26 @@ export function toAssistantFailure(error: unknown): AssistantFailure {
 /** A cancelled request is a user action, not a failure to report. */
 export function isCancellation(error: unknown): boolean {
   return axios.isCancel(error) || (axios.isAxiosError(error) && error.code === 'ERR_CANCELED')
+}
+
+/**
+ * Turn a getUserMedia rejection into a safe failure description.
+ *
+ * The browser distinguishes "you said no" from "there is no microphone", and
+ * the two need different advice: one is fixed in browser settings, the other by
+ * plugging something in. Retrying a denied permission would just fail again.
+ */
+export function toMicrophoneFailure(error: unknown): AssistantFailure {
+  const name = (error as { name?: string } | null)?.name ?? ''
+
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return build('microphone_denied')
+  }
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    return build('microphone_unavailable')
+  }
+  if (name === 'NotReadableError' || name === 'AbortError') {
+    return build('microphone_unavailable')
+  }
+  return build('recording_unsupported')
 }

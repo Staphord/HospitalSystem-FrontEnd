@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { AssistantAnswer } from '@/features/assistant/components/AssistantAnswer'
+import { VoiceControls } from '@/features/assistant/components/VoiceControls'
 import type { AssistantTurn, UseAssistantChat } from '@/features/assistant/hooks/useAssistantChat'
 
 /** Matches the server-side limit, so an over-long question is caught before it is sent. */
@@ -273,6 +274,13 @@ export function AssistantPanel({ chat, onClose }: AssistantPanelProps) {
             That question is too long. Keep it under {MAX_QUESTION_CHARS} characters.
           </p>
         )}
+
+        {/*
+          Pressing Use this in the review step is the explicit confirmation, so
+          the confirmed words are asked exactly as the user approved them. A
+          transcript never reaches this point on its own.
+        */}
+        <VoiceControls onConfirm={(text) => void ask(text)} disabled={isSending} />
 
         <div className="mt-2 flex items-center justify-end gap-2">
           {isSending && (
