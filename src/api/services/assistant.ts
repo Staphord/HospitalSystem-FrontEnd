@@ -3,6 +3,8 @@ import type {
   AssistantChatRequest,
   AssistantChatResponse,
   AssistantFeedbackRequest,
+  AssistantVoiceLanguage,
+  AssistantVoiceTranscriptResponse,
 } from '@/api/types/assistant'
 
 /**
@@ -25,4 +27,27 @@ export const assistantService = {
     apiClient
       .post<void>('/reports/assistant/feedback', data, { signal })
       .then(() => undefined),
+
+  /**
+   * Send one push-to-talk recording for transcription.
+   *
+   * The recording is posted as raw bytes with its own Content-Type, which the
+   * server checks against the actual container. Abortable, so a user who
+   * changes their mind stops the upload rather than waiting it out.
+   */
+  transcribe: (
+    audio: Blob,
+    options: { language?: AssistantVoiceLanguage; signal?: AbortSignal } = {},
+  ) =>
+    apiClient
+      .post<AssistantVoiceTranscriptResponse>(
+        '/reports/assistant/voice/transcribe',
+        audio,
+        {
+          headers: { 'Content-Type': audio.type || 'audio/webm' },
+          params: options.language ? { language: options.language } : undefined,
+          signal: options.signal,
+        },
+      )
+      .then((r) => r.data),
 }
