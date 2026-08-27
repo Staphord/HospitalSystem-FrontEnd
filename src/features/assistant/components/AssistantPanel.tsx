@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { AnswerSpeech } from '@/features/assistant/components/AnswerSpeech'
 import { AssistantAnswer } from '@/features/assistant/components/AssistantAnswer'
 import { VoiceControls } from '@/features/assistant/components/VoiceControls'
 import type { AssistantTurn, UseAssistantChat } from '@/features/assistant/hooks/useAssistantChat'
@@ -103,6 +104,7 @@ function TurnView({
           )}
           <AssistantAnswer answer={turn.answer} />
           <SourceList turn={turn} />
+          {turn.answerStatus === 'supported' && <AnswerSpeech answer={turn.answer} />}
           <FeedbackControls turn={turn} onRate={onRate} />
         </div>
       )}
