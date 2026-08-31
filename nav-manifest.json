@@ -1,0 +1,376 @@
+{
+  "schema": 1,
+  "generatedFrom": "frontend-hospital/src/app/layout/navGroups.ts (rendered sidebar)",
+  "screens": {
+    "/admin/audit-logs": {
+      "label": "Audit Logs",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/backup": {
+      "label": "Data Backup",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/dashboard": {
+      "label": "Dashboard",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/departments": {
+      "label": "Departments & Wards",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/fees": {
+      "label": "Fee Schedules",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/insurance": {
+      "label": "Insurance Providers",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/permissions": {
+      "label": "Permissions",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/reports": {
+      "label": "Reports",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/reports/operations": {
+      "label": "Operational Reports",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/reports/patients": {
+      "label": "Patient Reports",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/reports/revenue": {
+      "label": "Revenue Reports",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/roles": {
+      "label": "Roles",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/sessions": {
+      "label": "Active Sessions",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/settings": {
+      "label": "Hospital Settings",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/staff": {
+      "label": "All Staff",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/admin/subscription": {
+      "label": "My Subscription",
+      "roles": [
+        "hospital_admin"
+      ]
+    },
+    "/billing/bills": {
+      "label": "Patient Bills",
+      "roles": [
+        "cashier",
+        "hospital_admin",
+        "receptionist"
+      ]
+    },
+    "/billing/dashboard": {
+      "label": "Cashier Dashboard",
+      "roles": [
+        "cashier",
+        "hospital_admin"
+      ]
+    },
+    "/billing/summary": {
+      "label": "Daily Summary",
+      "roles": [
+        "cashier",
+        "hospital_admin"
+      ]
+    },
+    "/consultation/history": {
+      "label": "Patient History",
+      "roles": [
+        "doctor"
+      ]
+    },
+    "/consultation/inpatient": {
+      "label": "Inpatient",
+      "roles": [
+        "doctor"
+      ]
+    },
+    "/consultation/queue": {
+      "label": "Consultation",
+      "roles": [
+        "doctor",
+        "hospital_admin"
+      ]
+    },
+    "/consultation/referrals": {
+      "label": "My Referrals",
+      "roles": [
+        "doctor"
+      ]
+    },
+    "/consultation/results": {
+      "label": "Investigation Results",
+      "roles": [
+        "doctor"
+      ]
+    },
+    "/dashboard": {
+      "label": "Dashboard",
+      "roles": [
+        "cashier",
+        "doctor",
+        "lab_technician",
+        "pharmacist",
+        "radiographer",
+        "receptionist",
+        "triage_nurse",
+        "ward_nurse"
+      ]
+    },
+    "/laboratory/requests": {
+      "label": "Test Requests",
+      "roles": [
+        "doctor",
+        "hospital_admin",
+        "lab_technician"
+      ]
+    },
+    "/laboratory/results": {
+      "label": "Lab Results",
+      "roles": [
+        "hospital_admin",
+        "lab_technician"
+      ]
+    },
+    "/laboratory/specimens": {
+      "label": "Specimen Tracking",
+      "roles": [
+        "hospital_admin",
+        "lab_technician"
+      ]
+    },
+    "/master/admins": {
+      "label": "Platform Admins",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/announcements": {
+      "label": "Announcements",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/audit-logs": {
+      "label": "Audit Logs",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/dashboard": {
+      "label": "Dashboard",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/health": {
+      "label": "System Health",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/invoices": {
+      "label": "Invoices",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/payments": {
+      "label": "Payments",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/subscriptions": {
+      "label": "Subscriptions",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/tenants": {
+      "label": "Tenants",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/notifications": {
+      "label": "Notifications",
+      "roles": [
+        "cashier",
+        "doctor",
+        "hospital_admin",
+        "lab_technician",
+        "pharmacist",
+        "radiographer",
+        "receptionist",
+        "triage_nurse",
+        "ward_nurse"
+      ]
+    },
+    "/pharmacy/queue": {
+      "label": "Prescription Queue",
+      "roles": [
+        "hospital_admin",
+        "pharmacist"
+      ]
+    },
+    "/pharmacy/stock": {
+      "label": "Stock Management",
+      "roles": [
+        "hospital_admin",
+        "pharmacist"
+      ]
+    },
+    "/radiology/requests": {
+      "label": "Imaging Requests",
+      "roles": [
+        "doctor",
+        "hospital_admin",
+        "radiographer"
+      ]
+    },
+    "/radiology/schedule": {
+      "label": "Imaging Schedule",
+      "roles": [
+        "doctor",
+        "hospital_admin",
+        "radiographer"
+      ]
+    },
+    "/reception/queue": {
+      "label": "Queue Management",
+      "roles": [
+        "hospital_admin",
+        "receptionist"
+      ]
+    },
+    "/reception/register": {
+      "label": "Register Patient",
+      "roles": [
+        "hospital_admin",
+        "receptionist"
+      ]
+    },
+    "/reception/search": {
+      "label": "Patient Search",
+      "roles": [
+        "hospital_admin",
+        "receptionist"
+      ]
+    },
+    "/triage/history": {
+      "label": "Patient History",
+      "roles": [
+        "hospital_admin",
+        "triage_nurse"
+      ]
+    },
+    "/triage/queue": {
+      "label": "Triage",
+      "roles": [
+        "hospital_admin",
+        "triage_nurse"
+      ]
+    },
+    "/ward/admissions": {
+      "label": "Admissions",
+      "roles": [
+        "doctor",
+        "hospital_admin",
+        "triage_nurse",
+        "ward_nurse"
+      ]
+    },
+    "/ward/beds": {
+      "label": "Bed Map",
+      "roles": [
+        "hospital_admin",
+        "ward_nurse"
+      ]
+    },
+    "/ward/dashboard": {
+      "label": "Ward Dashboard",
+      "roles": [
+        "hospital_admin",
+        "ward_nurse"
+      ]
+    },
+    "/ward/handover": {
+      "label": "Shift Handover",
+      "roles": [
+        "hospital_admin",
+        "ward_nurse"
+      ]
+    },
+    "/ward/orders": {
+      "label": "Inpatient Orders",
+      "roles": [
+        "doctor",
+        "hospital_admin",
+        "triage_nurse",
+        "ward_nurse"
+      ]
+    },
+    "/ward/patients": {
+      "label": "My Patients",
+      "roles": [
+        "hospital_admin",
+        "ward_nurse"
+      ]
+    },
+    "/ward/visitors": {
+      "label": "Visitor Log",
+      "roles": [
+        "hospital_admin",
+        "ward_nurse"
+      ]
+    }
+  }
+}

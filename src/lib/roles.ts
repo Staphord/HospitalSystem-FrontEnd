@@ -215,6 +215,11 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
+    label: 'Lab Results',
+    path: '/laboratory/results',
+    roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
+  },
+  {
     label: 'Specimen Tracking',
     path: '/laboratory/specimens',
     roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
@@ -247,7 +252,7 @@ export const HOSPITAL_NAV: NavItem[] = [
   {
     label: 'Patient Bills',
     path: '/billing/bills',
-    roles: [ROLES.cashier, ROLES.hospitalAdmin],
+    roles: [ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist],
   },
   {
     label: 'Daily Summary',
@@ -270,9 +275,14 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
   },
   {
+    label: 'Admissions',
+    path: '/ward/admissions',
+    roles: [ROLES.wardNurse, ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin],
+  },
+  {
     label: 'Inpatient Orders',
     path: '/ward/orders',
-    roles: [ROLES.wardNurse, ROLES.doctor, ROLES.hospitalAdmin],
+    roles: [ROLES.wardNurse, ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
     label: 'Visitor Log',
