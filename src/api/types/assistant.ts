@@ -7,9 +7,9 @@
  * resolved from the verified token on the server and are rejected outright if a
  * browser sends them.
  *
- * Operational chat, feedback, and push-to-talk voice exist. Medication checks
- * and clinical differential support arrive in later phases with their own flags
- * and permissions, and are not declared here.
+ * Operational chat, feedback, push-to-talk voice, and chat history exist.
+ * Medication checks and clinical differential support arrive in later phases
+ * with their own flags and permissions, and are not declared here.
  */
 
 /** Outcome of an answer. Only a supported answer may cite sources. */
@@ -40,6 +40,29 @@ export interface AssistantChatResponse {
   answer: string
   sources: AssistantSource[]
   follow_ups: string[]
+  /**
+   * The stored thread this exchange joined. Null when chat history is switched
+   * off for the deployment, or when the store could not be written: an answer
+   * is never withheld because history failed.
+   */
+  conversation_id?: string | null
+}
+
+/**
+ * One starting question the server has established this user can actually get an
+ * answer to. `kind` says whether a content entry or a live figure backs it, so
+ * the panel can group them; the browser is never told which entry or which
+ * metric, and never asks for suggestions on behalf of a role.
+ */
+export interface AssistantSuggestion {
+  question: string
+  kind: string
+}
+
+/** Starting questions, chosen server-side for the signed-in user's own roles. */
+export interface AssistantSuggestionsResponse {
+  request_id: string
+  suggestions: AssistantSuggestion[]
 }
 
 export type AssistantFeedbackRating = 'helpful' | 'not_helpful' | 'incorrect'
@@ -75,6 +98,61 @@ export interface AssistantErrorResponse {
   request_id: string
   code: AssistantErrorCode
   message: string
+}
+
+/**
+ * Chat history.
+ *
+ * A conversation is created by asking a question. There is deliberately no
+ * request contract here for writing one: the browser cannot post conversation
+ * text, set a title, or name an owner. The only value it sends is a
+ * conversation id, and the server resolves that against the caller's own rows,
+ * so an id from anywhere else resolves to nothing.
+ */
+
+/** Who wrote a stored message. */
+export type AssistantMessageAuthor = 'user' | 'assistant'
+
+/** One row in the history list. */
+export interface AssistantConversationSummary {
+  conversation_id: string
+  /** Derived on the server from the opening question. Plain text. */
+  title: string
+  message_count: number
+  created_at: string
+  last_message_at: string
+}
+
+export interface AssistantConversationListResponse {
+  conversations: AssistantConversationSummary[]
+}
+
+/** One stored question or answer, as it was shown at the time. */
+export interface AssistantStoredMessage {
+  message_id: string
+  author: AssistantMessageAuthor
+  body: string
+  /** Set on an assistant message only. */
+  answer_status?: AssistantAnswerStatus | null
+  sources: AssistantSource[]
+  request_id?: string | null
+  created_at: string
+}
+
+/** One reopened conversation and its messages, oldest first. */
+export interface AssistantConversationResponse {
+  conversation_id: string
+  title: string
+  created_at: string
+  last_message_at: string
+  messages: AssistantStoredMessage[]
+  /**
+   * Where the thread can go next, for the answer it currently ends on. Computed
+   * by the server when the thread is reopened, against the roles on the token
+   * now, so a reopened conversation offers the same next questions a live one
+   * does. Absent on a thread that ends on an unanswered question.
+   */
+  follow_ups?: string[]
 }
 
 /** Whether a capture produced usable speech. */
