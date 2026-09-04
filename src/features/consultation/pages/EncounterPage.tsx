@@ -5,6 +5,8 @@ import { formatShortDateTime, formatPatientAge } from '@/lib/localization'
 import { consultationService } from '@/api/services/consultation'
 import { adminService } from '@/api/services/admin'
 import type { EncounterViewResponse } from '@/api/types/consultation'
+import { ClinicalSuggestionCard } from '@/features/cds/components/ClinicalSuggestionCard'
+import { useDifferentialSupport } from '@/features/cds/hooks/useDifferentialSupport'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1524,6 +1526,10 @@ export function EncounterPage() {
     }
   }
 
+  // Clinician-only, doctor-only, and switched off by default. Renders nothing
+  // at all when the capability is closed to this deployment or this role.
+  const differential = useDifferentialSupport(visitId)
+
   const handleAddPrescription = async (rx: Omit<Prescription, 'id'>) => {
     if (!encounter?.consultation?.id) return
     try {
@@ -1955,6 +1961,15 @@ export function EncounterPage() {
             </div>
           )}
         </SectionCard>
+
+        {/* Clinical Differential Support. Sits before prescribing because it is
+            a reasoning aid for the assessment, not a step in the order. */}
+        <div className="mb-md">
+          <ClinicalSuggestionCard
+            state={differential}
+            defaultChiefComplaint={encounter?.triage_summary?.chief_complaint || ''}
+          />
+        </div>
 
         {/* §5 Prescription */}
         <SectionCard
