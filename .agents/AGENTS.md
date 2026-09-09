@@ -1,3 +1,16 @@
+# Assistant QA Contract
+
+`../../test_creds.md` (repo root) holds the test accounts and the exact figures every
+assistant question must return, per role. It is what QA runs from, and it goes stale
+silently — a reseed or a permission change leaves every line reading correctly while
+sending the tester after bugs that do not exist.
+
+- **After changing anything the assistant panel touches** — the panel itself, the
+  starting-question list, `HOSPITAL_NAV`, or the role gating behind either — re-check
+  `test_creds.md`, correct what has moved, and update the `Checked` date at its top.
+- Do not copy credentials out of it into other docs. It is the one place they are kept
+  verified; a second copy is a second thing to go stale.
+
 # Git Permissions Rule
 
 - **Do NOT perform git commits, staging, or other git-modifying operations automatically.**
