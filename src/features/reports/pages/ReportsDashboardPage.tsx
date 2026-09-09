@@ -6,7 +6,7 @@ export function ReportsDashboardPage() {
     {
       title: 'Patient Reports',
       description: 'Analyze outpatient/inpatient census, department wait times, and patient discharge metrics.',
-      path: '/reports/patients',
+      path: '/admin/reports/patients',
       icon: 'groups',
       color: 'text-primary',
       bg: 'bg-primary/10',
@@ -14,7 +14,7 @@ export function ReportsDashboardPage() {
     {
       title: 'Revenue Reports',
       description: 'Track hospital collections, department revenue breakdown, and cash vs insurance payment shares.',
-      path: '/reports/revenue',
+      path: '/admin/reports/revenue',
       icon: 'payments',
       color: 'text-success',
       bg: 'bg-success/10',
@@ -22,7 +22,7 @@ export function ReportsDashboardPage() {
     {
       title: 'Operational Reports',
       description: 'Monitor bed occupancy rates, average length of stay, and staff utilization performance.',
-      path: '/reports/operations',
+      path: '/admin/reports/operations',
       icon: 'analytics',
       color: 'text-warning',
       bg: 'bg-warning/10',
