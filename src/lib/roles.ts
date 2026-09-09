@@ -197,12 +197,12 @@ export const HOSPITAL_NAV: NavItem[] = [
   {
     label: 'Investigation Results',
     path: '/consultation/results',
-    roles: [ROLES.doctor],
+    roles: [ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
     label: 'Patient History',
     path: '/consultation/history',
-    roles: [ROLES.doctor],
+    roles: [ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
     label: 'My Referrals',
@@ -213,6 +213,11 @@ export const HOSPITAL_NAV: NavItem[] = [
     label: 'Test Requests',
     path: '/laboratory/requests',
     roles: [ROLES.labTechnician, ROLES.doctor, ROLES.hospitalAdmin],
+  },
+  {
+    label: 'Lab Results',
+    path: '/laboratory/results',
+    roles: [ROLES.labTechnician, ROLES.hospitalAdmin],
   },
   {
     label: 'Specimen Tracking',
@@ -247,7 +252,7 @@ export const HOSPITAL_NAV: NavItem[] = [
   {
     label: 'Patient Bills',
     path: '/billing/bills',
-    roles: [ROLES.cashier, ROLES.hospitalAdmin],
+    roles: [ROLES.cashier, ROLES.hospitalAdmin, ROLES.receptionist],
   },
   {
     label: 'Daily Summary',
@@ -270,9 +275,14 @@ export const HOSPITAL_NAV: NavItem[] = [
     roles: [ROLES.wardNurse, ROLES.hospitalAdmin],
   },
   {
+    label: 'Admissions',
+    path: '/ward/admissions',
+    roles: [ROLES.wardNurse, ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin],
+  },
+  {
     label: 'Inpatient Orders',
     path: '/ward/orders',
-    roles: [ROLES.wardNurse, ROLES.doctor, ROLES.hospitalAdmin],
+    roles: [ROLES.wardNurse, ROLES.triageNurse, ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
     label: 'Visitor Log',
@@ -311,6 +321,7 @@ export const MASTER_NAV: NavItem[] = [
   { label: 'System Health', path: '/master/health', roles: [ROLES.superAdmin] },
   { label: 'Announcements', path: '/master/announcements', roles: [ROLES.superAdmin] },
   { label: 'Audit Logs', path: '/master/audit-logs', roles: [ROLES.superAdmin] },
+  { label: 'AI Assistant', path: '/master/ai-assistant', roles: [ROLES.superAdmin] },
 ]
 
 export function getDefaultRoute(roles: string[], userRole?: string | null): string {

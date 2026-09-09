@@ -12,7 +12,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "nav:manifest": "vite-node scripts/writeNavManifest.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
