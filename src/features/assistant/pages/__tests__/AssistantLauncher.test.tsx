@@ -31,11 +31,28 @@ const clearConversationsMock = vi.hoisted(() => vi.fn())
 // mount. It resolves to an empty list here: these suites are about the
 // conversation, and AssistantSuggestions.test.tsx covers the list itself.
 const getSuggestionsMock = vi.hoisted(() =>
-  vi.fn(async () => ({ request_id: 'req-s', suggestions: [] })),
+  // The element type is stated because the default is empty: inferred from
+  // `[]` alone the mock's suggestions are `never[]`, and every test that
+  // returns real suggestions fails to typecheck.
+  vi.fn(
+    async (): Promise<{
+      request_id: string
+      suggestions: { question: string; kind: string }[]
+    }> => ({ request_id: 'req-s', suggestions: [] }),
+  ),
+)
+
+const getStatusMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    enabled: true,
+    capabilities: ['operational_chat', 'chat_history', 'voice', 'live_data'],
+    provider_configured: true,
+  })),
 )
 
 vi.mock('@/api/services/assistant', () => ({
   assistantService: {
+    getStatus: getStatusMock,
     chat: chatMock,
     getSuggestions: getSuggestionsMock,
     sendFeedback: feedbackMock,
@@ -73,8 +90,33 @@ function setAuth(partial: Partial<typeof auth.current>) {
   auth.current = { ...auth.current, ...partial }
 }
 
+/**
+ * Render the launcher and wait for the server's availability answer.
+ *
+ * The launcher is not drawn until the server has said this user has an
+ * assistant, so nothing is on screen for the first tick. Tests that expect a
+ * launcher wait for it here rather than reading the DOM before the answer has
+ * arrived.
+ */
+async function renderLauncher() {
+  render(<AssistantLauncher />)
+  return screen.findByRole('button', { name: /open hospital assistant/i })
+}
+
+/** Render and let the availability request settle without a launcher appearing. */
+async function renderWithoutLauncher() {
+  render(<AssistantLauncher />)
+  await waitFor(() => {
+    expect(
+      screen.queryByRole('button', { name: /hospital assistant/i }),
+    ).not.toBeInTheDocument()
+  })
+}
+
 async function openPanel(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /open hospital assistant/i }))
+  await user.click(
+    await screen.findByRole('button', { name: /open hospital assistant/i }),
+  )
   return screen.getByRole('dialog')
 }
 
@@ -92,45 +134,80 @@ describe('AssistantLauncher', () => {
   })
 
   describe('who sees the launcher', () => {
-    it('shows exactly one launcher for a signed-in staff member', () => {
-      render(<AssistantLauncher />)
+    it('shows exactly one launcher for a signed-in staff member', async () => {
+      await renderLauncher()
 
       expect(screen.getAllByRole('button', { name: /hospital assistant/i })).toHaveLength(1)
     })
 
-    it('does not render on an unauthenticated surface', () => {
+    it('does not render on an unauthenticated surface', async () => {
       setAuth({ isAuthenticated: false })
-      render(<AssistantLauncher />)
-
-      expect(screen.queryByRole('button', { name: /hospital assistant/i })).not.toBeInTheDocument()
+      await renderWithoutLauncher()
     })
 
-    it('does not render for a platform super admin', () => {
+    it('does not render for a platform super admin', async () => {
       setAuth({ roles: ['super_admin'], user: { role: 'super_admin' } })
-      render(<AssistantLauncher />)
-
-      expect(screen.queryByRole('button', { name: /hospital assistant/i })).not.toBeInTheDocument()
+      await renderWithoutLauncher()
     })
 
-    it('does not render for a super admin who also holds a tenant role', () => {
+    it('does not render for a super admin who also holds a tenant role', async () => {
       setAuth({ roles: ['super_admin', 'doctor'], user: { role: 'doctor' } })
-      render(<AssistantLauncher />)
-
-      expect(screen.queryByRole('button', { name: /hospital assistant/i })).not.toBeInTheDocument()
+      await renderWithoutLauncher()
     })
 
-    it('does not render for a signed-in user holding no assistant role', () => {
+    it('does not render for a signed-in user holding no assistant role', async () => {
       setAuth({ roles: ['hospital_user'], user: { role: 'hospital_user' } })
-      render(<AssistantLauncher />)
-
-      expect(screen.queryByRole('button', { name: /hospital assistant/i })).not.toBeInTheDocument()
+      await renderWithoutLauncher()
     })
 
-    it('does not render during a read-only impersonation session', () => {
+    it('does not render during a read-only impersonation session', async () => {
       setAuth({ isReadOnly: true })
-      render(<AssistantLauncher />)
+      await renderWithoutLauncher()
+    })
 
-      expect(screen.queryByRole('button', { name: /hospital assistant/i })).not.toBeInTheDocument()
+    it('asks the server once whether this user has an assistant', async () => {
+      await renderLauncher()
+
+      expect(getStatusMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not render when the deployment has the assistant switched off', async () => {
+      // The switch this covers is ASSISTANT_OPERATIONAL_CHAT_ENABLED. With it
+      // off, staff must not be shown a floating button at all - not one that
+      // appears and then fails on the first question.
+      getStatusMock.mockResolvedValueOnce({
+        enabled: false,
+        capabilities: [],
+        provider_configured: false,
+      })
+
+      await renderWithoutLauncher()
+    })
+
+    it('does not render when the user reaches no part of the assistant', async () => {
+      getStatusMock.mockResolvedValueOnce({
+        enabled: false,
+        capabilities: [],
+        provider_configured: true,
+      })
+
+      await renderWithoutLauncher()
+    })
+
+    it('does not render when the availability request fails', async () => {
+      // Fail closed, matching the server: every state that breaks this request
+      // would refuse the question too.
+      getStatusMock.mockRejectedValueOnce(new Error('network'))
+
+      await renderWithoutLauncher()
+    })
+
+    it('never asks the server for a session that could not use it', async () => {
+      setAuth({ roles: ['super_admin'], user: { role: 'super_admin' } })
+
+      await renderWithoutLauncher()
+
+      expect(getStatusMock).not.toHaveBeenCalled()
     })
 
     it.each([
@@ -143,9 +220,9 @@ describe('AssistantLauncher', () => {
       'radiographer',
       'pharmacist',
       'cashier',
-    ])('renders for %s', (role) => {
+    ])('renders for %s', async (role) => {
       setAuth({ roles: [role], user: { role } })
-      render(<AssistantLauncher />)
+      await renderLauncher()
 
       expect(screen.getByRole('button', { name: /open hospital assistant/i })).toBeInTheDocument()
     })
@@ -154,7 +231,7 @@ describe('AssistantLauncher', () => {
   describe('opening and closing', () => {
     it('opens the panel on click and reports its expanded state', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
 
       const launcher = screen.getByRole('button', { name: /open hospital assistant/i })
       expect(launcher).toHaveAttribute('aria-expanded', 'false')
@@ -169,7 +246,7 @@ describe('AssistantLauncher', () => {
 
     it('is reachable and operable with the keyboard alone', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
 
       await user.tab()
       expect(screen.getByRole('button', { name: /open hospital assistant/i })).toHaveFocus()
@@ -180,7 +257,7 @@ describe('AssistantLauncher', () => {
 
     it('moves focus to the question box when the panel opens', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await waitFor(() => {
@@ -190,7 +267,7 @@ describe('AssistantLauncher', () => {
 
     it('closes on Escape and returns focus to the launcher', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.keyboard('{Escape}')
@@ -201,7 +278,7 @@ describe('AssistantLauncher', () => {
 
     it('closes with the close control', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.click(screen.getByRole('button', { name: /^close assistant$/i }))
@@ -213,7 +290,7 @@ describe('AssistantLauncher', () => {
   describe('empty state', () => {
     it('explains the scope and states the assistant cannot change records', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       const dialog = await openPanel(user)
 
       expect(within(dialog).getByText(/cannot give clinical advice/i)).toBeInTheDocument()
@@ -231,7 +308,7 @@ describe('AssistantLauncher', () => {
       )
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'how do I register a patient')
@@ -258,7 +335,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockResolvedValue(answer())
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'what reports can I run')
@@ -272,7 +349,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockResolvedValue(answer())
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'hello')
@@ -301,7 +378,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockResolvedValue(answer())
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       expect(
@@ -321,7 +398,7 @@ describe('AssistantLauncher', () => {
       })
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       expect(
@@ -339,7 +416,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockResolvedValue(answer())
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.click(
@@ -359,7 +436,7 @@ describe('AssistantLauncher', () => {
       })
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       expect(
@@ -381,7 +458,7 @@ describe('AssistantLauncher', () => {
       })
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       const panel = await openPanel(user)
 
       expect(
@@ -401,7 +478,7 @@ describe('AssistantLauncher', () => {
       })
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       const panel = await openPanel(user)
 
       expect(
@@ -415,7 +492,7 @@ describe('AssistantLauncher', () => {
       getSuggestionsMock.mockRejectedValue(new Error('unavailable'))
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       expect(screen.queryByText(/try asking/i)).not.toBeInTheDocument()
@@ -435,7 +512,7 @@ describe('AssistantLauncher', () => {
       )
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'unrelated nonsense')
@@ -456,7 +533,7 @@ describe('AssistantLauncher', () => {
       )
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'how many beds are free')
@@ -467,7 +544,7 @@ describe('AssistantLauncher', () => {
 
     it('blocks an over-long question before it reaches the network', async () => {
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       const box = screen.getByLabelText(/ask the hospital assistant/i)
@@ -486,7 +563,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockResolvedValueOnce(answer())
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -505,7 +582,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockRejectedValue(httpError(503, 'PROVIDER_UNAVAILABLE'))
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -518,7 +595,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockRejectedValue(httpError(403, 'PERMISSION_DENIED'))
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -533,7 +610,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockRejectedValue(httpError(404, 'CAPABILITY_DISABLED'))
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -548,7 +625,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockRejectedValue(httpError(503, 'PROVIDER_UNAVAILABLE'))
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -565,7 +642,7 @@ describe('AssistantLauncher', () => {
       feedbackMock.mockResolvedValue(undefined)
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -585,7 +662,7 @@ describe('AssistantLauncher', () => {
       feedbackMock.mockRejectedValue(httpError(503))
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(screen.getByLabelText(/ask the hospital assistant/i), 'a question')
@@ -604,7 +681,7 @@ describe('AssistantLauncher', () => {
       chatMock.mockResolvedValue(answer())
 
       const user = userEvent.setup()
-      render(<AssistantLauncher />)
+      await renderLauncher()
       await openPanel(user)
 
       await user.type(

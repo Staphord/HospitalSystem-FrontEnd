@@ -31,8 +31,22 @@ vi.mock('@/features/admin/context/AppContext', () => ({
   AppProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
+const getStatusMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    enabled: true,
+    capabilities: ['operational_chat', 'chat_history', 'voice', 'live_data'],
+    provider_configured: true,
+  })),
+)
+
 vi.mock('@/api/services/assistant', () => ({
-  assistantService: { chat: vi.fn(), sendFeedback: vi.fn() },
+  assistantService: {
+    getStatus: getStatusMock,
+    chat: vi.fn(),
+    sendFeedback: vi.fn(),
+    getSuggestions: vi.fn(async () => ({ request_id: 'req-s', suggestions: [] })),
+    listConversations: vi.fn(async () => ({ conversations: [] })),
+  },
 }))
 
 function renderShell() {
@@ -58,10 +72,15 @@ describe('HospitalLayout assistant mount', () => {
     }
   })
 
-  it('mounts exactly one assistant launcher in the authenticated shell', () => {
+  it('mounts exactly one assistant launcher in the authenticated shell', async () => {
     renderShell()
 
     expect(screen.getByText('Reception page')).toBeInTheDocument()
+    // Awaited: the launcher appears only once the server has confirmed the
+    // assistant is available to this user.
+    expect(
+      await screen.findByRole('button', { name: /open hospital assistant/i }),
+    ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /open hospital assistant/i })).toHaveLength(1)
   })
 

@@ -39,8 +39,17 @@ const getSuggestionsMock = vi.hoisted(() =>
   vi.fn(async () => ({ request_id: 'req-s', suggestions: [] })),
 )
 
+const getStatusMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    enabled: true,
+    capabilities: ['operational_chat', 'chat_history', 'voice', 'live_data'],
+    provider_configured: true,
+  })),
+)
+
 vi.mock('@/api/services/assistant', () => ({
   assistantService: {
+    getStatus: getStatusMock,
     chat: chatMock,
     getSuggestions: getSuggestionsMock,
     sendFeedback: feedbackMock,
@@ -123,7 +132,11 @@ function httpError(status: number, code?: string): AxiosError {
 }
 
 async function openPanel(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /open hospital assistant/i }))
+  // The launcher is drawn only once the server has confirmed this user has
+  // an assistant, so it is waited for rather than read straight out of the DOM.
+  await user.click(
+    await screen.findByRole('button', { name: /open hospital assistant/i }),
+  )
   return screen.getByRole('dialog')
 }
 
@@ -512,7 +525,10 @@ describe('deleting previous chats', () => {
   })
 })
 
-describe('when history is switched off for the deployment', () => {
+describe('when the history routes are unavailable', () => {
+  // History has no switch of its own any more. It can still be absent - the
+  // tenant migration that creates its tables may not have been applied - and
+  // the server reports that the same way, so the panel must still cope.
   it('offers no history controls at all', async () => {
     listConversationsMock.mockRejectedValue(httpError(404, 'CAPABILITY_DISABLED'))
     const user = userEvent.setup()

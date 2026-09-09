@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AssistantPanel } from '@/features/assistant/components/AssistantPanel'
 import { useAssistantChat } from '@/features/assistant/hooks/useAssistantChat'
+import { useAssistantStatus } from '@/features/assistant/hooks/useAssistantStatus'
 import { useDraggableLauncher } from '@/features/assistant/hooks/useDraggableLauncher'
 import { LAUNCHER_MARGIN_PX, LAUNCHER_SIZE_PX } from '@/features/assistant/lib/launcherPosition'
 import { useAuth } from '@/hooks/useAuth'
@@ -11,10 +12,10 @@ import { ROLES } from '@/lib/roles'
  * Roles permitted to use operational chat.
  *
  * Mirrors the server matrix in report-service (app/assistant/permissions.py).
- * The server is the authority: this gate only avoids showing staff a control
- * that would be refused. A platform super admin is excluded here and denied
- * there, because super admins administer tenants and must never read tenant
- * content.
+ * The server is the authority: this list only avoids sending a status request
+ * for a session that could not use the assistant whatever the answer. A
+ * platform super admin is excluded here and denied there, because super admins
+ * administer tenants and must never read tenant content.
  */
 const ASSISTANT_ROLES: string[] = [
   ROLES.hospitalAdmin,
@@ -38,9 +39,16 @@ export function AssistantLauncher() {
   const { isAuthenticated, isReadOnly } = useAuth()
   const { hasAnyRole, isSuperAdmin } = usePermissions()
 
+  // Worth asking the server about at all. A read-only impersonation session and
+  // a platform super admin are refused by every assistant route, so neither is
+  // asked.
+  const couldUseAssistant =
+    isAuthenticated && !isReadOnly && !isSuperAdmin() && hasAnyRole(ASSISTANT_ROLES)
+
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  const status = useAssistantStatus(couldUseAssistant)
   const chat = useAssistantChat()
   const drag = useDraggableLauncher()
 
@@ -67,14 +75,21 @@ export function AssistantLauncher() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isOpen, close])
 
-  const allowed = isAuthenticated && !isSuperAdmin() && hasAnyRole(ASSISTANT_ROLES)
+  if (!couldUseAssistant) return null
 
-  // A read-only impersonation session is refused by the server, so the control
-  // is not offered rather than being offered and always failing.
-  if (!allowed || isReadOnly) return null
+  // Nothing is drawn until the server has answered. Rendering the button first
+  // and withdrawing it on the answer would put a control on screen that
+  // disappears under the user's cursor.
+  if (status.isLoading) return null
 
-  // The deployment has the capability switched off. Stop offering the launcher
-  // for the rest of the session instead of leaving a button that cannot work.
+  // The deployment has the assistant switched off, or this user's roles reach
+  // none of it. Either way there is no launcher, rather than a button that
+  // answers 404 the first time somebody presses it.
+  if (!status.isEnabled) return null
+
+  // Switched off while the session was open - the answer to a question came
+  // back as an absent capability. Stop offering the launcher for the rest of
+  // the session.
   if (chat.isCapabilityDisabled) return null
 
   const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth

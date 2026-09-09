@@ -199,3 +199,31 @@ export interface AssistantVoiceTranscriptResponse {
 
 /** Recognition hints the server accepts. Anything else is auto-detected. */
 export type AssistantVoiceLanguage = 'en' | 'sw'
+
+/**
+ * Whether the signed-in user should be offered the assistant at all.
+ *
+ * Read once when the hospital shell mounts, before any question exists. It is
+ * what lets the floating launcher stay unmounted on a deployment that has the
+ * assistant switched off, rather than being drawn and failing the first time
+ * somebody presses it.
+ *
+ * `enabled: false` is a normal 200 answer, not an error: the browser has to be
+ * able to tell "switched off here" apart from "the request failed".
+ */
+export interface AssistantStatusResponse {
+  enabled: boolean
+  /**
+   * The parts of the assistant this caller's roles can reach. Advisory: the
+   * panel uses it to avoid offering a control that would be refused, and the
+   * server checks every one of them again on the request that uses it.
+   */
+  capabilities: string[]
+  /**
+   * False when the deployment is switched on but no model credential has been
+   * set in the super admin portal yet. The launcher still appears; the panel
+   * can say the assistant is not configured rather than showing a provider
+   * error on the first question.
+   */
+  provider_configured: boolean
+}
