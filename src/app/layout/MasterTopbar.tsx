@@ -30,6 +30,7 @@ function getMasterPageTitle(pathname: string): string {
   if (p.includes('/master/health') || p.includes('/master/telemetry') || p.includes('/master/monitoring')) return 'System Health & Telemetry'
   if (p.includes('/master/incidents')) return 'Platform Incidents'
   if (p.includes('/master/announcements')) return 'System Announcements'
+  if (p.includes('/master/ai-assistant')) return 'AI Assistant Configuration'
   if (p.includes('/master/audit')) return 'Global Audit Logs'
   if (p.includes('/master/admins') || p.includes('/master/users')) return 'Platform Admins'
   if (p.includes('/master/notifications')) return 'Platform Notifications'
