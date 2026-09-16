@@ -11,8 +11,9 @@ import { login } from './helpers/login'
  * plumbing and the safety behaviour, not recognition quality. Recognition needs
  * a person speaking into a real microphone, which is the manual QA script.
  *
- * Requires ASSISTANT_VOICE_ENABLED=true and a provider credential on
- * report-service. Where those are off the assistant withdraws itself and this
+ * Requires ASSISTANT_OPERATIONAL_CHAT_ENABLED=true on report-service and an
+ * API key set in the super admin portal. Voice no longer has a switch of its
+ * own. Where either is missing the launcher is never drawn at all, so this
  * spec should be skipped rather than forced to pass.
  */
 

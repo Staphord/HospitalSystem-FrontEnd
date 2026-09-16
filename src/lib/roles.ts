@@ -197,12 +197,12 @@ export const HOSPITAL_NAV: NavItem[] = [
   {
     label: 'Investigation Results',
     path: '/consultation/results',
-    roles: [ROLES.doctor],
+    roles: [ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
     label: 'Patient History',
     path: '/consultation/history',
-    roles: [ROLES.doctor],
+    roles: [ROLES.doctor, ROLES.hospitalAdmin],
   },
   {
     label: 'My Referrals',
@@ -321,6 +321,7 @@ export const MASTER_NAV: NavItem[] = [
   { label: 'System Health', path: '/master/health', roles: [ROLES.superAdmin] },
   { label: 'Announcements', path: '/master/announcements', roles: [ROLES.superAdmin] },
   { label: 'Audit Logs', path: '/master/audit-logs', roles: [ROLES.superAdmin] },
+  { label: 'AI Assistant', path: '/master/ai-assistant', roles: [ROLES.superAdmin] },
 ]
 
 export function getDefaultRoute(roles: string[], userRole?: string | null): string {

@@ -46,6 +46,7 @@ import { SystemHealthPage } from '@/features/master/pages/SystemHealthPage'
 import { IncidentsPage } from '@/features/master/pages/IncidentsPage'
 import { AnnouncementsPage } from '@/features/master/pages/AnnouncementsPage'
 import { AuditLogsPage } from '@/features/master/pages/AuditLogsPage'
+import { AssistantConfigPage } from '@/features/master/pages/AssistantConfigPage'
 import { ReportsDashboardPage } from '@/features/reports/pages/ReportsDashboardPage'
 import { PatientReportsPage } from '@/features/reports/pages/PatientReportsPage'
 import { RevenueReportsPage } from '@/features/reports/pages/RevenueReportsPage'
@@ -155,6 +156,7 @@ export const routes = [
               { path: '/master/health', element: <SystemHealthPage /> },
               { path: '/master/announcements', element: <AnnouncementsPage /> },
               { path: '/master/audit-logs', element: <AuditLogsPage /> },
+              { path: '/master/ai-assistant', element: <AssistantConfigPage /> },
               { path: '/master/profile', element: <ProfilePage /> },
             ],
           },

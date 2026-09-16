@@ -123,7 +123,8 @@
     "/consultation/history": {
       "label": "Patient History",
       "roles": [
-        "doctor"
+        "doctor",
+        "hospital_admin"
       ]
     },
     "/consultation/inpatient": {
@@ -148,7 +149,8 @@
     "/consultation/results": {
       "label": "Investigation Results",
       "roles": [
-        "doctor"
+        "doctor",
+        "hospital_admin"
       ]
     },
     "/dashboard": {
@@ -188,6 +190,12 @@
     },
     "/master/admins": {
       "label": "Platform Admins",
+      "roles": [
+        "super_admin"
+      ]
+    },
+    "/master/ai-assistant": {
+      "label": "AI Assistant",
       "roles": [
         "super_admin"
       ]

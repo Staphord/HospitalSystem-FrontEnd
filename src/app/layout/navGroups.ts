@@ -98,6 +98,7 @@ export function groupNavItems(params: GroupNavParams): NavGroup[] {
           '/master/health',
           '/master/announcements',
           '/master/audit-logs',
+          '/master/ai-assistant',
         ]),
       },
     ]

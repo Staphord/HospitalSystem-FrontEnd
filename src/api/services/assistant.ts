@@ -5,6 +5,7 @@ import type {
   AssistantConversationListResponse,
   AssistantConversationResponse,
   AssistantFeedbackRequest,
+  AssistantStatusResponse,
   AssistantSuggestionsResponse,
   AssistantVoiceLanguage,
   AssistantVoiceTranscriptResponse,
@@ -19,6 +20,18 @@ import type {
  * port directly.
  */
 export const assistantService = {
+  /**
+   * Whether this user should be offered the assistant.
+   *
+   * Called once by the shell before the launcher is rendered. It takes no
+   * parameters and none would be accepted: the server resolves the roles and
+   * the tenant from the verified token.
+   */
+  getStatus: (signal?: AbortSignal) =>
+    apiClient
+      .get<AssistantStatusResponse>('/reports/assistant/status', { signal })
+      .then((r) => r.data),
+
   /** Ask one operational question. Abortable so the user can cancel a slow request. */
   chat: (data: AssistantChatRequest, signal?: AbortSignal) =>
     apiClient
