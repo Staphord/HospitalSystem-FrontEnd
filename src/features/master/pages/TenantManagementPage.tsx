@@ -12,6 +12,7 @@ export function TenantManagementPage() {
   // Data states
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   
   // Filter states
   const [search, setSearch] = useState('')
@@ -33,11 +34,13 @@ export function TenantManagementPage() {
   const fetchTenants = async () => {
     try {
       setLoading(true)
+      setLoadError(false)
       // Simulating a minor load latency to demonstrate the skeleton state
       await new Promise((r) => setTimeout(r, 600))
       const data = await masterService.listTenants()
       setTenants(data)
     } catch (_err) {
+      setLoadError(true)
       toast.error('Failed to load tenants.')
     } finally {
       setLoading(false)
@@ -306,6 +309,18 @@ export function TenantManagementPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        ) : loadError ? (
+          /* ERROR STATE — distinct from "genuinely no tenants" */
+          <div className="text-center py-16 px-4 flex flex-col items-center justify-center">
+            <span className="material-symbols-outlined text-error text-[48px] mb-md">error</span>
+            <h4 className="text-headline-sm font-bold text-on-surface mb-xs">Couldn't Load Tenants</h4>
+            <p className="text-secondary text-body-sm max-w-sm mb-lg">
+              Something went wrong while fetching hospital tenants. This may be a temporary connection issue.
+            </p>
+            <button className="btn btn-primary btn-sm" onClick={fetchTenants}>
+              Retry
+            </button>
           </div>
         ) : paginatedTenants.length === 0 ? (
           /* EMPTY STATE */
