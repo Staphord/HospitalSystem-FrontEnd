@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { HOSPITAL_NAV, MASTER_NAV, ROLES } from '@/lib/roles'
+import { ROLES } from '@/lib/roles'
+import { groupNavItems } from '@/app/layout/navGroups'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuth } from '@/hooks/useAuth'
 import { authService } from '@/api/services/auth'
@@ -15,7 +16,7 @@ import { toast } from 'sonner'
 
 
 export function Sidebar() {
-  const { hasRole, hasAnyRole, isSuperAdmin, isHospitalAdmin } = usePermissions()
+  const { hasRole, isSuperAdmin, isHospitalAdmin, roles } = usePermissions()
   const { user, clearAuth, refreshToken, tenantId, isImpersonating } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -52,8 +53,6 @@ export function Sidebar() {
         .catch(() => {});
     }
   }, [isSuperAdmin]);
-
-  const navItems = isSuperAdmin() ? MASTER_NAV : HOSPITAL_NAV
 
   // Retrieve dynamic hospital name and logo from user session, stored profile, or tenant config
   const tenants = JSON.parse(localStorage.getItem('hf_mock_tenants') || '[]')
@@ -97,219 +96,7 @@ export function Sidebar() {
       .join(' ')
   }
 
-  // Get navigation items grouped by section
-  const getGroupedNav = () => {
-    const visibleItems = navItems.filter((item) => {
-      if (!hasAnyRole(item.roles)) return false
-      
-      if (item.path.includes('/pharmacy') && !enabledModules.includes('pharmacy')) return false
-      if (item.path.includes('/laboratory') && !enabledModules.includes('laboratory')) return false
-      if (item.path.includes('/radiology') && !enabledModules.includes('radiology')) return false
-      
-      return true
-    })
-    
-    if (isSuperAdmin()) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter(
-            (item) =>
-              item.path.includes('/master/dashboard')
-          ),
-        },
-        {
-          title: 'Tenant Management',
-          items: visibleItems.filter(
-            (item) =>
-              item.path.includes('/master/tenants') ||
-              item.path.includes('/master/subscriptions') ||
-              item.path.includes('/master/invoices') ||
-              item.path.includes('/master/payments')
-          ),
-        },
-        {
-          title: 'Platform Operations',
-          items: visibleItems.filter(
-            (item) =>
-              item.path.includes('/master/admins') ||
-              item.path.includes('/master/health') ||
-              item.path.includes('/master/announcements') ||
-              item.path.includes('/master/audit-logs')
-          ),
-        },
-      ]
-    } else if (isHospitalAdmin()) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter((item) => item.path === '/admin/dashboard'),
-        },
-        {
-          title: 'Staff Management',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/admin/staff' ||
-              item.path === '/admin/sessions'
-          ),
-        },
-        {
-          title: 'Hospital Configuration',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/admin/departments' ||
-              item.path === '/admin/fees' ||
-              item.path === '/admin/insurance' ||
-              item.path === '/admin/settings' ||
-              item.path === '/admin/roles' ||
-              item.path === '/admin/permissions'
-          ),
-        },
-        {
-          title: 'Reports & Analytics',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/admin/reports/patients' ||
-              item.path === '/admin/reports/revenue' ||
-              item.path === '/admin/reports/operations'
-          ),
-        },
-        {
-          title: 'System',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/admin/audit-logs' ||
-              item.path === '/admin/backup' ||
-              item.path === '/admin/subscription'
-          ),
-        },
-      ]
-    } else if (hasRole(ROLES.receptionist)) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter((item) => item.path === '/dashboard'),
-        },
-        {
-          title: 'Patients',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/reception/register' ||
-              item.path === '/reception/search'
-          ),
-        },
-        {
-          title: 'Queue',
-          items: visibleItems.filter((item) => item.path === '/reception/queue'),
-        },
-        {
-          title: 'Billing',
-          items: visibleItems.filter((item) => item.path === '/billing'),
-        },
-      ]
-    } else if (hasRole(ROLES.triageNurse)) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter((item) => item.path === '/dashboard'),
-        },
-        {
-          title: 'Triage',
-          items: visibleItems.filter((item) => item.path === '/triage/queue'),
-        },
-        {
-          title: 'Patients',
-          items: visibleItems.filter((item) => item.path === '/triage/history'),
-        },
-      ]
-    } else if (hasRole(ROLES.labTechnician)) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter((item) => item.path === '/dashboard'),
-        },
-        {
-          title: 'Laboratory',
-          items: visibleItems.filter((item) => item.path === '/laboratory/requests'),
-        },
-        {
-          title: 'Specimens',
-          items: visibleItems.filter((item) => item.path === '/laboratory/specimens'),
-        },
-      ]
-    } else if (hasRole(ROLES.cashier)) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter((item) => item.path === '/dashboard' || item.path === '/billing/dashboard'),
-        },
-        {
-          title: 'Billing & Payments',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/billing/bills' ||
-              item.path === '/billing/summary'
-          ),
-        },
-      ]
-    } else if (hasRole(ROLES.pharmacist)) {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter((item) => item.path === '/dashboard'),
-        },
-        {
-          title: 'Pharmacy',
-          items: visibleItems.filter((item) => item.path === '/pharmacy/queue'),
-        },
-        {
-          title: 'Inventory',
-          items: visibleItems.filter((item) => item.path === '/pharmacy/stock'),
-        },
-      ]
-    } else {
-      return [
-        {
-          title: 'Overview',
-          items: visibleItems.filter(
-            (item) =>
-              item.path === '/dashboard' ||
-              item.path === '/reports' ||
-              item.path === '/notifications'
-          ),
-        },
-        {
-          title: 'Clinical Workflow',
-          items: visibleItems.filter(
-            (item) =>
-              item.path.includes('/reception') ||
-              item.path.includes('/triage') ||
-              item.path.includes('/consultation') ||
-              item.path.includes('/ward')
-          ),
-        },
-        {
-          title: 'Ancillary Services',
-          items: visibleItems.filter(
-            (item) =>
-              item.path.includes('/laboratory') ||
-              item.path.includes('/radiology') ||
-              item.path.includes('/pharmacy')
-          ),
-        },
-        {
-          title: 'Admin & Billing',
-          items: visibleItems.filter(
-            (item) =>
-              item.path.includes('/admin/') ||
-              item.path === '/billing'
-          ),
-        },
-      ]
-    }
-  }
-
-  const groupedNav = getGroupedNav()
+  const groupedNav = groupNavItems({ roles, enabledModules })
 
   if (isHospitalAdmin()) {
     return (

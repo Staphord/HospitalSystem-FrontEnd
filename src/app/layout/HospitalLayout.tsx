@@ -14,6 +14,7 @@ import { PharmacyMobileNav } from '@/app/layout/PharmacyMobileNav'
 import { RadiologyTopbar } from '@/app/layout/RadiologyTopbar'
 import { RadiologyMobileNav } from '@/app/layout/RadiologyMobileNav'
 import { ImpersonationBanner } from '@/app/layout/ImpersonationBanner'
+import { AssistantLauncher } from '@/features/assistant/components/AssistantLauncher'
 import { AppProvider } from '@/features/admin/context/AppContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAuth } from '@/hooks/useAuth'
@@ -162,6 +163,8 @@ export function HospitalLayout() {
         {isLabTechnician && <LaboratoryMobileNav />}
         {isPharmacist && <PharmacyMobileNav />}
         {isRadiographer && <RadiologyMobileNav />}
+        {/* One launcher for the whole authenticated shell, never one per page. */}
+        <AssistantLauncher />
       </div>
     </AppProvider>
   )
